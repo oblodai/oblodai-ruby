@@ -1,0 +1,66 @@
+AllCops:
+  TargetRubyVersion: 3.1
+  NewCops: enable
+  SuggestExtensions: false
+  Exclude:
+    - "vendor/**/*"
+    - "lib/oblodai/contract/routes.rb"    # generated
+    - "lib/oblodai/contract/enums.rb"     # generated
+    - "lib/oblodai/contract/requests.rb"  # generated
+
+Layout/LineLength:
+  Max: 120
+
+# The SDK mirrors the gateway's own surface: long but flat resource classes, long but flat
+# request/response tables. Length metrics measure the API, not the complexity of the code.
+Metrics/AbcSize:
+  Enabled: false
+Metrics/BlockLength:
+  Enabled: false
+Metrics/ClassLength:
+  Enabled: false
+# The transport's retry/skew state machine and the envelope decoder branch once per documented
+# protocol case; splitting them would hide the state machine rather than simplify it.
+Metrics/CyclomaticComplexity:
+  Max: 14
+Metrics/PerceivedComplexity:
+  Max: 15
+Metrics/MethodLength:
+  Max: 40
+Metrics/ModuleLength:
+  Enabled: false
+Metrics/ParameterLists:
+  Enabled: false
+
+Style/StringLiterals:
+  EnforcedStyle: double_quotes
+Style/StringLiteralsInInterpolation:
+  EnforcedStyle: double_quotes
+Style/Documentation:
+  Enabled: true
+Naming/PredicatePrefix:
+  Enabled: false
+Naming/AccessorMethodName:
+  Enabled: false
+
+Style/OptionalBooleanParameter:
+  Exclude:
+    - "lib/oblodai/resources/**/*.rb"
+
+Naming/MethodParameterName:
+  AllowedNames: [a, b, io, id, to, ts, ok]
+
+# The wire vocabulary calls it `method` ("METHOD /path"), and these are plain value objects the
+# SDK never reflects on — shadowing Struct#method keeps the code reading like the contract.
+Lint/StructNewOverride:
+  Exclude:
+    - "lib/oblodai/contract/route.rb"
+    - "lib/oblodai/core/http.rb"
+    - "lib/oblodai/core/request.rb"
+    - "spec/support/fake_http.rb"
+
+Style/ClassAndModuleChildren:
+  Enabled: false
+
+Metrics/CollectionLiteralLength:
+  Enabled: false
