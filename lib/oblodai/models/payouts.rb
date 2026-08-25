@@ -31,7 +31,7 @@ module Oblodai
       field :commission
       # @return [String] who bore the network fee
       field :fee_bearer
-      # @return [String] balance the payout was funded from: business | personal
+      # @return [String] how the payout was initiated: api | manual
       field :source
       # @return [Boolean] whether it waits for a manual approval
       field :approval_required

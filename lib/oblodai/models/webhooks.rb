@@ -133,7 +133,7 @@ module Oblodai
       field :commission
       # @return [String]
       field :fee_bearer
-      # @return [String] business | personal
+      # @return [String] api | manual
       field :source
       # @return [Boolean]
       field :approval_required
