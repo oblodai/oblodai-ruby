@@ -131,24 +131,22 @@ RSpec.describe Oblodai::Transport do
       .to raise_error(Oblodai::TransportError) { |e| expect(e.code).to eq("transport.timeout") }
   end
 
-  it "uses the payout credentials for payout routes when configured" do
-    http = FakeHTTP.new([FakeHTTP.ok("uuid" => "p"), FakeHTTP.ok("uuid" => "i")])
-    client = client_with(http, payout_public_id: "wk_test_1", payout_secret: "s2")
+  it "signs a payout, an invoice and a batch lookup with the one API key" do
+    http = FakeHTTP.new([FakeHTTP.ok("uuid" => "p"), FakeHTTP.ok("uuid" => "i"),
+                         FakeHTTP.ok("batch_id" => "b1", "kind" => "payout", "status" => "done")])
+    client = client_with(http)
     client.payouts.create(amount: "1", currency: "USDT", address: "T", order_id: "o")
     client.payments.create(amount: "1", currency: "USDT")
-    expect(http.calls[0].headers["x-public-id"]).to eq("wk_test_1")
-    expect(http.calls[1].headers["x-public-id"]).to eq("pk_test_1")
+    client.batches.info("b1")
+    expect(http.calls.map { |call| call.headers["x-public-id"] }).to eq(["pk_test_1"] * 3)
+    expect(http.calls.map { |call| call.headers["x-signature"] }).to all(match(/\A[0-9a-f]{64}\z/))
   end
 
-  it "retries batches.info with the payout key on merchant.wrong_key_kind" do
-    http = FakeHTTP.new([
-                          FakeHTTP.api_error(403, { "code" => "merchant.wrong_key_kind", "retryable" => false }),
-                          FakeHTTP.ok("batch_id" => "b1", "kind" => "payout", "status" => "done")
-                        ])
-    client = client_with(http, payout_public_id: "wk_test_1", payout_secret: "s2")
-    expect(client.batches.info("b1").batch_id).to eq("b1")
-    expect(http.calls[0].headers["x-public-id"]).to eq("pk_test_1")
-    expect(http.calls[1].headers["x-public-id"]).to eq("wk_test_1")
+  it "takes no per-call key preference: there is no second key to prefer" do
+    http = FakeHTTP.new([])
+    expect { client_with(http).payouts.info("p1", prefer_payout_key: true) }
+      .to raise_error(Oblodai::ConfigError) { |e| expect(e.field).to eq("prefer_payout_key") }
+    expect(http.calls).to be_empty
   end
 
   it "requires credentials only on the routes that need them" do

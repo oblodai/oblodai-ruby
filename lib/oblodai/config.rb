@@ -17,8 +17,6 @@ module Oblodai
     attr_reader :base_url
     # @return [Oblodai::RequestBuilder::Credentials, nil]
     attr_reader :credentials
-    # @return [Oblodai::RequestBuilder::Credentials, nil]
-    attr_reader :payout_credentials
     # @return [Object, nil]
     attr_reader :http
     # @return [Integer]
@@ -34,10 +32,9 @@ module Oblodai
     # @return [String, nil]
     attr_reader :admin_token
 
-    # @param public_id [String, nil] public id of the API key (`X-Public-Id`); env OBLODAI_PUBLIC_ID
-    # @param secret [String, nil] secret of the API key; env OBLODAI_SECRET
-    # @param payout_public_id [String, nil] optional dedicated payout key; env OBLODAI_PAYOUT_PUBLIC_ID
-    # @param payout_secret [String, nil] env OBLODAI_PAYOUT_SECRET
+    # @param public_id [String, nil] public id of the merchant's one API key (`X-Public-Id`);
+    #   env OBLODAI_PUBLIC_ID
+    # @param secret [String, nil] secret of that key — it signs every signed route; env OBLODAI_SECRET
     # @param base_url [String, nil] API origin; env OBLODAI_BASE_URL, then https://api.oblodai.com
     # @param http [#call, nil] HTTP adapter (a fake in tests, a proxy-aware Net::HTTP in production)
     # @param timeout_ms [Integer] per-attempt timeout
@@ -51,10 +48,9 @@ module Oblodai
     #   on the two merchant-provisioning routes and nowhere else. env OBLODAI_ADMIN_TOKEN
     # @param allow_insecure_base_url [Boolean] permit plain http:// base URLs; env OBLODAI_ALLOW_INSECURE=1
     # @param env [Hash] the environment to read fallbacks from
-    def initialize(public_id: nil, secret: nil, payout_public_id: nil, payout_secret: nil,
-                   base_url: nil, http: nil, timeout_ms: 30_000, deadline_ms: 90_000,
-                   retry_policy: {}, logger: nil, headers: {}, admin_token: nil,
-                   allow_insecure_base_url: false, env: ENV)
+    def initialize(public_id: nil, secret: nil, base_url: nil, http: nil, timeout_ms: 30_000,
+                   deadline_ms: 90_000, retry_policy: {}, logger: nil, headers: {},
+                   admin_token: nil, allow_insecure_base_url: false, env: ENV)
       # A blank value is not a base URL: an `export OBLODAI_BASE_URL=` in a shell profile arrives as
       # "" and must fall through to the next source, exactly as a blank credential does.
       @base_url = [base_url, env["OBLODAI_BASE_URL"], DEFAULT_BASE_URL]
@@ -65,9 +61,6 @@ module Oblodai
       @credentials = key_pair(public_id || env["OBLODAI_PUBLIC_ID"], secret || env["OBLODAI_SECRET"],
                               "public_id and secret must be provided together " \
                               "(or set both OBLODAI_PUBLIC_ID and OBLODAI_SECRET)")
-      @payout_credentials = key_pair(payout_public_id || env["OBLODAI_PAYOUT_PUBLIC_ID"],
-                                     payout_secret || env["OBLODAI_PAYOUT_SECRET"],
-                                     "payout_public_id and payout_secret must be provided together")
       @http = http
       @timeout_ms = timeout_ms
       @deadline_ms = deadline_ms
@@ -81,7 +74,6 @@ module Oblodai
     def inspect
       "#<Oblodai::Config base_url=#{@base_url.inspect} " \
         "credentials=#{@credentials ? "#{@credentials.public_id} (secret [redacted])" : "none"} " \
-        "payout_credentials=#{@payout_credentials ? "#{@payout_credentials.public_id} (secret [redacted])" : "none"} " \
         "admin_token=#{@admin_token ? "[redacted]" : "none"} " \
         "timeout_ms=#{@timeout_ms} deadline_ms=#{@deadline_ms}>"
     end

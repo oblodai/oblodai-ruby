@@ -15,7 +15,7 @@ require_relative "resources/webhooks"
 require_relative "version"
 
 module Oblodai
-  # The Oblodai API client. One instance per key pair; safe to share across threads (it holds no
+  # The Oblodai API client. One instance per API key; safe to share across threads (it holds no
   # per-request state; each call opens its own connection).
   #
   #     client = Oblodai::Client.new(public_id: "pk_live_…", secret: "…")
@@ -23,8 +23,8 @@ module Oblodai
   #                                      order_id: "o-1")
   #     invoice.url  # the hosted pay page
   #
-  # Credentials fall back to `OBLODAI_PUBLIC_ID` / `OBLODAI_SECRET` (and `OBLODAI_PAYOUT_*` for the
-  # payout key pair), the base URL to `OBLODAI_BASE_URL`.
+  # Credentials fall back to `OBLODAI_PUBLIC_ID` / `OBLODAI_SECRET`, the base URL to
+  # `OBLODAI_BASE_URL`.
   class Client
     # @return [Oblodai::Resources::Payments]
     attr_reader :payments
@@ -68,8 +68,7 @@ module Oblodai
     def initialize(**options)
       @config = options[:config] || Config.new(**options)
       @transport = Transport.new(
-        base_url: @config.base_url, credentials: @config.credentials,
-        payout_credentials: @config.payout_credentials, http: @config.http,
+        base_url: @config.base_url, credentials: @config.credentials, http: @config.http,
         timeout_ms: @config.timeout_ms, deadline_ms: @config.deadline_ms,
         retry_policy: @config.retry_policy, logger: @config.logger,
         headers: @config.headers, admin_token: @config.admin_token,

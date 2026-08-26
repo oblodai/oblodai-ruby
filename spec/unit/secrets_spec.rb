@@ -5,7 +5,6 @@
 RSpec.describe "secrets never print" do
   let(:client) do
     Oblodai::Client.new(public_id: "pk_test_1", secret: "super-secret-key",
-                        payout_public_id: "wk_test_1", payout_secret: "payout-secret-key",
                         admin_token: "adm-token", base_url: "https://api.test", http: FakeHTTP.new)
   end
 
@@ -14,7 +13,6 @@ RSpec.describe "secrets never print" do
      client.config.credentials.inspect, client.config.credentials.to_s,
      client.config.credentials.to_json].each do |rendered|
       expect(rendered).not_to include("super-secret-key")
-      expect(rendered).not_to include("payout-secret-key")
       expect(rendered).not_to include("adm-token")
     end
     expect(client.transport.inspect).to include("pk_test_1", "[redacted]")
@@ -29,7 +27,7 @@ RSpec.describe "secrets never print" do
       [Oblodai::Models::WebhookSecretRotated.from("endpoint_id" => "e", "url" => "https://x",
                                                   "secret" => "whsec_new",
                                                   "previous_secret_valid_until" => "t"), :secret, "whsec_new"],
-      [Oblodai::Models::ApiKeyPair.from("public_id" => "pk", "secret" => "sk_live", "kind" => "api"),
+      [Oblodai::Models::ApiKeyPair.from("public_id" => "pk", "secret" => "sk_live"),
        :secret, "sk_live"],
       [Oblodai::Models::PayoutLink.from("link_id" => "l", "claim_token" => "tok_live"),
        :claim_token, "tok_live"],

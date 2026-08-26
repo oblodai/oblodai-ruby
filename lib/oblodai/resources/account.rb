@@ -52,7 +52,7 @@ module Oblodai
 
     # Developer sandbox (`test_` keys only): fake money, simulated deposits, webhook inspector.
     class Sandbox < Base
-      # `POST /v1/sandbox/faucet` — credit test funds. Payout key.
+      # `POST /v1/sandbox/faucet` — credit test funds.
       # @return [Oblodai::Models::FaucetResult]
       def faucet(**params)
         options = Base.take_options!(params)
@@ -82,7 +82,7 @@ module Oblodai
              model: Models::SandboxReplay, **options)
       end
 
-      # `POST /v1/sandbox/reset` — cancel open invoices and zero balances. Payout key.
+      # `POST /v1/sandbox/reset` — cancel open invoices and zero balances.
       # @return [Oblodai::Models::SandboxReset]
       def reset(**options)
         call("POST /v1/sandbox/reset", nil, model: Models::SandboxReset, **options)
@@ -92,7 +92,7 @@ module Oblodai
     # Merchant provisioning — for platforms that onboard merchants themselves. These routes are not
     # HMAC-signed; a self-hosted gateway gates them with its admin token (`admin_token:` option).
     class Merchants < Base
-      # `POST /v1/merchants` — create a merchant and mint its payment and payout keys (shown once).
+      # `POST /v1/merchants` — create a merchant and mint its API key (the secret is shown once).
       # @return [Oblodai::Models::MerchantOnboarded]
       def create(**params)
         options = Base.take_options!(params)

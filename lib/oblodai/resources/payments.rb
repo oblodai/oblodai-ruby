@@ -5,7 +5,7 @@ require_relative "../models/payments"
 
 module Oblodai
   module Resources
-    # Invoices: create, look up, cancel, list, and the payer-facing checkout endpoints. Payment key.
+    # Invoices: create, look up, cancel, list, and the payer-facing checkout endpoints.
     #
     # Every method takes the request fields as keyword arguments, plus the per-call options listed
     # in {Oblodai::Resources::Base::OPTION_KEYS}. Field names and their meaning are the core's own;

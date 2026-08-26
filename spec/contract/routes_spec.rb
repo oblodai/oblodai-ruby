@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 # Every route the core declares has exactly one SDK method, wired to the right METHOD and path,
-# signed with the right key kind and carrying an Idempotency-Key exactly where the core
+# signed the way the core's gate expects and carrying an Idempotency-Key exactly where the core
 # deduplicates. The table below is the SDK's coverage ledger: a new core route fails this spec
 # until a method is added for it.
 ANY_RESULT = { "state" => 0,
@@ -169,7 +169,7 @@ RSpec.describe "route coverage" do
     expect(route_mismatches(spec, declared.merge("safe" => true))).to eq(["safe: false != true"])
     expect(route_mismatches(spec, declared.merge("idempotent" => false)))
       .to eq(["idempotent: true != false"])
-    expect(route_mismatches(spec, declared.merge("auth" => "public"))).to eq(["auth: :payout != :public"])
+    expect(route_mismatches(spec, declared.merge("auth" => "public"))).to eq(["auth: :key != :public"])
     expect(route_mismatches(spec, declared.merge("list" => "paged"))).to eq(["list: nil != :paged"])
   end
 
@@ -206,7 +206,7 @@ RSpec.describe "route coverage" do
   end
 
   Oblodai::Contract::ROUTES.each do |key, spec|
-    it "#{key} is wired to the right method, path, key kind and idempotency" do
+    it "#{key} is wired to the right method, path, auth gate and idempotency" do
       http = FakeHTTP.new([
                             if spec.bare
                               { status: 200, body: "%PDF", headers: { "content-type" => "application/pdf" } }
@@ -214,8 +214,7 @@ RSpec.describe "route coverage" do
                               { status: 200, body: ANY_RESULT }
                             end
                           ])
-      client = Oblodai::Client.new(public_id: "pk", secret: "s", payout_public_id: "wk",
-                                   payout_secret: "s2", admin_token: "adm",
+      client = Oblodai::Client.new(public_id: "pk", secret: "s", admin_token: "adm",
                                    base_url: "https://api.test", http: http)
       COVERAGE.fetch(key).call(client)
 
@@ -224,15 +223,21 @@ RSpec.describe "route coverage" do
       expect(call.verb).to eq(spec.method)
       expect(call.path).to match(/\A#{spec.path.gsub(/\{[a-z_]+\}/, "[^/]+")}\z/)
 
+      # One API key signs every signed route; the admin token appears on the onboarding routes and
+      # nowhere else; a public route carries no credential at all.
       case spec.auth
       when :public
         expect(call.headers).not_to have_key("x-signature")
+        expect(call.headers).not_to have_key("x-public-id")
+        expect(call.headers).not_to have_key("x-admin-token")
       when :onboard
         expect(call.headers).not_to have_key("x-signature")
         expect(call.headers["x-admin-token"]).to eq("adm")
       else
-        expect(call.headers["x-public-id"]).to eq(spec.auth == :payout ? "wk" : "pk")
+        expect(spec.auth).to eq(:key)
+        expect(call.headers["x-public-id"]).to eq("pk")
         expect(call.headers["x-signature"]).to match(/\A[0-9a-f]{64}\z/)
+        expect(call.headers).not_to have_key("x-admin-token")
       end
 
       if spec.idempotent

@@ -6,7 +6,7 @@ require_relative "../models/payments"
 
 module Oblodai
   module Resources
-    # Outgoing transfers to external addresses. Every route here needs the payout key.
+    # Outgoing transfers to external addresses.
     class Payouts < Base
       # `POST /v1/payout` — create and (for API keys) auto-approve a payout. Idempotent by
       # `order_id` and by Idempotency-Key.
@@ -15,7 +15,7 @@ module Oblodai
       # SAME key), `payout.funds_maturing` (retryable — deposits not yet mature),
       # `payout.bad_address`, `payout.address_network_mismatch`, `payout.memo_required`,
       # `payout.amount_below_fee`, `payout.frozen`, `payout.order_id_required`,
-      # `idempotency.key_reused`, `merchant.wrong_key_kind` (payment key on a payout route).
+      # `idempotency.key_reused`.
       #
       # @example
       #   client.payouts.create(amount: "10", currency: "USDT", network: "tron",
@@ -81,7 +81,7 @@ module Oblodai
       # outcome, so a call that returns 200 can still contain failures — check every element's `ok`.
       #
       # Call-level codes worth branching on: `payout.batch_too_large` (>100), `payout.empty_batch`,
-      # `payout.insufficient_funds` (retryable), `payout.frozen`, `merchant.wrong_key_kind`.
+      # `payout.insufficient_funds` (retryable), `payout.frozen`.
       # Per-element failures arrive as `error_code` with the same vocabulary as {#create}.
       # @return [Array<Oblodai::Models::PayoutBatchElement>]
       def mass(**params)
@@ -94,7 +94,7 @@ module Oblodai
       #
       # Codes worth branching on: `payout.batch_too_large`, `payout.empty_batch`,
       # `payout.order_id_required`, `payout.reference_collision`, `payout.frozen`,
-      # `merchant.wrong_key_kind`, `idempotency.key_reused`. Insufficient funds surface per element
+      # `idempotency.key_reused`. Insufficient funds surface per element
       # while the batch runs, not on submission.
       # @return [Oblodai::Models::BatchSubmitted]
       def batch(**params)
@@ -154,12 +154,12 @@ module Oblodai
 
     # Refunds are payouts in the invoice's own asset; underpayments are resolved (accept or refund).
     class Refunds < Base
-      # `POST /v1/payment/refund` — refund a paid invoice, fully or partially. Payout key.
+      # `POST /v1/payment/refund` — refund a paid invoice, fully or partially.
       #
       # Codes worth branching on: `refund.nothing_to_refund`, `refund.exceeds_refundable`,
       # `refund.no_address` (the payer address is not refundable — ask for one),
       # `refund.dust` (below the network's minimum), `refund.reference_collision`,
-      # `payout.insufficient_funds` (retryable), `merchant.wrong_key_kind`.
+      # `payout.insufficient_funds` (retryable).
       # @return [Oblodai::Models::Payout]
       def create(**params)
         options = Base.take_options!(params)
@@ -188,7 +188,7 @@ module Oblodai
       #
       # Codes worth branching on: `payout.batch_too_large`, `payout.empty_batch`,
       # `refund.reference_collision`, `request.missing_field` (an item without `reference`),
-      # `merchant.wrong_key_kind`, `idempotency.key_reused`.
+      # `idempotency.key_reused`.
       # @return [Oblodai::Models::BatchSubmitted]
       def batch(**params)
         options = Base.take_options!(params)

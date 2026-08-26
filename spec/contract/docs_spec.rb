@@ -64,15 +64,33 @@ RSpec.describe "documentation" do
     expect(named_in_readme).to match_array(read_by_config)
   end
 
-  it "claims the right routes need the payout key" do
-    payout_routes = Oblodai::Contract::ROUTES.select { |_, spec| spec.auth == :payout }.keys
-    claimed = %w[
-      /v1/payout /v1/payment/refund /v1/payment/resolve /v1/refund/batch /v1/transfer /v1/split
-      /v1/wallet/blocked-address-refund /v1/auto-withdraw /v1/api-allowlist /v1/webhooks/rotate-secret
-      /v1/sandbox/faucet /v1/sandbox/reset /v1/test-webhook/payout
-    ]
-    unclaimed = payout_routes.reject { |key| claimed.any? { |prefix| key.include?(prefix) } }
-    expect(unclaimed).to be_empty, "README/AGENTS do not mention these payout-key routes: #{unclaimed}"
+  it "describes the one auth vocabulary the contract actually has" do
+    expect(Oblodai::Contract::ROUTES.values.map(&:auth).uniq).to match_array(%i[public key onboard])
+  end
+
+  it "promises no second key anywhere the reader would look for one" do
+    # Every trace of the old payment/payout split: a credential option, an environment variable, a
+    # per-call preference. A doc that still offers one is a doc that sends a reader looking for a
+    # key the gateway stopped minting.
+    gone = [/payout_public_id/, /payout_secret/, /OBLODAI_PAYOUT/, /prefer_payout_key/,
+            /payout key/i, /payment key/i, /выплатн\w* ключ/i, /платёжн\w* ключ/i]
+    (DOCS + Dir["examples/*.rb", "examples/README.md", "lib/**/*.rb"]).each do |path|
+      next if path.end_with?("contract/enums.rb") # the generated catalogue is the core's own words
+      next if path == "CHANGELOG.md" # the one place that must name them: to record their removal
+
+      text = File.read(path)
+      gone.each { |pattern| expect(text).not_to match(pattern), "#{path} still offers #{pattern}" }
+    end
+  end
+
+  it "keeps the legacy key-kind error explained exactly once, in each language" do
+    # `merchant.wrong_key_kind` left the catalogue with the split keys, so it may not be listed as a
+    # code to branch on — but a merchant still holding an old pair deserves one sentence about it.
+    [ENGLISH_README, RUSSIAN_README, "MIGRATION-1.3.md"].each do |path|
+      expect(File.read(path).scan("merchant.wrong_key_kind").size).to eq(1), "#{path}: say it once"
+    end
+    expect(File.read(ENGLISH_README)).to match(/oblodai_pk_.*oblodai_wk_/m)
+    expect(Oblodai::Enums::ERROR_CODES).not_to include("merchant.wrong_key_kind")
   end
 
   it "states the batch limits the gateway enforces" do
@@ -86,7 +104,7 @@ RSpec.describe "documentation" do
     routes = Oblodai::Contract::ROUTES.size
     codes = Oblodai::Enums::ERROR_CODES.size
     expect(routes).to eq(107)
-    expect(codes).to eq(471)
+    expect(codes).to eq(469)
     DOCS.each do |path|
       text = File.read(path)
       text.scan(/(\d{3}) (?:error codes|кодов ошибок)/).flatten.each { |n| expect(n.to_i).to eq(codes) }

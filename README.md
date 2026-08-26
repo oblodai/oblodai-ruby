@@ -52,36 +52,32 @@ Nothing else is pulled in: the gem and its test suite use the standard library o
 
 ## Where to get keys
 
-Keys are issued in the [dashboard](https://my.oblodai.com) → **API keys**. A live pair is a public
-id `oblodai_<hex>` and a secret `oblodai_live_<hex>` — one unified API key that opens both the
-payment and the payout side. Older merchants may still hold the two kinds separately, as
-`oblodai_pk_<hex>` (payment) and `oblodai_wk_<hex>` (payout):
+A merchant has **one API key**, issued in the [dashboard](https://my.oblodai.com) → **API keys**: a
+public id `oblodai_<hex>` and a secret `oblodai_live_<hex>`. It signs every signed route there is —
+invoices, payouts, refunds, links, splits, wallets, settings, documents, the sandbox. There is
+nothing to choose per call and no second pair to keep in sync.
 
-- the **payment key** signs invoices, payment links, wallets, the catalogue, settings and documents;
-- the **payout key** signs everything that moves money out: `payouts.*`, `refunds.*` (`resolve`
-  included), `payout_links.*`, `transfers.*`, `splits.*`, `wallets.refund_blocked_deposit`,
-  `settings.*_auto_withdraw`, `settings.*_api_allowlist`, `webhooks.rotate_secret`,
-  `webhooks.test("payout", …)`, `sandbox.faucet`, `sandbox.reset`.
-
-A sandbox pair is a public id `test_oblodai_<hex>` and a secret `oblodai_test_<hex>`; it drives a
-chainless copy of the gateway and serves **both** key kinds at once, so one pair is all a sandbox
-integration needs. When you do hold two live pairs, pass both and the client picks the right one per
-call:
+The sandbox pair comes from the sandbox onboarding (`merchants.create_sandbox`, or the dashboard's
+dev store): a public id `test_oblodai_<hex>` and a secret `oblodai_test_<hex>`, driving a chainless
+copy of the gateway. The **onboarding admin token** is a different thing entirely — it belongs to
+the gateway operator, and it authorises only merchant provisioning (`merchants.create`,
+`merchants.create_sandbox`), which is unsigned.
 
 ```ruby
 client = Oblodai::Client.new(
   public_id: ENV["OBLODAI_PUBLIC_ID"],
-  secret: ENV["OBLODAI_SECRET"],
-  payout_public_id: ENV["OBLODAI_PAYOUT_PUBLIC_ID"],
-  payout_secret: ENV["OBLODAI_PAYOUT_SECRET"]
+  secret: ENV["OBLODAI_SECRET"]
 )
 ```
 
-Every option falls back to the environment, so the same four variables configure a deployment
-without touching code. A call made with the wrong kind is a 403 `merchant.wrong_key_kind`; on a
-route that accepts either kind, `prefer_payout_key: true` picks the payout one for that call.
-Merchant provisioning (`merchants.create`, `merchants.create_sandbox`) is unsigned — a self-hosted
-gateway gates it with an **onboarding admin token** (`admin_token:`, or `OBLODAI_ADMIN_TOKEN`).
+Every option falls back to the environment, so the same two variables configure a deployment
+without touching code, and `admin_token:` (or `OBLODAI_ADMIN_TOKEN`) adds the provisioning routes
+when you run the gateway yourself.
+
+> **Legacy split keys.** Merchants onboarded before the single-key cleanup may still hold an old
+> `oblodai_pk_<hex>` (payment) / `oblodai_wk_<hex>` (payout) pair. Those two are the only reason the
+> gateway can still answer 403 `merchant.wrong_key_kind`; a current `oblodai_<hex>` key never sees
+> it. Pass whichever of the old pair fits the call, or ask support to migrate you to one key.
 
 ## Quick start
 
@@ -105,7 +101,7 @@ invoice.status   # "created"
 ```
 
 To price in fiat, pass `amount: "25", currency: "USD", to_currency: "USDT"` — `currency` is what you
-charge, `to_currency` the asset the payer sends. Send money out with the payout key:
+charge, `to_currency` the asset the payer sends. Send money out with the same key:
 
 ```ruby
 payout = client.payouts.create(
@@ -141,7 +137,7 @@ deposit.txid
 deposit.confirmations
 ```
 
-- `sandbox.faucet` credits test money, capped at 1000000 per call (payout key). Give it an
+- `sandbox.faucet` credits test money, capped at 1000000 per call. Give it an
   `idempotency_key:` when a retry must not top up twice.
 - `sandbox.deposit` pays an invoice: no `amount:` pays exactly what is due, anything else produces
   an under- or overpayment, and fewer `confirmations:` than required exercises the pending →
@@ -151,7 +147,7 @@ deposit.confirmations
 - `webhooks.test(kind, **params)` rehearses a delivery against any receiver, sandbox or live: it is
   signed exactly like a real event and carries `test: true` in the signed body (and
   `X-Webhook-Test: true`). Check `delivery.test?` and never act on one as if money moved.
-- `sandbox.reset` cancels the store's open invoices and zeroes its balances (payout key).
+- `sandbox.reset` cancels the store's open invoices and zeroes its balances.
 
 ## Method overview
 
@@ -178,7 +174,7 @@ deposit.confirmations
 
 A keyword left at `nil` is omitted from the body rather than sent as an explicit `null` (the gateway
 reads both as "not supplied"). Alongside the request fields every method accepts `idempotency_key:`,
-`timeout_ms:`, `deadline_ms:` and `prefer_payout_key:`; a misspelled option is refused by name
+`timeout_ms:` and `deadline_ms:`; a misspelled option is refused by name
 (`sdk.bad_config`) instead of failing deep inside the SDK.
 
 Lookups take a bare uuid, either keyword, or the model the SDK returned:
@@ -325,10 +321,10 @@ rescue Oblodai::Error => e
 end
 ```
 
-The catalogue is `Oblodai::Enums::ERROR_CODES` — all 471 error codes the gateway can answer with,
+The catalogue is `Oblodai::Enums::ERROR_CODES` — all 469 error codes the gateway can answer with,
 shipped in the contract snapshot. Codes worth handling first: `payout.insufficient_funds` and
 `payout.funds_maturing` (both retryable), `idempotency.key_reused`, `invoice.not_payable`,
-`payment.not_found`, `merchant.wrong_key_kind`, `merchant.bad_signature`, `request.rate_limited`.
+`payment.not_found`, `merchant.bad_signature`, `request.rate_limited`.
 The SDK raises its own families on top, all before or instead of a request:
 `sdk.missing_credentials`, `sdk.bad_config`, `sdk.bad_idempotency_key`,
 `sdk.idempotency_unsupported`, `sdk.bad_path_param`, `sdk.bad_header`, `sdk.bad_amount`,
@@ -351,7 +347,7 @@ prints an API payload; `e.raw_body` still returns it for debugging.
   `idempotency_key:` to make retries safe across process restarts; on routes the gateway does not
   deduplicate (list routes included) the SDK refuses a key with `sdk.idempotency_unsupported`
   rather than let you believe a re-send is safe, and an unusable key is `sdk.bad_idempotency_key`.
-- **Per call:** `idempotency_key:`, `timeout_ms:`, `deadline_ms:`, `prefer_payout_key:`.
+- **Per call:** `idempotency_key:`, `timeout_ms:`, `deadline_ms:`.
   **Per client:** `timeout_ms:` (per attempt, 30 s), `deadline_ms:` (attempts plus pauses, 90 s),
   `retry_policy: { max_retries:, base_delay_ms:, max_delay_ms:, max_retry_after_ms: }`
   (`{ max_retries: 0 }` disables retries). A `retry_after` hint is reported up to 24 h and slept for
@@ -372,8 +368,7 @@ prints an API payload; `e.raw_body` still returns it for debugging.
 
 | Option                          | What it does                                                                   |
 | ------------------------------- | -------------------------------------------------------------------------------- |
-| `public_id:` / `secret:`        | the payment key pair (also used for payout routes when no payout pair is set)     |
-| `payout_public_id:` / `payout_secret:` | the dedicated payout key pair                                              |
+| `public_id:` / `secret:`        | the merchant's API key; it signs every signed route                                |
 | `base_url:`                     | the API origin; a path prefix is kept                                             |
 | `allow_insecure_base_url:`      | permit plain `http://` for a non-loopback host                                    |
 | `admin_token:`                  | onboarding admin token of a self-hosted gateway (provisioning routes only)        |
@@ -386,10 +381,8 @@ prints an API payload; `e.raw_body` still returns it for debugging.
 
 | Environment variable       | Meaning                                                          |
 | -------------------------- | ------------------------------------------------------------------ |
-| `OBLODAI_PUBLIC_ID`        | payment key public id                                              |
-| `OBLODAI_SECRET`           | payment key secret                                                 |
-| `OBLODAI_PAYOUT_PUBLIC_ID` | payout key public id                                               |
-| `OBLODAI_PAYOUT_SECRET`    | payout key secret                                                  |
+| `OBLODAI_PUBLIC_ID`        | API key public id                                                  |
+| `OBLODAI_SECRET`           | API key secret                                                     |
 | `OBLODAI_ADMIN_TOKEN`      | onboarding admin token of a self-hosted gateway                    |
 | `OBLODAI_BASE_URL`         | API origin (default `https://api.oblodai.com`)                     |
 | `OBLODAI_LOG`              | `debug` \| `info` \| `warn` \| `error` — enables a stderr logger    |
@@ -419,11 +412,11 @@ and refused.
 
 `contract/` is exported by the gateway's own test suite: the route registry (107 routes, each with
 the gateway's own `safe` flag, auth gate, idempotency behaviour and list kind), request DTO schemas
-with English field docs, every vocabulary and all 471 error codes, signing vectors, golden response
+with English field docs, every vocabulary and all 469 error codes, signing vectors, golden response
 bodies recorded from a live gateway and 43 real signed webhook deliveries. It ships with the gem and
 is readable at `Oblodai.contract_path`. `lib/oblodai/contract/` is generated from it and is never
 edited by hand; `Oblodai::Contract::CORE_COMMIT`, `EXPORTED_AT` and `CONTRACT_HASH` identify the
-snapshot in use (core commit `7ec04293`).
+snapshot in use (core commit `2cc44c16`).
 
 ```bash
 rake codegen   # regenerate routes.rb, enums.rb, requests.rb after refreshing contract/

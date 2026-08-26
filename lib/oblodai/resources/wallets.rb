@@ -36,11 +36,10 @@ module Oblodai
       end
 
       # `POST /v1/wallet/blocked-address-refund` — send funds that landed on a blocked address back.
-      # Payout key.
       #
       # Codes worth branching on: `wallet.bad_uuid`, `refund.no_address` (the address is not
       # blocked), `refund.nothing_to_refund` (already refunded or empty), `refund.dust` (below the
-      # network minimum), `refund.destination_internal`, `merchant.wrong_key_kind`.
+      # network minimum), `refund.destination_internal`.
       # @return [Oblodai::Models::Payout]
       def refund_blocked_deposit(**params)
         options = Base.take_options!(params)

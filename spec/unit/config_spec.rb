@@ -24,7 +24,14 @@ RSpec.describe Oblodai::Config do
 
   it "refuses half a key pair" do
     expect { described_class.new(public_id: "pk", env: {}) }.to raise_error(Oblodai::ConfigError, /together/)
-    expect { described_class.new(payout_secret: "s", env: {}) }.to raise_error(Oblodai::ConfigError, /together/)
+    expect { described_class.new(secret: "s", env: {}) }.to raise_error(Oblodai::ConfigError, /together/)
+  end
+
+  it "has no payout credential pair to configure: one API key signs every signed route" do
+    expect { described_class.new(payout_public_id: "wk", payout_secret: "s", env: {}) }
+      .to raise_error(ArgumentError, /unknown keyword/)
+    expect(described_class.instance_method(:initialize).parameters.map(&:last))
+      .not_to include(:payout_public_id, :payout_secret)
   end
 
   it "treats an empty environment variable as unset, not as a credential" do
