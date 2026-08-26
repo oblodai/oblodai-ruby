@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-# GENERATED FILE — do not edit. Source: contract/contract.json (core 7b8eb828b9ec).
+# GENERATED FILE — do not edit. Source: contract/contract.json (core bfca971cce71).
 # Regenerate with: rake codegen
 
 require_relative "route"
@@ -8,11 +8,11 @@ require_relative "route"
 module Oblodai
   module Contract
     # Commit of the core the contract snapshot was exported from.
-    CORE_COMMIT = "7b8eb828b9ec3bbaff44755ad784881e533ec4fb"
+    CORE_COMMIT = "bfca971cce71d090ba9f7083616b4568d5568868"
     # When the snapshot was exported (RFC 3339).
-    EXPORTED_AT = "2026-08-25T22:08:54Z"
+    EXPORTED_AT = "2026-08-26T00:50:13Z"
     # SHA-256 of contract/contract.json — sent in the User-Agent so support can pin the vocabulary.
-    CONTRACT_HASH = "e09b495accaeacda1aa889a8c56b0e9ee18b5236dc3c2c29222e7ee849e7c5ee"
+    CONTRACT_HASH = "e0271464937d8171858e13af226c4e35914752f98e84ccba344cd31b79f07dd9"
 
     # Every merchant-facing route the core declares, keyed exactly as its conformance table keys
     # them ("METHOD /path"). Path templates keep their `{name}` segments.

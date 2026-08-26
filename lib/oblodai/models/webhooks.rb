@@ -103,6 +103,10 @@ module Oblodai
       field :event_at
       # @return [Integer] global, increasing (gaps are normal)
       field :sequence
+      # @return [Boolean, nil] present and true ONLY on rehearsal deliveries (`webhooks.test`,
+      #   sandbox). The body is signed exactly like a live one, so a handler must check this flag
+      #   (or the `X-Webhook-Test` header) and never act on a test event as if money moved.
+      field :test, optional: true
     end
 
     # `payout.<status>` — a payout (or refund) changed state; the body is the payout itself.
@@ -155,6 +159,10 @@ module Oblodai
       field :event_at
       # @return [Integer]
       field :sequence
+      # @return [Boolean, nil] present and true ONLY on rehearsal deliveries (`webhooks.test`,
+      #   sandbox). The body is signed exactly like a live one, so a handler must check this flag
+      #   (or the `X-Webhook-Test` header) and never act on a test event as if money moved.
+      field :test, optional: true
     end
 
     # `wallet.paid` — a deposit landed on a static wallet.
@@ -185,6 +193,10 @@ module Oblodai
       field :event_at
       # @return [Integer]
       field :sequence
+      # @return [Boolean, nil] present and true ONLY on rehearsal deliveries (`webhooks.test`,
+      #   sandbox). The body is signed exactly like a live one, so a handler must check this flag
+      #   (or the `X-Webhook-Test` header) and never act on a test event as if money moved.
+      field :test, optional: true
     end
   end
 end

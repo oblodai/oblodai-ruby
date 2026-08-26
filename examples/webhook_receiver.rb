@@ -35,7 +35,11 @@ server.mount_proc "/hook" do |request, response|
   end
 
   event = delivery.event
-  if seen[delivery.id]
+  if delivery.test?
+    # A rehearsal (webhooks.test / sandbox): signed exactly like a live delivery, but no money
+    # moved — acknowledge it and settle nothing.
+    puts "rehearsal delivery #{delivery.id} (#{delivery.event_type}), nothing to settle"
+  elsif seen[delivery.id]
     puts "duplicate delivery #{delivery.id}, ignored"
   elsif Oblodai::Webhooks.stale?(event, last_sequence[event.uuid])
     puts "stale event #{event.sequence} for #{event.uuid}, ignored"

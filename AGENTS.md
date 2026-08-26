@@ -63,7 +63,9 @@ require "oblodai/webhooks"
 delivery = Oblodai::Webhooks.verify_delivery(raw_body, headers, secret: secret)
 ```
 
-Verify over the **raw** bytes. Deduplicate on `delivery.id` (`X-Webhook-Id`); drop out-of-order
+Verify over the **raw** bytes. `delivery.test?` (and `Oblodai::Webhooks.test_event?(event)`) is true
+for rehearsal deliveries (`webhooks.test`, sandbox — `test: true` in the signed body): never treat
+one as money. Deduplicate on `delivery.id` (`X-Webhook-Id`); drop out-of-order
 events with `Oblodai::Webhooks.stale?(event, last_sequence)`. During a rotation pass
 `previous_secret:` for ≥26 h.
 

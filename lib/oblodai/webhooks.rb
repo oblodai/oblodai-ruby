@@ -16,8 +16,13 @@ module Oblodai
   #     X-Webhook-Event: invoice.<status> | payout.<status> | wallet.paid
   #     X-Webhook-Id: stable per delivery (identical across retries) — use it to deduplicate
   #     X-Webhook-Event-Time: unix seconds when the state change committed (order events by it)
+  #     X-Webhook-Test: "true" on a rehearsal delivery (`webhooks.test`, sandbox) — see below
   #
   # Always verify over the RAW request bytes; a re-serialized parse will not match.
+  #
+  # Rehearsal deliveries are signed exactly like live ones and carry `test: true` in the body (and
+  # `X-Webhook-Test: true`). A handler MUST check {Delivery#test?} / {test_event?} and never act on
+  # a test event as if money moved.
   #
   #     event = Oblodai::Webhooks.verify(request.body.read, request.headers, secret: ENV["SECRET"])
   #     case event.type
@@ -30,6 +35,7 @@ module Oblodai
     HEADER_EVENT = "X-Webhook-Event"
     HEADER_ID = "X-Webhook-Id"
     HEADER_EVENT_TIME = "X-Webhook-Event-Time"
+    HEADER_TEST = "X-Webhook-Test"
 
     # Reject deliveries whose timestamp is further from now than this, seconds. 0 disables the check.
     DEFAULT_TOLERANCE = 300
@@ -46,7 +52,17 @@ module Oblodai
     #   @return [Integer, nil] `X-Webhook-Event-Time` — when the state change committed
     # @!attribute [r] sent_at
     #   @return [Integer] `X-Webhook-Timestamp` — when this attempt was sent
-    Delivery = Struct.new(:event, :id, :event_type, :event_time, :sent_at, keyword_init: true)
+    # @!attribute [r] test
+    #   @return [Boolean] a rehearsal delivery — see {Delivery#test?}
+    Delivery = Struct.new(:event, :id, :event_type, :event_time, :sent_at, :test, keyword_init: true) do
+      # A rehearsal delivery (`X-Webhook-Test: true`, or `test: true` in the signed body): produced
+      # by `webhooks.test` and by the sandbox, signed exactly like a live one, but NO money moved.
+      # Never credit an order, release goods or pay anyone out on one.
+      # @return [Boolean]
+      def test?
+        self[:test] == true
+      end
+    end
 
     # Event models by the `type` discriminator of the body.
     EVENT_MODELS = {
@@ -95,12 +111,14 @@ module Oblodai
       assert_signed!(raw_body, ts, candidates(signature, prev_signature, secret, previous_secret))
 
       event_time = Util.header_value(headers, HEADER_EVENT_TIME)
+      event = parse(raw_body)
       Delivery.new(
-        event: parse(raw_body),
+        event: event,
         id: Util.header_value(headers, HEADER_ID),
         event_type: Util.header_value(headers, HEADER_EVENT),
         event_time: /\A\d+\z/.match?(event_time.to_s) ? event_time.to_i : nil,
-        sent_at: ts
+        sent_at: ts,
+        test: Util.header_value(headers, HEADER_TEST) == "true" || test_event?(event)
       )
     end
 
@@ -158,6 +176,16 @@ module Oblodai
       raise SignatureError.new("webhook.bad_signature", "unknown event type #{body["type"].inspect}") if model.nil?
 
       model.from(body)
+    end
+
+    # A rehearsal delivery (`webhooks.test`, sandbox) carries `test: true` in the signed body. It is
+    # a drill: no money moved, so never credit an order or release goods on one.
+    #
+    # @param event [#test, Hash]
+    # @return [Boolean]
+    def test_event?(event)
+      value = event.respond_to?(:test) ? event.test : event[:test]
+      value == true
     end
 
     # Deliveries can arrive out of order (a retried `paid` after a `refund`). Keep the last
