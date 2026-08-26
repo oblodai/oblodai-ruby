@@ -172,7 +172,23 @@ RSpec.describe "vocabularies cover what the wire carries" do
     Fixtures.webhook_samples.each do |sample|
       expect(Oblodai::Enums::EVENT_TYPES).to include(sample["headers"]["X-Webhook-Event"])
       model = Oblodai::Webhooks::EVENT_MODELS.fetch(sample["body"]["type"])
-      expect(model.keys.map(&:to_s)).to match_array(sample["body"].keys)
+      # `test` rides along only on rehearsal deliveries, so it is optional; every other key of the
+      # model must be on the wire, and the wire may carry nothing the model does not declare.
+      actual = sample["body"].keys
+      required = model.keys.map(&:to_s)
+      optional = model.optional_keys.map(&:to_s)
+      event = sample["headers"]["X-Webhook-Event"]
+      expect(required - actual).to eq([]), "#{event}: model key missing on the wire"
+      expect(actual - required - optional).to eq([]), "#{event}: undeclared key on the wire"
+    end
+  end
+
+  it "flags the rehearsal deliveries among the samples and no others" do
+    flagged = Fixtures.webhook_samples.select { |s| s["body"]["test"] == true }
+    expect(flagged).not_to be_empty, "no rehearsal sample left to guard the test flag"
+    Fixtures.webhook_samples.each do |sample|
+      event = Oblodai::Webhooks.parse(sample["raw"] || JSON.generate(sample["body"]))
+      expect(Oblodai::Webhooks.test_event?(event)).to be(sample["body"]["test"] == true)
     end
   end
 

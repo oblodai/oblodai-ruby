@@ -20,6 +20,9 @@ RSpec.describe Oblodai::Webhooks do
         expect(delivery.event.sequence).to be_a(Integer)
         expect(sample["headers"]["X-Webhook-Event"]).to match(/\A(invoice|payout|wallet)\./)
         expect(delivery.event.to_h.keys.map(&:to_s)).to match_array(sample["body"].keys)
+        rehearsal = sample["body"]["test"] == true || sample["headers"]["X-Webhook-Test"] == "true"
+        expect(delivery.test?).to be(rehearsal)
+        expect(described_class.test_event?(delivery.event)).to be(sample["body"]["test"] == true)
 
         expect do
           described_class.verify(raw, sample["headers"], secret: "some-other-secret",
@@ -36,9 +39,13 @@ RSpec.describe Oblodai::Webhooks do
     end
     let(:ts) { 1_755_600_000 }
 
-    def headers(overrides = {})
+    def headers_for(raw, overrides = {})
       { "x-webhook-timestamp" => ts.to_s,
-        "x-webhook-signature" => Oblodai::Signing.sign_webhook("whsec", ts, body) }.merge(overrides)
+        "x-webhook-signature" => Oblodai::Signing.sign_webhook("whsec", ts, raw) }.merge(overrides)
+    end
+
+    def headers(overrides = {})
+      headers_for(body, overrides)
     end
 
     it "accepts a valid signature with case-insensitive and Rack-spelled headers" do
@@ -82,6 +89,25 @@ RSpec.describe Oblodai::Webhooks do
       expect { described_class.parse('{"type":"alien","uuid":"x"}') }.to raise_error(/unknown event type/)
       expect { described_class.parse("not json") }.to raise_error(/not JSON/)
       expect { described_class.parse('{"type":"payment"}') }.to raise_error(%r{type/uuid})
+    end
+
+    it "marks a rehearsal delivery from either the body flag or the header" do
+      expect(described_class.verify_delivery(body, headers, secret: "whsec", now: ts).test?).to be(false)
+      expect(described_class.test_event?(described_class.parse(body))).to be(false)
+
+      from_header = described_class.verify_delivery(
+        body, headers("x-webhook-test" => "true"), secret: "whsec", now: ts
+      )
+      expect(from_header.test?).to be(true)
+      # The header alone does not make the parsed event a test event — only the signed body does.
+      expect(described_class.test_event?(from_header.event)).to be(false)
+
+      rehearsal = JSON.generate(type: "payment", uuid: "u1", status: "paid", is_final: true,
+                                sequence: 7, event_at: "2026-01-01T00:00:00Z", test: true)
+      from_body = described_class.verify_delivery(rehearsal, headers_for(rehearsal), secret: "whsec", now: ts)
+      expect(from_body.test?).to be(true)
+      expect(from_body.event.test).to be(true)
+      expect(described_class.test_event?(from_body.event)).to be(true)
     end
 
     it "returns the delivery headers worth keeping" do

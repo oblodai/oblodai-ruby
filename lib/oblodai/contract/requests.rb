@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-# GENERATED FILE — do not edit. Source: contract/contract.json (core 7b8eb828b9ec).
+# GENERATED FILE — do not edit. Source: contract/contract.json (core bfca971cce71).
 # Regenerate with: rake codegen
 
 require_relative "enums"

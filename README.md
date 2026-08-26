@@ -171,6 +171,7 @@ require "oblodai/webhooks"
 post "/oblodai/webhook" do
   body = request.body.read # the RAW bytes — a re-serialized parse will not verify
   delivery = Oblodai::Webhooks.verify_delivery(body, request.env, secret: ENV["OBLODAI_WEBHOOK_SECRET"])
+  halt 200 if delivery.test? # a rehearsal: signed like a live one, but no money moved
   event = delivery.event
 
   case event.type
@@ -182,7 +183,10 @@ post "/oblodai/webhook" do
 end
 ```
 
-`delivery.id` (`X-Webhook-Id`) is stable across retries — deduplicate on it; `event.sequence` orders
+Rehearsal deliveries (`webhooks.test`, sandbox) are signed exactly like live ones and carry
+`test: true` in the body (and `X-Webhook-Test: true`): check `delivery.test?` — or
+`Oblodai::Webhooks.test_event?(event)` when you only have the parsed event — and never act on one as
+if money moved. `delivery.id` (`X-Webhook-Id`) is stable across retries — deduplicate on it; `event.sequence` orders
 events (`Oblodai::Webhooks.stale?(event, last_sequence)`). After `webhooks.rotate_secret` pass
 `previous_secret:` for at least 26 hours. Deliveries older or newer than ±300 s are rejected
 (`tolerance:` changes the window, `0` disables it).

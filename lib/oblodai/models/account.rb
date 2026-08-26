@@ -79,6 +79,9 @@ module Oblodai
       field :url
       # @return [String]
       field :document_url
+      # @return [Boolean] true once {Oblodai::Resources::Wallets#block} was called: new deposits are
+      #   quarantined instead of credited
+      field :blocked
       # @return [String, nil] XRP destination tag, when the network needs one
       field :destination_tag, optional: true
       # @return [String, nil] TON/Stellar memo, when the network needs one
