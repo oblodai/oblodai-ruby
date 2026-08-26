@@ -1,0 +1,49 @@
+# Publishing the gem: pushing vX.Y.Z re-runs the gates, builds the gem and pushes it to RubyGems.
+# The tag is the source of truth — it must match the version the gem declares.
+name: Release
+on:
+  push:
+    tags: ['v[0-9]+.[0-9]+.[0-9]+']
+permissions:
+  contents: write
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.3'
+          bundler-cache: true
+      - name: version matches the tag
+        run: |
+          declared="$(sed -n 's/^ *VERSION = "\(.*\)"$/\1/p' lib/oblodai/version.rb)"
+          if [ "v${declared}" != "${GITHUB_REF_NAME}" ]; then
+            echo "lib/oblodai/version.rb declares ${declared}, but the tag is ${GITHUB_REF_NAME}" >&2
+            exit 1
+          fi
+      # The same gates CI runs: rubocop, contract drift, unit and contract specs.
+      - name: rake ci
+        run: bundle exec rake ci
+      - name: gem build
+        run: gem build oblodai.gemspec
+      # A missing credential must stop the release loudly: a silent skip would leave a tag that
+      # looks published and a registry that never received the gem.
+      - name: gem push
+        env:
+          GEM_HOST_API_KEY: ${{ secrets.RUBYGEMS_API_KEY }}
+        run: |
+          if [ -z "${GEM_HOST_API_KEY}" ]; then
+            echo 'RUBYGEMS_API_KEY is not set: cannot publish to RubyGems' >&2
+            exit 1
+          fi
+          gem push "oblodai-${GITHUB_REF_NAME#v}.gem"
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if [ -z "${GH_TOKEN}" ]; then
+            echo 'GITHUB_TOKEN is not available: cannot create the release' >&2
+            exit 1
+          fi
+          gh release create "${GITHUB_REF_NAME}" --generate-notes

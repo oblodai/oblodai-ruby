@@ -1,0 +1,24 @@
+name: CI
+on:
+  push:
+    branches: [main]
+  pull_request:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        ruby-version: ['3.1', '3.2', '3.3']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: ${{ matrix.ruby-version }}
+          bundler-cache: true
+      # rubocop + contract drift + the unit and contract specs — the same gate `rake ci` runs locally.
+      - name: rake ci
+        run: bundle exec rake ci
+      # The gem must package from a clean tree on every supported runtime, not only at release time.
+      - name: gem build
+        run: gem build oblodai.gemspec
