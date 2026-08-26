@@ -129,10 +129,72 @@ COVERAGE = {
   "POST /v1/merchants/{id}/sandbox" => ->(c) { c.merchants.create_sandbox("m1") }
 }.freeze
 
+# Every field of a generated route, compared with the core's own declaration. Extracted so the
+# mutation test below can prove the comparison would catch a flipped flag.
+def route_mismatches(spec, declared)
+  expected = {
+    method: declared["method"], path: declared["path"], auth: declared["auth"].to_sym,
+    idempotent: declared["idempotent"] == true, safe: declared["safe"] == true,
+    bare: declared["bare"] == true, list: declared["list"]&.to_sym
+  }
+  expected.filter_map do |field, want|
+    got = spec[field]
+    got = got == true if %i[idempotent safe bare].include?(field)
+    "#{field}: #{got.inspect} != #{want.inspect}" unless got == want
+  end
+end
+
 RSpec.describe "route coverage" do
   it "is the core's merchant surface, nothing more and nothing less" do
     expect(Oblodai::Contract::ROUTES.keys.sort).to eq(Fixtures.declared_routes.sort)
     expect(Oblodai::Contract::ROUTES.size).to eq(107)
+  end
+
+  it "carries the core's own flags for every route, field by field" do
+    declared = Fixtures.contract["routes"].to_h { |r| ["#{r["method"]} #{r["path"]}", r] }
+    Oblodai::Contract::ROUTES.each do |key, spec|
+      source = declared.fetch(key)
+      expect(source).to have_key("safe"), "#{key}: the export declares no `safe` flag"
+      expect(route_mismatches(spec, source)).to be_empty, "#{key}: #{route_mismatches(spec, source).join("; ")}"
+    end
+  end
+
+  it "would notice a flag that drifted from the contract" do
+    key = "POST /v1/payout"
+    declared = Fixtures.contract["routes"].find { |r| "#{r["method"]} #{r["path"]}" == key }
+    spec = Oblodai::Contract::ROUTES.fetch(key)
+    expect(route_mismatches(spec, declared)).to be_empty
+    # A payout re-sent after a transport failure is a second payout: `safe` is the one flag whose
+    # drift costs money, and the comparison above is what stands between the two.
+    expect(route_mismatches(spec, declared.merge("safe" => true))).to eq(["safe: false != true"])
+    expect(route_mismatches(spec, declared.merge("idempotent" => false)))
+      .to eq(["idempotent: true != false"])
+    expect(route_mismatches(spec, declared.merge("auth" => "public"))).to eq(["auth: :payout != :public"])
+    expect(route_mismatches(spec, declared.merge("list" => "paged"))).to eq(["list: nil != :paged"])
+  end
+
+  it "names only error codes the contract catalogue declares" do
+    named = Hash.new { |h, k| h[k] = [] }
+    Dir["lib/**/*.rb", "*.md"].each do |path|
+      collecting = false
+      File.readlines(path).each_with_index do |line, index|
+        comment = path.end_with?(".md") || line.match?(/^\s*#/)
+        collecting = false unless comment
+        collecting = true if comment && line.match?(/[Cc]odes worth (branching on|handling)/)
+        next unless collecting
+
+        collecting = false if line.strip == "#" || line.strip.empty?
+        line.scan(/`([a-z][a-z0-9_]*\.[a-z][a-z0-9_]*)`/) { |(code)| named[code] << "#{path}:#{index + 1}" }
+      end
+    end
+
+    # The SDK's own families are not gateway codes and are not in the catalogue.
+    gateway = named.reject { |code, _| code.start_with?("sdk.", "transport.", "webhook.") }
+    expect(gateway.size).to be > 30
+    unknown = gateway.except(*Oblodai::Enums::ERROR_CODES)
+    expect(unknown).to be_empty,
+                       "documented codes the core does not declare: " \
+                       "#{unknown.map { |c, where| "#{c} (#{where.join(", ")})" }.join("; ")}"
   end
 
   it "has one SDK method per route" do

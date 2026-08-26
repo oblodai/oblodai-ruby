@@ -32,6 +32,8 @@ module Oblodai
       @max_delay_ms = max_delay_ms
       @max_retry_after_ms = max_retry_after_ms
       @random = random
+      # A Random instance is not thread-safe, and one policy is shared by every call on a client.
+      @random_lock = Mutex.new
     end
 
     # @param overrides [Hash] any of the keyword arguments above
@@ -72,7 +74,14 @@ module Oblodai
 
       exp = [@max_delay_ms, @base_delay_ms * (2**attempt)].min
       # Full jitter with a floor so a burst of retries never lands in the same instant.
-      [(exp / 4.0).floor, @random.rand(exp.to_i + 1)].max
+      [(exp / 4.0).floor, jitter(exp.to_i + 1)].max
+    end
+
+    private
+
+    # @return [Integer]
+    def jitter(bound)
+      @random_lock.synchronize { @random.rand(bound) }
     end
   end
 end

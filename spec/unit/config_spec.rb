@@ -27,6 +27,27 @@ RSpec.describe Oblodai::Config do
     expect { described_class.new(payout_secret: "s", env: {}) }.to raise_error(Oblodai::ConfigError, /together/)
   end
 
+  it "treats an empty environment variable as unset, not as a credential" do
+    # `export OBLODAI_SECRET=` in a shell profile arrives as "": signing with it would produce a 401
+    # nobody can explain, so it counts as absent — and half a pair is still refused.
+    config = described_class.new(env: { "OBLODAI_PUBLIC_ID" => "", "OBLODAI_SECRET" => "  ",
+                                        "OBLODAI_BASE_URL" => "" })
+    expect(config.credentials).to be_nil
+    expect(config.base_url).to eq(Oblodai::DEFAULT_BASE_URL) # a blank URL falls through to the default
+    expect { described_class.new(env: { "OBLODAI_PUBLIC_ID" => "pk", "OBLODAI_SECRET" => "" }) }
+      .to raise_error(Oblodai::ConfigError, /together/)
+  end
+
+  it "refuses a base URL without a scheme or a host" do
+    ["api.oblodai.com", "/v1", "https://", "not a url at all"].each do |bad|
+      expect { described_class.new(base_url: bad, env: {}) }
+        .to raise_error(Oblodai::ConfigError) { |e|
+              expect(e.code).to eq("sdk.bad_config")
+              expect(e.field).to eq("base_url")
+            }
+    end
+  end
+
   it "turns OBLODAI_LOG into a logger and redacts secrets" do
     config = described_class.new(env: { "OBLODAI_LOG" => "debug" })
     expect(config.logger).to be_a(Oblodai::IOLogger)
@@ -50,7 +71,14 @@ RSpec.describe Oblodai::Money do
     expect(described_class.compare("0.000000000000000001", "0")).to eq(1)
     expect(described_class).to be_zero("0.000000")
     expect(described_class).to be_negative("-0.1")
-    expect { described_class.add("1,5", "1") }.to raise_error(TypeError)
+    expect(described_class.equals?("1.50", "1.5")).to be(true)
+    # Every rejection is the SDK's own error, never a native TypeError from inside a helper.
+    ["1,5", ".5", "5.", "1e3", "+1", "1_000", "", "9" * 65].each do |bad|
+      expect { described_class.add(bad, "1") }
+        .to raise_error(Oblodai::ConfigError) { |e| expect(e.code).to eq("sdk.bad_amount") }
+      expect(described_class.valid?(bad)).to be(false)
+    end
+    expect { described_class.compare(25, "25") }.to raise_error(Oblodai::ConfigError, /expected a string/)
   end
 end
 

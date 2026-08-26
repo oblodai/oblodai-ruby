@@ -64,10 +64,11 @@ RSpec.describe Oblodai::Page do
     expect(http.calls.size).to eq(1)
   end
 
-  it "does not forward a caller idempotency key to list pages" do
+  it "refuses a caller idempotency key on a list route instead of dropping it" do
     http = FakeHTTP.new([FakeHTTP.page([], 0, 0, 50)])
-    client_with(http).payouts.history(idempotency_key: "k").first_page
-    expect(http.calls[0].headers).not_to have_key("idempotency-key")
+    expect { client_with(http).payouts.history(idempotency_key: "k") }
+      .to raise_error(Oblodai::ConfigError) { |e| expect(e.code).to eq("sdk.idempotency_unsupported") }
+    expect(http.calls).to be_empty
   end
 end
 

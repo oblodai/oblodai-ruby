@@ -86,9 +86,16 @@ RSpec.describe Oblodai::Webhooks do
       expect(described_class.stale?(event, 7)).to be(true)
       expect(described_class.stale?(event, 6)).to be(false)
       expect(described_class.stale?(event, nil)).to be(false)
-      expect { described_class.parse('{"type":"alien","uuid":"x"}') }.to raise_error(/unknown event type/)
-      expect { described_class.parse("not json") }.to raise_error(/not JSON/)
-      expect { described_class.parse('{"type":"payment"}') }.to raise_error(%r{type/uuid})
+      unknown = described_class.parse('{"type":"alien","uuid":"x","sequence":3}')
+      expect(unknown).to be_a(Oblodai::Models::UnknownEvent)
+      expect(unknown.type).to eq("alien")
+      expect(described_class.known_event?(unknown)).to be(false)
+      expect(described_class.known_event?(event)).to be(true)
+      expect(described_class.stale?(unknown, 3)).to be(true)
+      expect { described_class.parse("not json") }
+        .to raise_error(Oblodai::WebhookPayloadError, /not JSON/)
+      expect { described_class.parse('{"type":"payment"}') }
+        .to raise_error(Oblodai::WebhookPayloadError, /uuid/)
     end
 
     it "marks a rehearsal delivery from either the body flag or the header" do

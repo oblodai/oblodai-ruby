@@ -11,18 +11,23 @@ module Oblodai
     # Offsets beyond this are implausible clock drift and are ignored (a broken proxy `Date`).
     MAX_PLAUSIBLE_OFFSET_SECONDS = 24 * 3600
 
-    # @return [Integer] server-minus-local offset currently applied, seconds
-    attr_reader :offset
-
     # @param base [#call] returns the local unix time in seconds
     def initialize(base = -> { Time.now.to_i })
       @base = base
       @offset = 0
+      # The offset is shared by every thread using this client; a Mutex makes the read-compare-write
+      # of {#revert_if_unchanged} atomic and keeps a torn read impossible on any Ruby.
+      @lock = Mutex.new
+    end
+
+    # @return [Integer] server-minus-local offset currently applied, seconds
+    def offset
+      @lock.synchronize { @offset }
     end
 
     # @return [Integer] current unix time in seconds, corrected by the learned offset
     def now
-      @base.call + @offset
+      @base.call + offset
     end
 
     # Measure the offset from a response `Date` header.
@@ -54,12 +59,28 @@ module Oblodai
     # @param offset_sec [Integer]
     # @return [void]
     def correct(offset_sec)
-      @offset = offset_sec
+      @lock.synchronize { @offset = offset_sec }
+    end
+
+    # Undo a correction only when nobody else has moved the clock since. The offset is shared by
+    # every in-flight call on the client; an unconditional revert would throw away a sibling call's
+    # good correction and send the whole client back into `merchant.bad_signature`.
+    #
+    # @param installed [Integer] the offset this call put in place
+    # @param previous [Integer] what was in force before it did
+    # @return [Boolean] whether the revert happened
+    def revert_if_unchanged(installed, previous)
+      @lock.synchronize do
+        next false unless @offset == installed
+
+        @offset = previous
+        true
+      end
     end
 
     # @return [void]
     def reset
-      @offset = 0
+      correct(0)
     end
   end
 end

@@ -21,7 +21,7 @@ module Oblodai
 
     # Validate a caller-supplied key before it is signed and sent.
     # @param key [String]
-    # @raise [Oblodai::ValidationError]
+    # @raise [Oblodai::ConfigError]
     # @return [void]
     def assert_key!(key)
       invalid!("idempotency_key must be a non-empty string") unless key.is_a?(String) && !key.empty?
@@ -33,9 +33,11 @@ module Oblodai
       invalid!("idempotency_key must be printable ASCII without spaces")
     end
 
+    # A key the SDK refuses is a caller mistake caught before anything is sent — a ConfigError, like
+    # every other pre-flight refusal. A ValidationError would claim the API answered 400, and
+    # callers branch on that difference.
     def invalid!(message)
-      raise ValidationError.new(code: "sdk.bad_idempotency_key", message: message,
-                                http_status: 0, retryable: false, field: "idempotency_key")
+      raise ConfigError.new("sdk.bad_idempotency_key", message, "idempotency_key")
     end
   end
 end

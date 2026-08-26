@@ -56,12 +56,12 @@ RSpec.describe "live sweep", live: true do
     LiveHelper.accept { @client.payments.send_email(uuid: @invoice.uuid) }
 
     batch = @client.payments.batch(on_error: "continue",
-                                   payments: [{ amount: "3", currency: "USDT", network: "tron",
+                                   payments: [{ amount: "5", currency: "USDT", network: "tron",
                                                 order_id: unique("sw-b") }])
     expect(batch.batch_id).not_to be_empty
     expect(@client.batches.info(batch.batch_id).batch_id).to eq(batch.batch_id)
 
-    to_cancel = @client.payments.create(amount: "1", currency: "USDT", network: "tron",
+    to_cancel = @client.payments.create(amount: "5", currency: "USDT", network: "tron",
                                         order_id: unique("sw-c"))
     expect(@client.payments.cancel(to_cancel.uuid).status).to eq("cancelled")
     @client.payments.history(limit: 2).first(3).each { |p| expect(p.uuid).not_to be_empty }
@@ -78,7 +78,7 @@ RSpec.describe "live sweep", live: true do
     LiveHelper.accept { @client.refunds.resolve(uuid: @invoice.uuid, action: "accept") }
     LiveHelper.accept do
       @client.refunds.batch(refunds: [{ uuid: @invoice.uuid, address: LiveHelper::ADDRESS,
-                                        amount: "1", reference: unique("sw-rb") }])
+                                        amount: "5", reference: unique("sw-rb") }])
     end
   end
 
@@ -94,11 +94,11 @@ RSpec.describe "live sweep", live: true do
     LiveHelper.accept { @client.payouts.cancel(payout.uuid) }
     LiveHelper.accept { @client.payouts.approve(payout.uuid) }
 
-    mass = @client.payouts.mass(payouts: [{ amount: "1", currency: "USDT", network: "tron",
+    mass = @client.payouts.mass(payouts: [{ amount: "5", currency: "USDT", network: "tron",
                                             address: LiveHelper::ADDRESS, order_id: unique("sw-m") }])
     expect(mass.first.idx).to eq(0)
 
-    batch = @client.payouts.batch(payouts: [{ amount: "1", currency: "USDT", network: "tron",
+    batch = @client.payouts.batch(payouts: [{ amount: "5", currency: "USDT", network: "tron",
                                               address: LiveHelper::ADDRESS, order_id: unique("sw-pb") }])
     expect(batch.batch_id).not_to be_empty
     expect(@client.payouts.services.first_page.items).not_to be_empty
@@ -122,11 +122,11 @@ RSpec.describe "live sweep", live: true do
     expect(@public.payout_links.claim(link.claim_token, address: LiveHelper::ADDRESS).payout_id)
       .not_to be_empty
 
-    second = @client.payout_links.create(amount: "1", currency: "USDT", network: "tron",
+    second = @client.payout_links.create(amount: "5", currency: "USDT", network: "tron",
                                          reference: unique("sw-pl2"))
     expect(@client.payout_links.cancel(second.link_id).status).to eq("cancelled")
 
-    batch = @client.payout_links.batch(items: [{ amount: "1", currency: "USDT", network: "tron",
+    batch = @client.payout_links.batch(items: [{ amount: "5", currency: "USDT", network: "tron",
                                                  reference: unique("sw-plb") }])
     expect(batch.first.ok).to be(true)
     expect(batch.first.result).to be_a(Oblodai::Models::PayoutLink)
@@ -204,11 +204,11 @@ RSpec.describe "live sweep", live: true do
     LiveHelper.accept do
       @client.wallets.refund_blocked_deposit(uuid: SecureRandom.uuid, address: LiveHelper::ADDRESS)
     end
-    LiveHelper.accept { @client.transfers.to_personal(amount: "1", currency: "USDT") }
+    LiveHelper.accept { @client.transfers.to_personal(amount: "5", currency: "USDT") }
     recipient = SecureRandom.uuid # a platform user id that does not exist: a 404, not a shape error
-    LiveHelper.accept { @client.transfers.to_user(to_user_id: recipient, amount: "1", currency: "USDT") }
+    LiveHelper.accept { @client.transfers.to_user(to_user_id: recipient, amount: "5", currency: "USDT") }
     LiveHelper.accept do
-      @client.transfers.batch(transfers: [{ to_user_id: recipient, amount: "1", currency: "USDT",
+      @client.transfers.batch(transfers: [{ to_user_id: recipient, amount: "5", currency: "USDT",
                                             order_id: unique("sw-tb") }])
     end
   end

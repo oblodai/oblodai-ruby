@@ -75,10 +75,10 @@ module Oblodai
       end
 
       # `POST /v1/sandbox/webhooks/replay` — re-send a terminal (delivered/dead) delivery.
-      # @param delivery_id [String]
+      # @param delivery_id [String, Oblodai::Models::WebhookDelivery] the delivery, or its id
       # @return [Oblodai::Models::SandboxReplay]
       def replay(delivery_id, **options)
-        call("POST /v1/sandbox/webhooks/replay", { delivery_id: delivery_id },
+        call("POST /v1/sandbox/webhooks/replay", { delivery_id: id_of(delivery_id, :id) },
              model: Models::SandboxReplay, **options)
       end
 
@@ -100,11 +100,12 @@ module Oblodai
       end
 
       # `POST /v1/merchants/{id}/sandbox` — the merchant's dev store and its `test_` key (idempotent).
-      # @param merchant_id [String]
+      # @param merchant_id [String, Oblodai::Models::MerchantOnboarded] the merchant, or its id
       # @return [Oblodai::Models::SandboxStore]
       def create_sandbox(merchant_id, **options)
         call("POST /v1/merchants/{id}/sandbox", nil, model: Models::SandboxStore,
-                                                     path_params: { id: merchant_id }, **options)
+                                                     path_params: { id: id_of(merchant_id, :merchant_id) },
+                                                     **options)
       end
     end
   end

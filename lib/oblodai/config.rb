@@ -47,15 +47,19 @@ module Oblodai
     # @param logger [Object, nil] anything with debug/info/warn/error(message, fields);
     #   `OBLODAI_LOG=debug` enables a stderr logger when omitted
     # @param headers [Hash] extra headers on every request
-    # @param admin_token [String, nil] admin token of a self-hosted gateway; only the
-    #   merchant-provisioning routes use it. env OBLODAI_ADMIN_TOKEN
+    # @param admin_token [String, nil] admin token of a self-hosted gateway; sent as `X-Admin-Token`
+    #   on the two merchant-provisioning routes and nowhere else. env OBLODAI_ADMIN_TOKEN
     # @param allow_insecure_base_url [Boolean] permit plain http:// base URLs; env OBLODAI_ALLOW_INSECURE=1
     # @param env [Hash] the environment to read fallbacks from
     def initialize(public_id: nil, secret: nil, payout_public_id: nil, payout_secret: nil,
                    base_url: nil, http: nil, timeout_ms: 30_000, deadline_ms: 90_000,
                    retry_policy: {}, logger: nil, headers: {}, admin_token: nil,
                    allow_insecure_base_url: false, env: ENV)
-      @base_url = (base_url || env["OBLODAI_BASE_URL"] || DEFAULT_BASE_URL).sub(%r{/+\z}, "")
+      # A blank value is not a base URL: an `export OBLODAI_BASE_URL=` in a shell profile arrives as
+      # "" and must fall through to the next source, exactly as a blank credential does.
+      @base_url = [base_url, env["OBLODAI_BASE_URL"], DEFAULT_BASE_URL]
+                  .find { |value| !value.nil? && !value.to_s.strip.empty? }
+                  .to_s.strip.sub(%r{/+\z}, "")
       assert_base_url!(@base_url, allow_insecure_base_url || env["OBLODAI_ALLOW_INSECURE"] == "1")
 
       @credentials = key_pair(public_id || env["OBLODAI_PUBLIC_ID"], secret || env["OBLODAI_SECRET"],
@@ -73,12 +77,26 @@ module Oblodai
       @admin_token = admin_token || env["OBLODAI_ADMIN_TOKEN"]
     end
 
+    # What the client is pointed at — never how it proves who it is.
+    def inspect
+      "#<Oblodai::Config base_url=#{@base_url.inspect} " \
+        "credentials=#{@credentials ? "#{@credentials.public_id} (secret [redacted])" : "none"} " \
+        "payout_credentials=#{@payout_credentials ? "#{@payout_credentials.public_id} (secret [redacted])" : "none"} " \
+        "admin_token=#{@admin_token ? "[redacted]" : "none"} " \
+        "timeout_ms=#{@timeout_ms} deadline_ms=#{@deadline_ms}>"
+    end
+    alias to_s inspect
+
     private
 
     # Half a key pair is always a configuration mistake: the SDK would sign with a secret the
-    # gateway cannot match, or send an id it cannot verify.
+    # gateway cannot match, or send an id it cannot verify. An empty string is not a credential
+    # either — an unset `OBLODAI_SECRET=` in a shell profile arrives as "" and would otherwise be
+    # signed with, producing an unexplainable 401 instead of the missing-credentials error.
     # @return [Oblodai::RequestBuilder::Credentials, nil]
     def key_pair(public_id, secret, message)
+      public_id = nil if public_id.nil? || public_id.to_s.strip.empty?
+      secret = nil if secret.nil? || secret.to_s.strip.empty?
       return nil if public_id.nil? && secret.nil?
       raise ConfigError.new("sdk.bad_config", message) if public_id.nil? || secret.nil?
 
@@ -97,6 +115,15 @@ module Oblodai
         URI.parse(base_url)
       rescue URI::InvalidURIError
         raise ConfigError.new("sdk.bad_config", "base_url is not a valid URL: #{base_url}", "base_url")
+      end
+      # URI.parse accepts "api.oblodai.com" and "/v1" happily, with no scheme and no host; the SDK
+      # would then build "://" URLs and fail deep inside the HTTP library.
+      if uri.scheme.nil? || uri.host.nil? || uri.host.empty?
+        raise ConfigError.new(
+          "sdk.bad_config",
+          "base_url must be an absolute URL with a scheme and a host (got #{base_url.inspect})",
+          "base_url"
+        )
       end
       return if uri.scheme == "https"
 

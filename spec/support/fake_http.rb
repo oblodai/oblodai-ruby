@@ -6,7 +6,7 @@ require "json"
 # It implements the whole seam the SDK needs (`call(request, timeout_ms:)`), so the unit and
 # contract suites exercise the real signing, envelope, retry and pagination code with no sockets.
 class FakeHTTP
-  Recorded = Struct.new(:verb, :url, :headers, :body, :timeout_ms, keyword_init: true) do
+  Recorded = Struct.new(:verb, :url, :headers, :body, :timeout_ms, :max_bytes, keyword_init: true) do
     # @return [Hash] the JSON body that was sent, parsed
     def json
       body.nil? ? nil : JSON.parse(body)
@@ -25,7 +25,7 @@ class FakeHTTP
   # @return [Array<Recorded>]
   attr_reader :calls
 
-  # @param script [Array<Hash>] each entry: status:, body:, headers:, raises:, delay_ms:
+  # @param script [Array<Hash>] each entry: status:, body:, headers:, raises:, delay_ms:, url:
   def initialize(script = [])
     @script = script.dup
     @calls = []
@@ -34,6 +34,7 @@ class FakeHTTP
   def call(request, timeout_ms:)
     @calls << Recorded.new(
       verb: request.method, url: request.url, body: request.body, timeout_ms: timeout_ms,
+      max_bytes: request.max_bytes,
       headers: request.headers.each_with_object({}) { |(k, v), out| out[k.to_s.downcase] = v }
     )
     step = @script.shift
@@ -50,7 +51,10 @@ class FakeHTTP
 
     body = step[:body].is_a?(String) || step[:body].nil? ? step[:body].to_s : JSON.generate(step[:body])
     headers = { "content-type" => "application/json" }.merge(step[:headers] || {})
-    Oblodai::HTTP::Response.new(status: step[:status] || 200, headers: headers, body: body)
+    # `url:` in a step models an adapter that followed a redirect; by default the answer comes from
+    # the URL that was asked for.
+    Oblodai::HTTP::Response.new(status: step[:status] || 200, headers: headers, body: body,
+                                url: step[:url] || request.url)
   end
 
   # @return [Hash] a success envelope step

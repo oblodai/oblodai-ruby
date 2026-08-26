@@ -4,6 +4,7 @@ require_relative "../core/page"
 require_relative "../core/envelope"
 require_relative "../contract/routes"
 require_relative "../models/common"
+require_relative "../errors"
 
 module Oblodai
   # A binary response (PDF/CSV documents).
@@ -28,12 +29,37 @@ module Oblodai
     end
 
     # Write the document to disk.
-    # @param path [String] defaults to {#filename} in the working directory
+    #
+    # With no argument the file is written to the working directory under the name the SERVER
+    # suggested, reduced to a bare basename first: a `Content-Disposition` of
+    # `filename="../../etc/cron.d/x"` names a path outside the directory the caller meant, and the
+    # name is chosen by whatever answered the request. Pass an explicit `path` when you want one.
+    #
+    # @param path [String, nil] where to write; defaults to {#safe_filename} in the working directory
+    # @raise [ArgumentError] when no path is given and the suggested name is unusable
     # @return [String] the path written
     def save(path = nil)
-      target = path || @filename or raise ArgumentError, "no path given and the response carried no filename"
+      target = path || safe_filename
+      if target.nil?
+        raise ArgumentError,
+              "no path given and the response carried no usable filename " \
+              "(Content-Disposition: #{@filename.inspect}) — pass one to #save"
+      end
+
       File.binwrite(target, @bytes)
       target
+    end
+
+    # The server-suggested name reduced to a single path segment, or nil when nothing usable is
+    # left of it. {#filename} keeps the raw value for logging.
+    # @return [String, nil]
+    def safe_filename
+      return nil if @filename.nil?
+
+      name = File.basename(@filename.to_s.tr("\\", "/").delete("\0"))
+      return nil if name.empty? || name.include?("/") || [".", ".."].include?(name)
+
+      name
     end
 
     def inspect
@@ -63,6 +89,23 @@ module Oblodai
         end
       end
 
+      # Methods that take no request body collect their keywords as per-call options; a misspelled
+      # one would otherwise reach the transport as an unknown keyword and surface as a bare
+      # ArgumentError from inside the SDK instead of an Oblodai error naming the mistake.
+      # @raise [Oblodai::ConfigError]
+      # @return [void]
+      def self.assert_options!(options, route_key)
+        unknown = options.keys - OPTION_KEYS
+        return if unknown.empty?
+
+        raise ConfigError.new(
+          "sdk.bad_config",
+          "#{route_key}: unknown option(s) #{unknown.map(&:inspect).join(", ")}; " \
+          "this method accepts #{OPTION_KEYS.map(&:inspect).join(", ")}",
+          unknown.first.to_s
+        )
+      end
+
       # @param transport [Oblodai::Transport]
       def initialize(transport)
         @transport = transport
@@ -74,21 +117,47 @@ module Oblodai
         Contract::ROUTES.fetch(key)
       end
 
+      # Accept either the object's id as a string or the model that carries it, so a value the SDK
+      # just returned can be passed straight back.
+      # @param ref [String, Oblodai::Models::Model, Hash]
+      # @param field [Symbol] the id field on the model
+      # @return [String]
+      def id_of(ref, field)
+        return ref if ref.is_a?(String) || ref.nil?
+        return ref[field].to_s if ref.respond_to?(:[]) && !ref[field].nil?
+
+        ref.to_s
+      end
+
       # Call an envelope route and decode `result` into `model` (or return it raw when nil).
       def call(key, body = nil, model: nil, path_params: nil, query: nil, **options)
-        result = @transport.call(route(key), body: normalize(body), query: query,
+        Base.assert_options!(options, key)
+        result = @transport.call(route(key), body: body, query: query,
                                              path_params: path_params, **options)
         decode(result, model)
       end
 
-      # Call a paged list route and return a lazy {Oblodai::Page}.
+      # Call a paged list route and return a lazy {Oblodai::Page}. Nil keywords are dropped in one
+      # place only — {Oblodai::RequestBuilder.serialize_body} for bodies, `query_string` for
+      # queries — so "unset" never reaches the wire as an explicit null.
       def page(key, model:, params: {}, path_params: nil, via_query: false, **options)
-        params = normalize(params) || {}
+        Base.assert_options!(options, key)
+        params ||= {}
         limit = params.delete(:limit) || params.delete("limit")
         offset = params.delete(:offset) || params.delete("offset")
-        # One key per page would be wrong on both sides: the core would replay page 1 forever.
-        options.delete(:idempotency_key)
         spec = route(key)
+        # One key across a paging loop would make the core replay page 1 forever, and a key per page
+        # is not what the caller asked for either — so this is refused loudly, with the same code the
+        # transport raises on any other route the core does not deduplicate. Dropping it silently
+        # would leave the caller believing a re-send is deduplicated when it is not.
+        if options.key?(:idempotency_key)
+          raise ConfigError.new(
+            "sdk.idempotency_unsupported",
+            "#{spec.key} is a list route and does not deduplicate by Idempotency-Key; " \
+            "remove idempotency_key from this call",
+            "idempotency_key"
+          )
+        end
         use_query = spec.method == "GET" || via_query
 
         Page.new(limit: limit, offset: offset) do |limit:, offset:|
@@ -107,13 +176,15 @@ module Oblodai
 
       # Call a plain list route (`{items}` without paginate) and return the decoded items.
       def plain_list(key, body = nil, model:, **options)
-        result = @transport.call(route(key), body: normalize(body), **options)
+        Base.assert_options!(options, key)
+        result = @transport.call(route(key), body: body, **options)
         decode_list(Envelope.as_plain_list(result)["items"], model)
       end
 
       # Call a bare (binary) route.
       def file(key, body: nil, query: nil, path_params: nil, **options)
-        raw = @transport.call_raw(route(key), body: normalize(body), query: query,
+        Base.assert_options!(options, key)
+        raw = @transport.call_raw(route(key), body: body, query: query,
                                               path_params: path_params, **options)
         FileResult.new(bytes: raw.body, content_type: raw.content_type || "application/octet-stream",
                        filename: filename_from(raw.header("content-disposition")))
@@ -129,15 +200,6 @@ module Oblodai
         return Array(items) if model.nil?
 
         model.from_list(items)
-      end
-
-      # Drop nil keyword arguments so an unset option never reaches the wire as an explicit null.
-      def normalize(body)
-        return nil if body.nil?
-        return body unless body.is_a?(Hash)
-
-        cleaned = body.compact
-        cleaned.empty? ? {} : cleaned
       end
 
       def filename_from(disposition)

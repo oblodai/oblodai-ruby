@@ -24,7 +24,7 @@ RSpec.describe Oblodai::Signing do
     end
 
     it "signs the body bytes, so UTF-8 and its binary form agree" do
-      body = '{"additional_data":"тест"}'
+      body = '{"additional_data":"café 東京"}'
       a = described_class.sign_request("s", ts: 5, method: "POST", request_uri: "/v1/payment", body: body)
       b = described_class.sign_request("s", ts: 5, method: "POST", request_uri: "/v1/payment", body: body.b)
       expect(a).to eq(b)

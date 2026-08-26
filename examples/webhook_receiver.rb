@@ -4,7 +4,11 @@
 # A webhook receiver on Ruby's own HTTP server — no framework, no client, no API key. The two rules
 # that matter: verify over the RAW bytes, and deduplicate on the delivery id.
 #
-#   OBLODAI_WEBHOOK_SECRET=… ruby examples/webhook_receiver.rb   # listens on :8096, PORT overrides
+# WEBrick left the standard library in Ruby 3.0 — `gem install webrick` (it is in this repository's
+# development bundle) before running the example. Nothing in the gem itself needs it.
+#
+#   gem install webrick
+#   OBLODAI_WEBHOOK_SECRET=... ruby examples/webhook_receiver.rb   # listens on :8096, PORT overrides
 
 require "webrick"
 require "oblodai/webhooks"
@@ -29,7 +33,14 @@ server.mount_proc "/hook" do |request, response|
     delivery = Oblodai::Webhooks.verify_delivery(raw, request.header, secret: SECRET,
                                                                       previous_secret: PREVIOUS_SECRET)
   rescue Oblodai::SignatureError => e
+    # Not authentic (or not fresh): refuse it, and the sender stops retrying.
     warn "rejected: #{e.code} #{e.message}"
+    response.status = 401
+    next
+  rescue Oblodai::WebhookPayloadError => e
+    # Authentic, but this release cannot read the body. Deliberately NOT a 401: the sender is the
+    # gateway, and the delivery deserves investigation, not rejection as a forgery.
+    warn "unreadable delivery: #{e.code} #{e.message}"
     response.status = 400
     next
   end
@@ -46,6 +57,14 @@ server.mount_proc "/hook" do |request, response|
   else
     seen[delivery.id] = true
     last_sequence[event.uuid] = event.sequence
+
+    # A newer gateway may send an event kind this release does not model; it arrives verbatim.
+    unless Oblodai::Webhooks.known_event?(event)
+      puts "unknown event type #{event.type}, ignored"
+      response.status = 200
+      response.body = "ok"
+      next
+    end
 
     case event.type
     when "payment"
