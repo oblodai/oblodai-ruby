@@ -33,8 +33,7 @@ or call `Oblodai::Signing.sign_request`.
 - Amounts are `String`. `Oblodai::Money.add("10.000000", "0.5") # => "10.500000"`. Never `to_f`.
 - Request fields are keyword arguments spelled exactly as the wire spells them (`order_id:`,
   `url_callback:`), so the API reference reads as Ruby without translation.
-- Per-call options travel with them: `idempotency_key:`, `timeout_ms:`, `deadline_ms:`,
-  `prefer_payout_key:`.
+- Per-call options travel with them: `idempotency_key:`, `timeout_ms:`, `deadline_ms:`.
 - List methods return a lazy `Oblodai::Page` (`each` walks every page, `first_page` fetches one).
 - Failures raise `Oblodai::Error` subclasses; the machine-readable discriminator is always `#code`.
 - List methods refuse an `idempotency_key:` (`sdk.idempotency_unsupported`) rather than dropping it,
@@ -46,6 +45,12 @@ or call `Oblodai::Signing.sign_request`.
 
 ## Things worth knowing before the first release
 
+- **One API key.** A merchant has a single key (`oblodai_<hex>` / `oblodai_live_<hex>`), and it signs
+  every signed route — payouts, refunds, splits and settings included. If you are porting an
+  integration that held two pairs, one for invoices and one for money going out, keep the one the
+  dashboard shows you and delete the rest: there is no second credential pair to configure and no
+  per-call key preference. Merchants still holding an old `oblodai_pk_`/`oblodai_wk_` split pair are
+  the only ones who can still see 403 `merchant.wrong_key_kind`.
 - **`merchants` and the admin token.** `merchants.create(email:, name:)` and
   `merchants.create_sandbox(id)` provision merchants on a self-hosted gateway. They are unsigned and
   gated by `admin_token:` (or `OBLODAI_ADMIN_TOKEN`), which is sent as `X-Admin-Token` on those two

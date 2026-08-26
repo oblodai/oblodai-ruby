@@ -30,8 +30,8 @@ module Oblodai
 
     # @param base_url [String]
     # @param user_agent [String]
-    # @param credentials [Oblodai::RequestBuilder::Credentials, nil] payment/`any` routes
-    # @param payout_credentials [Oblodai::RequestBuilder::Credentials, nil] payout routes
+    # @param credentials [Oblodai::RequestBuilder::Credentials, nil] the merchant's one API key;
+    #   it signs every route the core gates with `key`
     # @param http [#call] HTTP adapter
     # @param timeout_ms [Integer] per-attempt timeout
     # @param deadline_ms [Integer] overall budget per call, including retries and pauses
@@ -40,13 +40,12 @@ module Oblodai
     # @param logger [#debug]
     # @param headers [Hash] extra headers on every request
     # @param admin_token [String, nil] sent as X-Admin-Token on `onboard` routes only
-    def initialize(base_url:, user_agent:, credentials: nil, payout_credentials: nil, http: nil,
-                   timeout_ms: 30_000, deadline_ms: 90_000, retry_policy: RetryPolicy.new,
-                   clock: Clock.new, logger: NullLogger.new, headers: {}, admin_token: nil)
+    def initialize(base_url:, user_agent:, credentials: nil, http: nil, timeout_ms: 30_000,
+                   deadline_ms: 90_000, retry_policy: RetryPolicy.new, clock: Clock.new,
+                   logger: NullLogger.new, headers: {}, admin_token: nil)
       @base_url = base_url
       @user_agent = user_agent
       @credentials = credentials
-      @payout_credentials = payout_credentials
       @http = http || HTTP::NetHTTPAdapter.new
       @timeout_ms = timeout_ms
       @deadline_ms = deadline_ms
@@ -63,7 +62,6 @@ module Oblodai
     def inspect
       "#<Oblodai::Transport base_url=#{@base_url.inspect} " \
         "credentials=#{describe_credentials(@credentials)} " \
-        "payout_credentials=#{describe_credentials(@payout_credentials)} " \
         "admin_token=#{@admin_token ? "[redacted]" : "none"}>"
     end
     alias to_s inspect
@@ -74,10 +72,10 @@ module Oblodai
     # @return [Object] the decoded `result`
     # @raise [Oblodai::Error]
     def call(route, body: nil, query: nil, path_params: nil, idempotency_key: nil,
-             prefer_payout_key: false, timeout_ms: nil, deadline_ms: nil)
+             timeout_ms: nil, deadline_ms: nil)
       raw = execute(route, body: body, query: query, path_params: path_params,
-                           idempotency_key: idempotency_key, prefer_payout_key: prefer_payout_key,
-                           timeout_ms: timeout_ms, deadline_ms: deadline_ms)
+                           idempotency_key: idempotency_key, timeout_ms: timeout_ms,
+                           deadline_ms: deadline_ms)
       decoded = Envelope.decode(raw.status, raw.body)
       result = decoded.result
       # The core replays a cached response by Idempotency-Key; when the original was too large to
@@ -100,15 +98,8 @@ module Oblodai
 
     private
 
-    # Which key pair signs a route. `any` routes take the payment key unless told otherwise.
-    def credentials_for(route, prefer_payout)
-      return @payout_credentials || @credentials if route.auth == :payout || (route.auth == :any && prefer_payout)
-
-      @credentials
-    end
-
     def execute(route, body: nil, query: nil, path_params: nil, idempotency_key: nil,
-                prefer_payout_key: false, timeout_ms: nil, deadline_ms: nil)
+                timeout_ms: nil, deadline_ms: nil)
       payload = RequestBuilder.serialize_body(body, route.method)
       key = resolve_idempotency_key(route, idempotency_key)
       safe_to_repeat = route.safe || (route.idempotent && !key.nil?)
@@ -121,7 +112,7 @@ module Oblodai
         # The offset this attempt is signed with. Compared against the server's own time below —
         # never against the shared offset, which a concurrent call may already have corrected.
         signed_offset = @clock.offset
-        request = build_request(route, payload, key, path_params, query, prefer_payout_key)
+        request = build_request(route, payload, key, path_params, query)
         @logger.debug("request", { route: route.key, attempt: attempt, idempotency_key: key })
 
         begin
@@ -147,11 +138,11 @@ module Oblodai
       end
     end
 
-    def build_request(route, payload, key, path_params, query, prefer_payout_key)
+    def build_request(route, payload, key, path_params, query)
       RequestBuilder.build(
         base_url: @base_url, route: route, body: payload, ts: @clock.now,
         user_agent: @user_agent, path_params: path_params, query: query,
-        credentials: credentials_for(route, prefer_payout_key), idempotency_key: key,
+        credentials: @credentials, idempotency_key: key,
         extra_headers: @headers,
         # Never on a signed merchant route: the admin token provisions merchants, and a gateway
         # operator's token must not travel on every call a merchant integration makes.

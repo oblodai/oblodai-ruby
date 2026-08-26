@@ -77,8 +77,7 @@ module Oblodai
       #   REFUSED on routes the core does not deduplicate (`sdk.idempotency_unsupported`).
       # - `timeout_ms:` per-attempt timeout.
       # - `deadline_ms:` overall budget for the call including retries.
-      # - `prefer_payout_key:` sign with the payout key on a route that accepts either kind.
-      OPTION_KEYS = %i[idempotency_key timeout_ms deadline_ms prefer_payout_key].freeze
+      OPTION_KEYS = %i[idempotency_key timeout_ms deadline_ms].freeze
 
       # Remove the per-call options from a keyword hash, leaving the request body behind.
       # @param params [Hash]

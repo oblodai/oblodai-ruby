@@ -4,7 +4,7 @@
 # Send money out: price it, dry-run it, then create it — with an idempotency key you control, so a
 # lost response can never turn into a second payout.
 #
-#   OBLODAI_PAYOUT_PUBLIC_ID=… OBLODAI_PAYOUT_SECRET=… ruby examples/payout.rb
+#   OBLODAI_PUBLIC_ID=… OBLODAI_SECRET=… ruby examples/payout.rb
 
 require "oblodai"
 

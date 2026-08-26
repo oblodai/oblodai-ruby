@@ -82,7 +82,7 @@ RSpec.describe "resource surface" do
   describe "ids may be the model the SDK returned" do
     it "reads the id out of it" do
       http = FakeHTTP.new([FakeHTTP.ok({})] * 5)
-      client = client_with(http, payout_public_id: "wk", payout_secret: "s2")
+      client = client_with(http)
       client.payout_links.info(Oblodai::Models::PayoutLink.from("link_id" => "pl-1"))
       client.payment_links.info(Oblodai::Models::PaymentLink.from("link_id" => "pml-1"))
       client.batches.info(Oblodai::Models::BatchSubmitted.from("batch_id" => "b-1"))
@@ -101,16 +101,14 @@ RSpec.describe "resource surface" do
       expect(http.calls.first.json).to eq("batch_id" => "b1", "limit" => 100, "offset" => 200)
     end
 
-    it "keeps them on the payout-key retry" do
-      http = FakeHTTP.new([
-                            FakeHTTP.api_error(403, { "code" => "merchant.wrong_key_kind",
-                                                      "retryable" => false }),
-                            FakeHTTP.ok("batch_id" => "b1")
-                          ])
-      client = client_with(http, payout_public_id: "wk", payout_secret: "s2")
-      client.batches.info("b1", limit: 10)
-      expect(http.calls.map(&:json)).to eq([{ "batch_id" => "b1", "limit" => 10 },
-                                            { "batch_id" => "b1", "limit" => 10 }])
+    it "asks once, with the API key, and lets a refusal be a refusal" do
+      # There is no second key to fall back to any more: a 403 here is the core's answer, not a
+      # key-kind mismatch to be retried with different credentials.
+      http = FakeHTTP.new([FakeHTTP.api_error(403, { "code" => "merchant.forbidden",
+                                                     "retryable" => false })])
+      expect { client_with(http).batches.info("b1", limit: 10) }
+        .to raise_error(Oblodai::PermissionError)
+      expect(http.calls.size).to eq(1)
     end
   end
 
@@ -130,7 +128,7 @@ RSpec.describe "resource surface" do
     it "accepts every kind the contract declares, as a string or a symbol" do
       Oblodai::Enums::WEBHOOK_KINDS.each do |kind|
         http = FakeHTTP.new([FakeHTTP.ok("ok" => true), FakeHTTP.ok("ok" => true)])
-        client = client_with(http, payout_public_id: "wk", payout_secret: "s2")
+        client = client_with(http)
         client.webhooks.test(kind, url_callback: "https://x")
         client.webhooks.test(kind.to_sym, url_callback: "https://x")
         expect(http.calls.map(&:path)).to eq(["/v1/test-webhook/#{kind}"] * 2)

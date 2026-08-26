@@ -10,12 +10,11 @@ gateway's contract snapshot in `contract/contract.json`, which ships with the ge
   `sdk.bad_amount`.
 - Request fields are keyword arguments spelled exactly as the wire spells them (`order_id:`,
   `url_callback:`, `payer_email:`). The same keyword list also accepts `idempotency_key:`,
-  `timeout_ms:`, `deadline_ms:`, `prefer_payout_key:`.
-- Two key kinds. The **payout key** is required for: `payouts.*`, `refunds.*`, `payout_links.*`,
-  `transfers.*`, `splits.*`, `wallets.refund_blocked_deposit`, `settings.*_auto_withdraw`,
-  `settings.*_api_allowlist`, `webhooks.rotate_secret`, `webhooks.test("payout", …)`,
-  `sandbox.faucet`, `sandbox.reset`. Configure it with `payout_public_id:`/`payout_secret:` (or
-  `OBLODAI_PAYOUT_*`); a wrong kind is a 403 `merchant.wrong_key_kind`.
+  `timeout_ms:`, `deadline_ms:`.
+- One API key. `public_id:`/`secret:` (or `OBLODAI_PUBLIC_ID`/`OBLODAI_SECRET`) sign every signed
+  route there is — payments and payouts alike. There is no second credential pair, no per-call key
+  choice and no key-kind error to handle. `admin_token:` (or `OBLODAI_ADMIN_TOKEN`) is the gateway
+  operator's token and reaches only the two unsigned onboarding routes; public routes carry none.
 - List methods return a lazy `Oblodai::Page`: `each` walks every page, `first_page` fetches one page
   (`items` + `paginate`), `all(max)` collects. Nothing is requested until it is consumed.
 - Idempotency keys are generated automatically on create routes and reused across retries. Passing
@@ -55,8 +54,8 @@ authentic but unreadable, contract family, do NOT answer 401), `ContractError` (
 the documented envelope). `e.to_h`/`e.to_json` keep the message and drop the raw body.
 
 Codes worth handling: `payout.insufficient_funds` (retryable), `payout.funds_maturing` (retryable),
-`idempotency.key_reused`, `invoice.not_payable`, `payment.not_found`, `merchant.wrong_key_kind`,
-`merchant.bad_signature`, `request.rate_limited`. Full list: `Oblodai::Enums::ERROR_CODES`.
+`idempotency.key_reused`, `invoice.not_payable`, `payment.not_found`, `merchant.bad_signature`,
+`request.rate_limited`. Full list: `Oblodai::Enums::ERROR_CODES`.
 
 ## Statuses
 
@@ -86,6 +85,6 @@ negative `tolerance:` is a ConfigError. An unknown event `type` does not raise �
 `Oblodai::Contract::ROUTES` (107 routes: path, auth, idempotent, safe, bare, list — every field the
 core's export declares, compared with it in spec/contract/routes_spec.rb),
 `Oblodai::Contract::REQUESTS` (documented request fields per route, with English descriptions),
-`Oblodai::Enums::*` (`ERROR_CODES` — 471 of them, `NETWORKS`, `PAYMENT_STATUSES`,
+`Oblodai::Enums::*` (`ERROR_CODES` — 469 of them, `NETWORKS`, `PAYMENT_STATUSES`,
 `PAYOUT_STATUSES`, `EVENT_TYPES`, …), and `contract/` on disk (`Oblodai.contract_path`): schemas, golden response
 bodies per route, error samples, signed webhook samples.

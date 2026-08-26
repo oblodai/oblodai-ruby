@@ -5,7 +5,7 @@ versions follow [SemVer](https://semver.org/).
 
 ## [1.3.0] — 2026-08-26
 
-First release of the Ruby SDK, generated from the gateway's contract snapshot (core `7ec0429`) and
+First release of the Ruby SDK, generated from the gateway's contract snapshot (core `2cc44c1`) and
 verified against it. Migration notes: [MIGRATION-1.3.md](MIGRATION-1.3.md).
 
 ### Added
@@ -122,6 +122,13 @@ verified against it. Migration notes: [MIGRATION-1.3.md](MIGRATION-1.3.md).
 
 ### Changed
 
-- The contract snapshot is core `7ec0429`: 107 routes, 471 error codes (`autopilot.freeze_unknown`
+- The contract snapshot is core `2cc44c1`: 107 routes, 469 error codes (`autopilot.freeze_unknown`
   and `autopilot.frozen` are new), and every route now declares `safe`.
+- One API key: the payout credential pair (`payout_public_id:`/`payout_secret:`,
+  `OBLODAI_PAYOUT_PUBLIC_ID`/`OBLODAI_PAYOUT_SECRET`) and the `prefer_payout_key:` per-call option
+  are gone. `public_id:`/`secret:` signs every signed route, `admin_token:` gates the two onboarding
+  routes, public routes carry no credential. Route auth is now `public` | `key` | `onboard`;
+  onboarding answers with `api_key` alone (no `payment_key`/`payout_key`), and the catalogue no
+  longer lists `merchant.wrong_key_kind` — only a legacy `oblodai_pk_`/`oblodai_wk_` pair can still
+  provoke it.
 

@@ -95,11 +95,10 @@ module Oblodai
 
       unless route.unsigned?
         unless credentials
-          kind = route.auth == :any ? "merchant" : route.auth
           raise ConfigError.new(
             "sdk.missing_credentials",
-            "#{route.method} #{route.path} needs a #{kind} API key: pass public_id:/secret: to " \
-            "Oblodai::Client.new or set OBLODAI_PUBLIC_ID / OBLODAI_SECRET"
+            "#{route.method} #{route.path} is signed with the merchant's API key: pass " \
+            "public_id:/secret: to Oblodai::Client.new or set OBLODAI_PUBLIC_ID / OBLODAI_SECRET"
           )
         end
         headers[Signing::HEADER_PUBLIC_ID] = credentials.public_id

@@ -19,7 +19,7 @@ module Oblodai
       end
 
       # `POST /v1/webhooks/rotate-secret` — new secret; the old one keeps verifying until
-      # `previous_secret_valid_until`. Payout key.
+      # `previous_secret_valid_until`.
       # @return [Oblodai::Models::WebhookSecretRotated]
       def rotate_secret(**options)
         call("POST /v1/webhooks/rotate-secret", nil, model: Models::WebhookSecretRotated, **options)

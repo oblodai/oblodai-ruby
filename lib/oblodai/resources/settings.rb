@@ -76,7 +76,7 @@ module Oblodai
         call("POST /v1/payment/fee-config/set", params, model: Models::PaymentFeeConfig, **options)
       end
 
-      # `POST /v1/auto-withdraw/list`. Payout key.
+      # `POST /v1/auto-withdraw/list`.
       # @return [Array<Oblodai::Models::AutoWithdrawRule>]
       def list_auto_withdraw(**options)
         plain_list("POST /v1/auto-withdraw/list", nil, model: Models::AutoWithdrawRule, **options)
@@ -98,7 +98,7 @@ module Oblodai
                    model: Models::AutoWithdrawRule, **options)
       end
 
-      # `POST /v1/api-allowlist/list` — source IPs allowed to use the API keys. Payout key.
+      # `POST /v1/api-allowlist/list` — source IPs allowed to use the API key.
       # @return [Oblodai::Models::ApiAllowlist]
       def list_api_allowlist(**options)
         call("POST /v1/api-allowlist/list", nil, model: Models::ApiAllowlist, **options)
@@ -126,7 +126,7 @@ module Oblodai
       end
     end
 
-    # Revenue splits: a percentage of every payment forwarded to a partner. Payout key.
+    # Revenue splits: a percentage of every payment forwarded to a partner.
     class Splits < Base
       # `POST /v1/split/rule` — to an external address (`address`+`network`) or a platform merchant
       # (`merchant_id`).

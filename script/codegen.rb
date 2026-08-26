@@ -27,6 +27,21 @@ RUBY
 # Routes the SDK never calls: they are not part of the merchant surface.
 INTERNAL = %r{^/(healthz|readyz|docs|openapi\.json|internal)}
 
+# The whole auth vocabulary the core has: `public` is unsigned, `key` is signed with the merchant's
+# one API key, `onboard` carries the gateway operator's admin token. Anything else means the export
+# predates the single-key cleanup (the old `payment`/`payout`/`any` split) or the core grew a gate
+# this SDK cannot honour — either way the snapshot is refused rather than generated from.
+AUTH_KINDS = %w[public key onboard].freeze
+
+def auth_kind(route)
+  value = route["auth"]
+  return value if AUTH_KINDS.include?(value)
+
+  raise "route #{route["method"]} #{route["path"]} declares auth #{value.inspect}: the SDK knows " \
+        "only #{AUTH_KINDS.join(", ")} — re-export the contract from a core that authenticates " \
+        "every signed route with the merchant's single API key"
+end
+
 # Read-only routes: a transport failure may be retried without risking a duplicate side effect.
 # This is the core's own hand-written classification, exported per route — never a guess from the
 # shape of the path, which would mis-classify the first new route whose name ends in `/info`.
@@ -42,7 +57,10 @@ end
 
 # Every route the export declares is checked, internal ones included: a snapshot that classified
 # only some of them is a snapshot the SDK cannot trust for the rest.
-contract["routes"].each { |r| safe?(r) }
+contract["routes"].each do |r|
+  safe?(r)
+  auth_kind(r)
+end
 routes = contract["routes"]
          .reject { |r| INTERNAL.match?(r["path"]) }
          .sort_by { |r| [r["path"], r["method"]] }
@@ -53,14 +71,14 @@ def route_literal(route)
   fields = [
     %(method: "#{route["method"]}"),
     %(path: "#{route["path"]}"),
-    %(auth: :#{route["auth"]}),
+    %(auth: :#{auth_kind(route)}),
     "idempotent: #{route["idempotent"]}",
     "safe: #{safe?(route)}",
     "bare: #{route["bare"]}",
     "list: #{route["list"] ? ":#{route["list"]}" : "nil"}"
   ]
   # Frozen: the registry hash is shared by every client in the process, so a mutable Route would let
-  # one caller flip another's retry safety (`safe`) or key kind (`auth`) for the whole program.
+  # one caller flip another's retry safety (`safe`) or auth gate (`auth`) for the whole program.
   %(Route.new(#{fields.join(", ")}).freeze)
 end
 

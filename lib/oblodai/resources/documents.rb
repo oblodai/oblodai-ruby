@@ -6,7 +6,7 @@ require_relative "../models/account"
 module Oblodai
   module Resources
     # Generated PDF/CSV documents. Every method returns the bytes ({Oblodai::FileResult}); large
-    # ranges go through asynchronous jobs ({#create_job} → {#job_info} → {#job_file}). Payment key.
+    # ranges go through asynchronous jobs ({#create_job} → {#job_info} → {#job_file}).
     #
     # Query options common to the reports: `lang:` (a 2-letter code, 41 supported), `format:`
     # ("pdf" or "csv" where the document offers both) and `from:`/`to:` (`YYYY-MM-DD`).

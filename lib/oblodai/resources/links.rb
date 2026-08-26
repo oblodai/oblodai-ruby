@@ -7,7 +7,6 @@ require_relative "../models/payments"
 module Oblodai
   module Resources
     # Payout links (cheques): funds reserved now, claimed later by whoever holds the token.
-    # Payout key.
     class PayoutLinks < Base
       # `POST /v1/payout/link` — reserve funds and mint a claim token (`claim_token`/`claim_url` are
       # returned once, and `claim_token`/`passcode` are kept out of `to_h`, `to_json` and `inspect`
@@ -15,8 +14,7 @@ module Oblodai
       #
       # Codes worth branching on: `payout_link.disabled`, `payout.insufficient_funds` (retryable),
       # `payout.funds_maturing` (retryable), `payout.bad_amount`, `payout.bad_address`,
-      # `payout.reference_collision` (that `reference` already minted a different link),
-      # `merchant.wrong_key_kind`.
+      # `payout.reference_collision` (that `reference` already minted a different link).
       # @return [Oblodai::Models::PayoutLink]
       def create(**params)
         options = Base.take_options!(params)
@@ -52,7 +50,7 @@ module Oblodai
       # `reference` is required on every item.
       #
       # Call-level codes worth branching on: `payout.batch_too_large` (>500), `payout.empty_batch`,
-      # `payout_link.disabled`, `payout.insufficient_funds` (retryable), `merchant.wrong_key_kind`.
+      # `payout_link.disabled`, `payout.insufficient_funds` (retryable).
       # Per-element failures arrive as `error_code` with the vocabulary of {#create}.
       # @return [Array<Oblodai::Models::PayoutLinkBatchElement>]
       def batch(**params)
@@ -91,7 +89,7 @@ module Oblodai
       end
     end
 
-    # Reusable payment links (tip jars, price tags): each checkout spawns an invoice. Payment key.
+    # Reusable payment links (tip jars, price tags): each checkout spawns an invoice.
     class PaymentLinks < Base
       # `POST /v1/payment/link` — a reusable link; each checkout spawns its own invoice.
       #
