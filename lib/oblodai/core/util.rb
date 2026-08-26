@@ -58,21 +58,6 @@ module Oblodai
       key.to_s.sub(/\AHTTP_/, "").downcase.tr("_", "-")
     end
 
-    # Drop nil values so they never reach the JSON body as explicit nulls.
-    # @param hash [Hash, nil]
-    # @return [Hash]
-    def compact(hash)
-      return {} if hash.nil?
-
-      hash.compact
-    end
-
-    # Symbolize the keys of a decoded JSON object, one level deep.
-    # @return [Hash{Symbol => Object}]
-    def symbolize(hash)
-      hash.each_with_object({}) { |(k, v), out| out[k.to_sym] = v }
-    end
-
     # Monotonic milliseconds — immune to a wall-clock jump during a retry loop.
     # @return [Float]
     def monotonic_ms

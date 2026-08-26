@@ -8,8 +8,9 @@ module Oblodai
     class ApiKeyPair < Model
       # @return [String] goes into `X-Public-Id`
       field :public_id
-      # @return [String] signs the request; store it in a secret manager
-      field :secret
+      # @return [String] signs the request; store it in a secret manager. Kept out of `to_h`,
+      #   `to_json` and `inspect`.
+      field :secret, secret: true
       # @return [String] "api" — the unified key kind current merchants receive
       field :kind
     end

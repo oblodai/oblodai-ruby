@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-# GENERATED FILE — do not edit. Source: contract/contract.json (core bfca971cce71).
+# GENERATED FILE — do not edit. Source: contract/contract.json (core 7ec04293c426).
 # Regenerate with: rake codegen
 
 require_relative "enums"
@@ -56,7 +56,7 @@ module Oblodai
         to: { type: :string, example: "2026-08-19", doc: "End of the period, inclusive, YYYY-MM-DD (defaults to today). The period may span up to two years." }.freeze
       }.freeze,
       "POST /v1/documents/jobs/info" => {
-        job_id: { type: :string, required: true, example: "6f1c…", doc: "Job id from the creation response." }.freeze
+        job_id: { type: :string, required: true, doc: "Job id from the creation response." }.freeze
       }.freeze,
       "POST /v1/exchange-rate/list" => {
         currency_from: { type: :string, example: "ETH", doc: "Currency code. If set, only its rate is returned. If empty or the body is {}, rates for all currencies are returned." }.freeze,
@@ -172,7 +172,7 @@ module Oblodai
         min_amount: { type: :string, money: true, example: "1.00", doc: "Lower bound: an optional floor for open, a required minimum for range." }.freeze,
         pinned_currency: { type: :string, example: "USDT", doc: "Settlement currency (coin) pinned to the link; empty — the buyer chooses the coin." }.freeze,
         pinned_network: { type: :string, enum: Enums::NETWORKS, example: "tron", doc: "Settlement network pinned to the link; empty — the buyer chooses the network." }.freeze,
-        title: { type: :string, example: "Поддержать проект", doc: "Title on the payment page." }.freeze
+        title: { type: :string, doc: "Title on the payment page." }.freeze
       }.freeze,
       "POST /v1/payment/link/info" => {
         limit: { type: :integer, example: 25, doc: "Page size for the link's payments, 1–100; out of range falls back to 25." }.freeze,
@@ -283,10 +283,10 @@ module Oblodai
         expires_in_seconds: { type: :integer, example: 604800, doc: "Link lifetime in seconds, clamped to 3600–2592000 (one hour to 30 days); without the field or with 0 the link lives 1 hour, not the maximum — set it explicitly." }.freeze,
         fee_bearer: { type: :string, enum: Enums::FEE_BEARERS, example: "merchant", doc: "Who pays the network fee: \"recipient\" (default — deducted from the amount, the recipient receives less) or \"merchant\" (the amount plus the fee is reserved, the recipient receives exactly amount)." }.freeze,
         network: { type: :string, required: true, enum: Enums::NETWORKS, example: "tron", doc: "Payout network for the recipient (tron, bitcoin, …)." }.freeze,
-        note: { type: :string, example: "Спасибо за участие", doc: "Message to the recipient (shown on the claim page and in the email)." }.freeze,
+        note: { type: :string, doc: "Message to the recipient (shown on the claim page and in the email)." }.freeze,
         passcode: { type: :string, example: "auto", doc: "Claim code — a second factor for the link: \"auto\" — we generate it and return it ONCE in the response, or your own (6–64 visible characters), empty — no code. Pass the code to the recipient over a channel SEPARATE from the link (it is not put into the email); after 10 incorrect attempts the link is locked." }.freeze,
         reference: { type: :string, example: "bonus-42", doc: "Your deduplication key, unique per merchant; the Idempotency-Key header has no effect on this endpoint." }.freeze,
-        title: { type: :string, example: "Бонус", doc: "Title — shown to the recipient on the claim page." }.freeze
+        title: { type: :string, doc: "Title — shown to the recipient on the claim page." }.freeze
       }.freeze,
       "POST /v1/payout/link/batch" => {
         items: { type: :array, required: true, doc: "Up to 500 links per call; each one succeeds or fails independently, the response is aligned with the request indexes.", fields: {
@@ -296,17 +296,17 @@ module Oblodai
           expires_in_seconds: { type: :integer, example: 604800, doc: "Link lifetime in seconds, clamped to 3600–2592000 (one hour to 30 days); without the field or with 0 the link lives 1 hour, not the maximum — set it explicitly." }.freeze,
           fee_bearer: { type: :string, enum: Enums::FEE_BEARERS, example: "merchant", doc: "Who pays the network fee: \"recipient\" (default — deducted from the amount, the recipient receives less) or \"merchant\" (the amount plus the fee is reserved, the recipient receives exactly amount)." }.freeze,
           network: { type: :string, required: true, enum: Enums::NETWORKS, example: "tron", doc: "Payout network for the recipient (tron, bitcoin, …)." }.freeze,
-          note: { type: :string, example: "Спасибо за участие", doc: "Message to the recipient (shown on the claim page and in the email)." }.freeze,
+          note: { type: :string, doc: "Message to the recipient (shown on the claim page and in the email)." }.freeze,
           passcode: { type: :string, example: "auto", doc: "Claim code — a second factor for the link: \"auto\" — we generate it and return it ONCE in the response, or your own (6–64 visible characters), empty — no code. Pass the code to the recipient over a channel SEPARATE from the link (it is not put into the email); after 10 incorrect attempts the link is locked." }.freeze,
           reference: { type: :string, required: true, example: "bonus-42", doc: "Your deduplication key, unique per merchant; the Idempotency-Key header has no effect on this endpoint." }.freeze,
-          title: { type: :string, example: "Бонус", doc: "Title — shown to the recipient on the claim page." }.freeze
+          title: { type: :string, doc: "Title — shown to the recipient on the claim page." }.freeze
         } }.freeze
       }.freeze,
       "POST /v1/payout/link/cancel" => {
         link_id: { type: :string, required: true, doc: "Payout link id (link_id from the creation response)." }.freeze
       }.freeze,
       "POST /v1/payout/link/cheque" => {
-        claim_token: { type: :string, required: true, example: "nUqx1yG3…", doc: "Claim secret from the payout link creation response. Stored only as a hash and never reissued — the cheque can be printed only while you still hold the token." }.freeze,
+        claim_token: { type: :string, required: true, doc: "Claim secret from the payout link creation response. Stored only as a hash and never reissued — the cheque can be printed only while you still hold the token." }.freeze,
         lang: { type: :string, example: "ru", doc: "Document language — one of the 41 supported codes (en by default); the full list is in the document.unknown_lang error." }.freeze
       }.freeze,
       "POST /v1/payout/link/info" => {

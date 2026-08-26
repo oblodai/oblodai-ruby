@@ -31,9 +31,9 @@ RSpec.describe "live sandbox journey", live: true do
 
   it "replays an idempotent create and refuses a reused key with a different body" do
     key = "sdk-idem-#{Time.now.to_i}-#{rand(10_000)}"
-    first = @client.payments.create(amount: "1", currency: "USDT", network: "tron",
+    first = @client.payments.create(amount: "5", currency: "USDT", network: "tron",
                                     order_id: "#{key}-o", idempotency_key: key)
-    second = @client.payments.create(amount: "1", currency: "USDT", network: "tron",
+    second = @client.payments.create(amount: "5", currency: "USDT", network: "tron",
                                      order_id: "#{key}-o", idempotency_key: key)
     expect(second.uuid).to eq(first.uuid)
 

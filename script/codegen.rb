@@ -26,17 +26,23 @@ RUBY
 
 # Routes the SDK never calls: they are not part of the merchant surface.
 INTERNAL = %r{^/(healthz|readyz|docs|openapi\.json|internal)}
+
 # Read-only routes: a transport failure may be retried without risking a duplicate side effect.
-SAFE_SUFFIX = %r{/(info|history|list|calculate|validate|services|get|balance|qr|deliveries)$}
-# Paths that look read-only but whose body can mutate state.
-NOT_SAFE = ["POST /v1/vrcs"].freeze
-
+# This is the core's own hand-written classification, exported per route — never a guess from the
+# shape of the path, which would mis-classify the first new route whose name ends in `/info`.
 def safe?(route)
-  return false if NOT_SAFE.include?("#{route["method"]} #{route["path"]}")
+  value = route["safe"]
+  unless [true, false].include?(value)
+    raise "route #{route["method"]} #{route["path"]} has no boolean `safe` field: re-export the " \
+          "contract from a core that classifies every route"
+  end
 
-  route["method"] == "GET" || SAFE_SUFFIX.match?(route["path"])
+  value
 end
 
+# Every route the export declares is checked, internal ones included: a snapshot that classified
+# only some of them is a snapshot the SDK cannot trust for the rest.
+contract["routes"].each { |r| safe?(r) }
 routes = contract["routes"]
          .reject { |r| INTERNAL.match?(r["path"]) }
          .sort_by { |r| [r["path"], r["method"]] }
@@ -53,7 +59,9 @@ def route_literal(route)
     "bare: #{route["bare"]}",
     "list: #{route["list"] ? ":#{route["list"]}" : "nil"}"
   ]
-  %(Route.new(#{fields.join(", ")}))
+  # Frozen: the registry hash is shared by every client in the process, so a mutable Route would let
+  # one caller flip another's retry safety (`safe`) or key kind (`auth`) for the whole program.
+  %(Route.new(#{fields.join(", ")}).freeze)
 end
 
 routes_rb = HEADER.dup
@@ -217,6 +225,13 @@ def field_values(route, key, name)
   end
 end
 
+# True when the example can be shown verbatim in an English surface (printable ASCII only).
+def ascii_example?(schema)
+  return false unless schema.key?("example")
+
+  /\A[\x20-\x7e]*\z/.match?(schema["example"].inspect)
+end
+
 def field_entry(route, prefix, name, schema, required, descriptions, indent)
   pad = " " * indent
   key = "#{prefix}#{name}"
@@ -226,7 +241,9 @@ def field_entry(route, prefix, name, schema, required, descriptions, indent)
   parts << "required: true" if required
   parts << "money: true" if MONEY_FIELD.match?(name)
   parts << field_values(route, key, name)
-  parts << "example: #{schema["example"].inspect}" if schema.key?("example")
+  # Core example tags are authored in the core's own language; the generated surface is English, so
+  # only an example that is printable ASCII end to end is copied.
+  parts << "example: #{schema["example"].inspect}" if ascii_example?(schema)
   parts << "doc: #{desc.inspect}" if desc
   parts.compact!
 

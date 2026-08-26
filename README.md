@@ -45,8 +45,10 @@ invoice.status   # "created"
 Prices in fiat: `amount: "25", currency: "USD", to_currency: "USDT"` — `currency` is what you charge,
 `to_currency` the asset the payer sends. See [`examples/`](examples).
 
-Credentials fall back to the environment: `OBLODAI_PUBLIC_ID`, `OBLODAI_SECRET`,
-`OBLODAI_PAYOUT_PUBLIC_ID`, `OBLODAI_PAYOUT_SECRET`, `OBLODAI_BASE_URL`, `OBLODAI_ADMIN_TOKEN`.
+Every option falls back to the environment: `OBLODAI_PUBLIC_ID`, `OBLODAI_SECRET`,
+`OBLODAI_PAYOUT_PUBLIC_ID`, `OBLODAI_PAYOUT_SECRET`, `OBLODAI_BASE_URL`, `OBLODAI_ADMIN_TOKEN`,
+`OBLODAI_LOG` (`debug|info|warn|error` — a stderr logger, fields redacted) and
+`OBLODAI_ALLOW_INSECURE=1` (permit a plain-http base URL). An empty variable counts as unset.
 
 ### Two keys
 
@@ -73,7 +75,7 @@ A call with the wrong kind is a 403 `merchant.wrong_key_kind`.
 | `payment_links`           | create · info/get · list · toggle · public_view · checkout                                                                                                                                                   |
 | `batches` / `transfers`   | info · to_personal · to_user · batch                                                                                                                                                                         |
 | `wallets`                 | create · qr · block · refund_blocked_deposit                                                                                                                                                                 |
-| `webhooks`                | register · rotate_secret · deliveries · test                                                                                                                                                                 |
+| `webhooks`                | register · rotate_secret · deliveries · test · test_legacy                                                                                                                                                   |
 | `documents`               | statement · ledger · balance_certificate · fee_schedule · split_report · batch_report · link_report · wallet_statement · referrals_report · create_job · job_info · job_file · download                       |
 | `splits`                  | create_rule · list_rules · delete_rule · get/set_config · get/set_opt_in                                                                                                                                     |
 | `settings`                | set_discount · list_discounts · get/set_accuracy · get/set_auto_refund · list_accepted · set_accepted · get/set_payment_fee_config · list/set/delete_auto_withdraw · list/add/remove/enable_api_allowlist    |
@@ -81,9 +83,21 @@ A call with the wrong kind is a 403 `merchant.wrong_key_kind`.
 | `sandbox`                 | faucet · deposit · webhooks · replay · reset                                                                                                                                                                 |
 | `merchants`               | create · create_sandbox (provisioning; `admin_token:` on a self-hosted gateway)                                                                                                                              |
 
-Request fields are keyword arguments named exactly as the API names them. Alongside them every
-method accepts `idempotency_key:`, `timeout_ms:`, `deadline_ms:` and `prefer_payout_key:`.
-Lookups take a bare uuid or the keyword: `payments.info("uuid")`, `payments.info(order_id: "o-1")`.
+Request fields are keyword arguments named exactly as the API names them; a keyword left at `nil` is
+omitted from the body rather than sent as an explicit `null` (the gateway reads both as "not
+supplied"). Alongside them every
+method accepts `idempotency_key:`, `timeout_ms:`, `deadline_ms:` and `prefer_payout_key:`; a
+misspelled option is refused by name (`sdk.bad_config`) instead of failing deep inside the SDK.
+
+Lookups take a bare uuid, either keyword, or the model the SDK returned:
+`payments.info("uuid")`, `payments.info(uuid: "uuid")`, `payments.info(order_id: "o-1")`,
+`payments.info(invoice)`. The same holds for every id argument (`payout_links.info(link)`,
+`batches.info(batch)`, `splits.delete_rule(rule)`).
+
+Synchronous batches are capped by the gateway: `payouts.mass` at 100 elements,
+`payout_links.batch` at 500. The asynchronous ones (`payments.batch`, `payouts.batch`,
+`refunds.batch`, `transfers.batch`) take up to 5000 and are polled with `batches.info(id, limit:,
+offset:)`.
 
 ### Models
 
@@ -99,6 +113,12 @@ payment.amount_paid   # "25.000000" — a String
 payment.tx_list.first.txid
 payment.to_h          # the exact JSON object the gateway sent, symbol-keyed
 ```
+
+One-time secrets are the exception: `WebhookEndpoint#secret`, `WebhookSecretRotated#secret`,
+`ApiKeyPair#secret`, `PayoutLink#claim_token` and `PayoutLink#passcode` read normally through their
+own accessor and render as `"[redacted]"` in `to_h`, `to_json` and `inspect`, so a debug log or an
+audit record cannot carry them. The same holds for the client, its config, its transport and its
+credentials.
 
 ### Lists
 
@@ -131,7 +151,15 @@ Every failure is an `Oblodai::Error` carrying the API's error envelope: `code`
 Subclasses for `rescue`: `ValidationError` (400), `AuthenticationError` (401), `PermissionError`
 (403), `NotFoundError` (404), `ConflictError` / `IdempotencyConflictError` (409), `RateLimitError`
 (429), `UnavailableError` (503), `InternalError` (other 5xx), `TransportError` (no response),
-`ConfigError` (rejected before sending), `SignatureError` (webhooks). Quote `request_id` to support.
+`ConfigError` (rejected before sending), `SignatureError` (a webhook that is not authentic),
+`WebhookPayloadError` (an authentic webhook whose body cannot be read), `ContractError` (an answer
+that is not the documented envelope). Quote `request_id` to support.
+
+The SDK's own codes, all raised before or instead of a request: `sdk.missing_credentials`,
+`sdk.bad_config`, `sdk.bad_idempotency_key`, `sdk.idempotency_unsupported`, `sdk.bad_path_param`,
+`sdk.bad_header`, `sdk.bad_amount`, `sdk.response_too_large`, `sdk.bad_envelope`; plus
+`transport.timeout`, `transport.network`, `transport.deadline` and the webhook family
+`webhook.missing_header`, `webhook.bad_signature`, `webhook.stale_timestamp`, `webhook.bad_payload`.
 
 ```ruby
 begin
@@ -158,10 +186,16 @@ prints an API payload.
 - An error is retried only when the API says `retryable: true`. Answers without an API envelope (a
   proxy 502/503) and transport failures are retried only on read routes and on keyed writes.
   `Retry-After` is honoured.
+- Whether repeating a request is safe comes from the contract, not from the shape of its path:
+  `Oblodai::Contract::ROUTES[key].safe` is the gateway's own read-only classification.
 - `retry_policy: { max_retries:, base_delay_ms:, max_delay_ms:, max_retry_after_ms: }`,
-  `timeout_ms:` per attempt, `deadline_ms:` per call (both also settable per request).
+  `timeout_ms:` per attempt, `deadline_ms:` per call (both also settable per request). A
+  `retry_after` hint is reported up to 24 h and slept for at most `max_retry_after_ms` (30 s).
 - On a 401 that reports a bad signature or timestamp the SDK reads the server `Date`, re-signs once,
-  and keeps the offset only if that attempt got past authentication.
+  and keeps the offset only if that attempt got past authentication. The offset is shared safely
+  between threads: a correction is reverted only while no other call has moved it.
+- Response bodies are bounded — 8 MiB on JSON routes, 64 MiB on document routes — and refused as
+  `sdk.response_too_large` rather than buffered. Redirects are never followed.
 
 ### Webhooks
 
@@ -186,15 +220,27 @@ end
 Rehearsal deliveries (`webhooks.test`, sandbox) are signed exactly like live ones and carry
 `test: true` in the body (and `X-Webhook-Test: true`): check `delivery.test?` — or
 `Oblodai::Webhooks.test_event?(event)` when you only have the parsed event — and never act on one as
-if money moved. `delivery.id` (`X-Webhook-Id`) is stable across retries — deduplicate on it; `event.sequence` orders
-events (`Oblodai::Webhooks.stale?(event, last_sequence)`). After `webhooks.rotate_secret` pass
-`previous_secret:` for at least 26 hours. Deliveries older or newer than ±300 s are rejected
-(`tolerance:` changes the window, `0` disables it).
+if money moved. `delivery.id` (`X-Webhook-Id`) is stable across retries — deduplicate on it;
+`event.sequence` orders events (`Oblodai::Webhooks.stale?(event, last_sequence)`, false whenever the
+sequence is missing). After `webhooks.rotate_secret` pass `previous_secret:` for at least 26 hours.
+Deliveries older or newer than ±300 s are rejected (`tolerance:` changes the window, `0` disables it;
+a negative one is a `ConfigError`, as is an empty `secret:` or `previous_secret:`).
+
+The checks run in one order: headers, then the HMAC, then freshness, then the body — the MAC before
+the clock, so the freshness window is not an oracle for an unauthenticated caller. Answer a
+`SignatureError` with 401. An authentic delivery whose body this release cannot read is a
+`WebhookPayloadError` (`webhook.bad_payload`) instead, so a 401-on-signature-failure receiver does
+not reject a genuine event it merely could not parse. An event `type` a newer gateway invented does
+not raise: it arrives as `Oblodai::Models::UnknownEvent` with its raw `type` and fields — narrow
+with `Oblodai::Webhooks.known_event?(event)` before switching on `type`.
 
 ### Money helpers
 
-`Oblodai::Money.add`, `.subtract`, `.compare`, `.zero?` — exact decimal arithmetic on the string
-amounts the API uses. Never `to_f` an amount.
+`Oblodai::Money.add`, `.subtract`, `.compare`, `.equals?`, `.zero?`, `.negative?`, `.valid?` — exact
+decimal arithmetic on the string amounts the API uses. Never `to_f` an amount, and never order
+amounts with `<`, `sort` or `max`: `"9" < "10"` is true as strings and false as money. Anything that
+is not `-?digits[.digits]` of at most 64 characters raises `Oblodai::ConfigError` (`sdk.bad_amount`)
+rather than a `TypeError` from inside a helper.
 
 ### Self-hosted or local gateway
 
@@ -203,12 +249,14 @@ amounts the API uses. Never `to_f` an amount.
 (`https://gw.corp/oblodai` → `https://gw.corp/oblodai/v1/payment`).
 
 Need a different HTTP stack (a proxy, instrumentation, a recorded fake)? Pass `http:` — anything
-answering `call(request, timeout_ms:)` with an `Oblodai::HTTP::Response`.
+answering `call(request, timeout_ms:)` with an `Oblodai::HTTP::Response`. The request carries
+`max_bytes` (the ceiling for that route) and the response may carry the `url` it was answered from;
+an adapter that followed a redirect is detected and refused.
 
 ## The contract snapshot
 
 `contract/` is exported by the gateway's own test suite: the route registry, request DTO schemas with
-English field docs, enums, all 468 error codes, signing vectors, golden response bodies recorded from
+English field docs, enums, all 471 error codes, signing vectors, golden response bodies recorded from
 a live gateway and real signed webhook deliveries. `lib/oblodai/contract/` is generated from it:
 
 ```bash
@@ -217,7 +265,7 @@ rake drift     # CI gate: fail when the committed code is not what codegen produ
 ```
 
 The machine-readable surface ships with the gem: `Oblodai::Contract::ROUTES` (107 routes with auth,
-idempotency, safety and list kind), `Oblodai::Contract::REQUESTS` (every documented request field
+idempotency, the gateway's own `safe` flag and list kind), `Oblodai::Contract::REQUESTS` (every documented request field
 with its type, vocabulary and English description), `Oblodai::Enums::*` (statuses, networks, fee
 bearers, event types, error codes).
 
@@ -226,7 +274,9 @@ bearers, event types, error codes).
 ```bash
 bundle install
 rake ci          # rubocop + contract drift + unit and contract specs
+rake yard        # the YARD reference into doc/
 rake spec:live   # the live journeys against a real gateway (OBLODAI_LIVE_URL, default http://127.0.0.1:8095)
+gem build oblodai.gemspec
 ```
 
 License: MIT.

@@ -5,8 +5,9 @@ gateway's contract snapshot in `contract/contract.json`, which ships with the ge
 
 ## Non-negotiables
 
-- Amounts are decimal **strings**: `amount: "25"`, never `25` or `25.0`. Do not `to_f`; use
-  `Oblodai::Money.add` / `.compare`.
+- Amounts are decimal **strings**: `amount: "25"`, never `25` or `25.0`. Do not `to_f`, and never
+  order them with `<`/`sort`; use `Oblodai::Money.add` / `.compare` / `.equals?`. A bad amount is
+  `sdk.bad_amount`.
 - Request fields are keyword arguments spelled exactly as the wire spells them (`order_id:`,
   `url_callback:`, `payer_email:`). The same keyword list also accepts `idempotency_key:`,
   `timeout_ms:`, `deadline_ms:`, `prefer_payout_key:`.
@@ -18,13 +19,20 @@ gateway's contract snapshot in `contract/contract.json`, which ships with the ge
 - List methods return a lazy `Oblodai::Page`: `each` walks every page, `first_page` fetches one page
   (`items` + `paginate`), `all(max)` collects. Nothing is requested until it is consumed.
 - Idempotency keys are generated automatically on create routes and reused across retries. Passing
-  `idempotency_key:` to a route the gateway does not deduplicate raises `sdk.idempotency_unsupported`.
+  `idempotency_key:` to a route the gateway does not deduplicate — list routes included — raises
+  `sdk.idempotency_unsupported`; an unusable key is `sdk.bad_idempotency_key`. Both are ConfigErrors,
+  raised before anything is sent.
+- Whether a request may be repeated after a transport failure comes from the contract's own `safe`
+  flag, never from the shape of the path.
+- One-time secrets (`WebhookEndpoint#secret`, `WebhookSecretRotated#secret`, `ApiKeyPair#secret`,
+  `PayoutLink#claim_token`/`#passcode`) read through their accessor and render as `[redacted]` in
+  `to_h`, `to_json` and `inspect` — as do the client, its config, its transport and its credentials.
 
 ## Naming
 
 | intent            | call                                                                                                  |
 | ----------------- | ------------------------------------------------------------------------------------------------------- |
-| fetch one         | `.info(uuid)` or `.info(order_id: …)` (alias `.get`)                                                   |
+| fetch one         | `.info(uuid)`, `.info(uuid: ...)`, `.info(order_id: ...)` or `.info(model)` (alias `.get`)             |
 | fetch many        | `.history(**params)` on payments/payouts (alias `.list`), `.list(**params)` elsewhere                  |
 | create            | `.create(**params)`; webhooks: `.register(url)`                                                        |
 | many, synchronous | `payouts.mass`, `payout_links.batch` — ≤100, per-element `{idx, ok, result, message}`                  |
@@ -42,7 +50,9 @@ support), `e.field` (400s), `e.synthetic?` (a proxy answered, not the API). Subc
 `ValidationError` 400, `AuthenticationError` 401, `PermissionError` 403, `NotFoundError` 404,
 `ConflictError`/`IdempotencyConflictError` 409, `RateLimitError` 429, `UnavailableError` 503,
 `InternalError` other 5xx, `TransportError` (no response), `ConfigError` (before sending),
-`SignatureError` (webhooks). `e.to_h`/`e.to_json` keep the message and drop the raw body.
+`SignatureError` (a webhook that is not authentic), `WebhookPayloadError` (`webhook.bad_payload` —
+authentic but unreadable, contract family, do NOT answer 401), `ContractError` (an answer that is not
+the documented envelope). `e.to_h`/`e.to_json` keep the message and drop the raw body.
 
 Codes worth handling: `payout.insufficient_funds` (retryable), `payout.funds_maturing` (retryable),
 `idempotency.key_reused`, `invoice.not_payable`, `payment.not_found`, `merchant.wrong_key_kind`,
@@ -63,16 +73,19 @@ require "oblodai/webhooks"
 delivery = Oblodai::Webhooks.verify_delivery(raw_body, headers, secret: secret)
 ```
 
-Verify over the **raw** bytes. `delivery.test?` (and `Oblodai::Webhooks.test_event?(event)`) is true
-for rehearsal deliveries (`webhooks.test`, sandbox — `test: true` in the signed body): never treat
-one as money. Deduplicate on `delivery.id` (`X-Webhook-Id`); drop out-of-order
-events with `Oblodai::Webhooks.stale?(event, last_sequence)`. During a rotation pass
-`previous_secret:` for ≥26 h.
+Verify over the **raw** bytes. Order of checks: headers → HMAC → freshness → body. `delivery.test?`
+(and `Oblodai::Webhooks.test_event?(event)`) is true for rehearsal deliveries (`webhooks.test`,
+sandbox — `test: true` in the signed body): never treat one as money. Deduplicate on `delivery.id`
+(`X-Webhook-Id`); drop out-of-order events with `Oblodai::Webhooks.stale?(event, last_sequence)`.
+During a rotation pass `previous_secret:` for ≥26 h. An empty `secret:`/`previous_secret:` or a
+negative `tolerance:` is a ConfigError. An unknown event `type` does not raise — it arrives as
+`Oblodai::Models::UnknownEvent`; narrow with `Oblodai::Webhooks.known_event?(event)`.
 
 ## Machine-readable surface
 
-`Oblodai::Contract::ROUTES` (107 routes: path, auth, idempotent, safe, bare, list),
+`Oblodai::Contract::ROUTES` (107 routes: path, auth, idempotent, safe, bare, list — every field the
+core's export declares, compared with it in spec/contract/routes_spec.rb),
 `Oblodai::Contract::REQUESTS` (documented request fields per route, with English descriptions),
-`Oblodai::Enums::*` (`ERROR_CODES`, `NETWORKS`, `PAYMENT_STATUSES`, `PAYOUT_STATUSES`,
-`EVENT_TYPES`, …), and `contract/` on disk (`Oblodai.contract_path`): schemas, golden response
+`Oblodai::Enums::*` (`ERROR_CODES` — 471 of them, `NETWORKS`, `PAYMENT_STATUSES`,
+`PAYOUT_STATUSES`, `EVENT_TYPES`, …), and `contract/` on disk (`Oblodai.contract_path`): schemas, golden response
 bodies per route, error samples, signed webhook samples.

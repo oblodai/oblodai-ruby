@@ -10,8 +10,9 @@ module Oblodai
       field :endpoint_id
       # @return [String] where deliveries go
       field :url
-      # @return [String, nil] shown once: at first registration and at rotation
-      field :secret, optional: true
+      # @return [String, nil] shown once: at first registration and at rotation. Kept out of
+      #   `to_h`, `to_json` and `inspect` — read it here, store it in a secret manager.
+      field :secret, optional: true, secret: true
     end
 
     # `POST /v1/webhooks/rotate-secret`.
@@ -20,8 +21,9 @@ module Oblodai
       field :endpoint_id
       # @return [String]
       field :url
-      # @return [String] the new signing secret, shown once
-      field :secret
+      # @return [String] the new signing secret, shown once. Kept out of `to_h`, `to_json` and
+      #   `inspect` — read it here, store it in a secret manager.
+      field :secret, secret: true
       # @return [String] until then deliveries also carry `X-Webhook-Signature-Prev`
       field :previous_secret_valid_until
     end
@@ -196,6 +198,25 @@ module Oblodai
       # @return [Boolean, nil] present and true ONLY on rehearsal deliveries (`webhooks.test`,
       #   sandbox). The body is signed exactly like a live one, so a handler must check this flag
       #   (or the `X-Webhook-Test` header) and never act on a test event as if money moved.
+      field :test, optional: true
+    end
+
+    # A verified delivery whose `type` this SDK release does not model. The core adds event types
+    # without asking, and a receiver that raises on one it has not heard of turns a new gateway
+    # feature into an outage — so an unknown type comes back verbatim, with its raw `type` string
+    # and every other field readable through `event[:name]` and {Model#to_h}.
+    #
+    # Use {Oblodai::Webhooks.known_event?} before switching on `type`.
+    class UnknownEvent < Model
+      # @return [String] the raw type string, exactly as the core sent it
+      field :type
+      # @return [String, nil]
+      field :uuid, optional: true
+      # @return [Integer, nil]
+      field :sequence, optional: true
+      # @return [String, nil]
+      field :event_at, optional: true
+      # @return [Boolean, nil] a rehearsal delivery — see {Oblodai::Webhooks.test_event?}
       field :test, optional: true
     end
   end

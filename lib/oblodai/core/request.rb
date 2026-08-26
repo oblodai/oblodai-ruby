@@ -10,19 +10,52 @@ module Oblodai
   # signing material (what is signed) and the wire bytes (what is sent) come from one place and
   # cannot disagree. Nothing here touches the network or the clock.
   module RequestBuilder
-    # Credentials of one key pair.
-    Credentials = Struct.new(:public_id, :secret, keyword_init: true)
+    # Credentials of one key pair. Frozen, and its secret never prints: `inspect`, `to_s` and
+    # `to_json` show a placeholder, so a `p credentials` or a structured log of anything holding one
+    # cannot put the signing key in a log file. Read it as `credentials.secret` when you mean to.
+    Credentials = Struct.new(:public_id, :secret, keyword_init: true) do
+      def initialize(*)
+        super
+        freeze
+      end
+
+      def inspect
+        "#<Oblodai::RequestBuilder::Credentials public_id=#{public_id.inspect} secret=[redacted]>"
+      end
+      alias_method :to_s, :inspect
+
+      def to_h
+        { public_id: public_id, secret: "[redacted]" }
+      end
+
+      def to_json(*args)
+        require "json"
+        to_h.to_json(*args)
+      end
+    end
 
     # A request ready to hand to an HTTP adapter.
     #
     # @!attribute [r] request_uri
     #   @return [String] what was signed (path + query); kept for debugging signature mismatches
-    Built = Struct.new(:url, :method, :headers, :body, :request_uri, keyword_init: true)
+    Built = Struct.new(:url, :method, :headers, :body, :request_uri, keyword_init: true) do
+      def initialize(*)
+        super
+        freeze
+      end
+    end
 
-    # Headers the SDK owns; a caller-supplied header with one of these names is dropped.
+    # Sent on `onboard` routes only; the transport decides when to supply it.
+    HEADER_ADMIN_TOKEN = "X-Admin-Token"
+
+    # Headers the SDK owns. A caller-supplied header with one of these names is dropped, matched
+    # case-insensitively: `accept: text/html` next to the SDK's `Accept` would otherwise reach the
+    # wire as a second value, and a caller `X-Admin-Token` would travel on signed merchant routes it
+    # has no business on.
     RESERVED_HEADERS = [
       Signing::HEADER_PUBLIC_ID, Signing::HEADER_SIGNATURE, Signing::HEADER_TIMESTAMP,
-      Signing::HEADER_IDEMPOTENCY_KEY, "Content-Type", "Content-Length", "Host"
+      Signing::HEADER_IDEMPOTENCY_KEY, HEADER_ADMIN_TOKEN, "Accept", "User-Agent",
+      "Content-Type", "Content-Length", "Host"
     ].map(&:downcase).freeze
 
     module_function
@@ -39,19 +72,26 @@ module Oblodai
     # @param extra_headers [Hash, nil]
     # @return [Oblodai::RequestBuilder::Built]
     def build(base_url:, route:, body:, ts:, user_agent:, path_params: nil, query: nil,
-              credentials: nil, idempotency_key: nil, extra_headers: nil)
+              credentials: nil, idempotency_key: nil, extra_headers: nil, admin_token: nil)
       path = join_path(base_url, fill_path(route.path, path_params))
       request_uri = path + query_string(query)
 
       headers = {}
       (extra_headers || {}).each do |name, value|
-        headers[name.to_s] = value.to_s unless RESERVED_HEADERS.include?(name.to_s.downcase)
+        next if RESERVED_HEADERS.include?(name.to_s.downcase)
+
+        assert_header_value!(name.to_s, value)
+        headers[name.to_s] = value.to_s
       end
       headers["Accept"] = "application/json"
       headers["User-Agent"] = user_agent
       has_body = route.method != "GET"
       headers["Content-Type"] = "application/json" if has_body
       headers[Signing::HEADER_IDEMPOTENCY_KEY] = idempotency_key if idempotency_key
+      if admin_token
+        assert_header_value!(HEADER_ADMIN_TOKEN, admin_token)
+        headers[HEADER_ADMIN_TOKEN] = admin_token.to_s
+      end
 
       unless route.unsigned?
         unless credentials
@@ -72,6 +112,24 @@ module Oblodai
 
       Built.new(url: origin(base_url) + request_uri, method: route.method, headers: headers,
                 body: has_body ? body : nil, request_uri: request_uri)
+    end
+
+    # Caller header values must be printable ASCII on one line. A CR or LF would let a caller-
+    # controlled value append headers of its own (request splitting); a non-ASCII byte is rejected
+    # by the HTTP library at best and mangled at worst, so it is refused here, where the error names
+    # the header.
+    # @raise [Oblodai::ConfigError]
+    # @return [void]
+    def assert_header_value!(name, value)
+      return if value.is_a?(String) && /\A[\x20-\x7e\t]*\z/.match?(value)
+      return if (value.is_a?(Integer) || value.is_a?(Symbol)) && /\A[\x20-\x7e\t]*\z/.match?(value.to_s)
+
+      raise ConfigError.new(
+        "sdk.bad_header",
+        "header \"#{name}\" must be printable ASCII on a single line " \
+        "(no CR/LF, no non-ASCII characters)",
+        name
+      )
     end
 
     # Append a route path to the base URL, keeping any path prefix the base carries
@@ -106,7 +164,10 @@ module Oblodai
             name
           )
         end
-        URI.encode_www_form_component(value).gsub("+", "%20")
+        # The unreserved set of RFC 3986 / encodeURIComponent, so a path parameter is escaped the
+        # same way in every Oblodai SDK — form encoding would turn a space into "+" and escape
+        # characters the gateway sees unescaped from the others.
+        URI::DEFAULT_PARSER.escape(value, /[^A-Za-z0-9\-_.!~*'()]/)
       end
     end
 
@@ -128,7 +189,10 @@ module Oblodai
       JSON.generate(deep_compact(body))
     end
 
-    # Drop nil members so an unset keyword never reaches the wire as an explicit null.
+    # Drop nil members so an unset keyword never reaches the wire as an explicit null. The core
+    # reads a missing field and an explicit `null` the same way (both mean "not supplied"), so the
+    # SDK never needs to send one — and a keyword left at its `nil` default therefore cannot clear a
+    # field by accident.
     def deep_compact(value)
       case value
       when Hash

@@ -19,6 +19,12 @@ module Oblodai
     # Error codes that mean the core rejected the signature because of the timestamp or MAC.
     SIGNATURE_FAILURE_CODES = ["merchant.bad_signature", "auth.bad_timestamp"].freeze
 
+    # Response body caps. The SDK buffers the whole body, so an endless or mistargeted stream would
+    # otherwise grow until the process dies. JSON envelopes are small (the largest recorded fixture
+    # is a few hundred kB); `bare` routes are PDFs and CSV statements.
+    MAX_JSON_BODY_BYTES = 8 * 1024 * 1024
+    MAX_BARE_BODY_BYTES = 64 * 1024 * 1024
+
     # @return [String]
     attr_reader :base_url
 
@@ -46,10 +52,21 @@ module Oblodai
       @deadline_ms = deadline_ms
       @retry = retry_policy
       @clock = clock
-      @logger = logger
+      # Wrapped, not trusted: whatever logger the caller injected receives fields that were redacted
+      # before it saw them, so a pino-style sink cannot be the thing that prints a signing secret.
+      @logger = Logging.redacting(logger)
       @headers = headers || {}
       @admin_token = admin_token
     end
+
+    # What this transport is pointed at — never how it proves who it is.
+    def inspect
+      "#<Oblodai::Transport base_url=#{@base_url.inspect} " \
+        "credentials=#{describe_credentials(@credentials)} " \
+        "payout_credentials=#{describe_credentials(@payout_credentials)} " \
+        "admin_token=#{@admin_token ? "[redacted]" : "none"}>"
+    end
+    alias to_s inspect
 
     # Call an envelope route and return its `result`.
     #
@@ -96,21 +113,19 @@ module Oblodai
       key = resolve_idempotency_key(route, idempotency_key)
       safe_to_repeat = route.safe || (route.idempotent && !key.nil?)
       deadline = Util.monotonic_ms + (deadline_ms || @deadline_ms)
-
+      max_bytes = route.bare ? MAX_BARE_BODY_BYTES : MAX_JSON_BODY_BYTES
       attempt = 0
-      skew_tried = false
-      skew_before = 0
+      skew = { tried: false, before: 0, installed: 0 }
+
       loop do
-        request = RequestBuilder.build(
-          base_url: @base_url, route: route, body: payload, ts: @clock.now,
-          user_agent: @user_agent, path_params: path_params, query: query,
-          credentials: credentials_for(route, prefer_payout_key), idempotency_key: key,
-          extra_headers: extra_headers_for(route)
-        )
+        # The offset this attempt is signed with. Compared against the server's own time below —
+        # never against the shared offset, which a concurrent call may already have corrected.
+        signed_offset = @clock.offset
+        request = build_request(route, payload, key, path_params, query, prefer_payout_key)
         @logger.debug("request", { route: route.key, attempt: attempt, idempotency_key: key })
 
         begin
-          raw = send_once(request, timeout_ms, deadline)
+          raw = send_once(request, timeout_ms, deadline, max_bytes)
         rescue Oblodai::Error => e
           raise e unless @retry.retry?(e, attempt: attempt, safe_to_repeat: safe_to_repeat)
 
@@ -122,18 +137,9 @@ module Oblodai
         return raw if raw.status >= 200 && raw.status < 300
 
         failure = classify(route, raw)
-        @logger.debug("response", Logging.redact({ route: route.key, status: raw.status,
-                                                   code: failure.code, request_id: failure.request_id }))
-
-        if raw.status == 401 && SIGNATURE_FAILURE_CODES.include?(failure.code)
-          if skew_tried
-            @clock.correct(skew_before) # the corrected timestamp did not help: it was not skew
-          elsif (skew_before = correct_skew(route, raw))
-            skew_tried = true
-            next
-          end
-        end
-
+        @logger.debug("response", { route: route.key, status: raw.status,
+                                    code: failure.code, request_id: failure.request_id })
+        next if resign_for_skew?(route, raw, failure, skew, signed_offset)
         raise failure unless @retry.retry?(failure, attempt: attempt, safe_to_repeat: safe_to_repeat)
 
         pause(failure, attempt, deadline)
@@ -141,19 +147,50 @@ module Oblodai
       end
     end
 
+    def build_request(route, payload, key, path_params, query, prefer_payout_key)
+      RequestBuilder.build(
+        base_url: @base_url, route: route, body: payload, ts: @clock.now,
+        user_agent: @user_agent, path_params: path_params, query: query,
+        credentials: credentials_for(route, prefer_payout_key), idempotency_key: key,
+        extra_headers: @headers,
+        # Never on a signed merchant route: the admin token provisions merchants, and a gateway
+        # operator's token must not travel on every call a merchant integration makes.
+        admin_token: route.auth == :onboard ? @admin_token : nil
+      )
+    end
+
+    # A 401 the core attributes to the timestamp or the MAC gets exactly one re-signed attempt.
+    # @return [Boolean] whether to try again with a corrected clock
+    def resign_for_skew?(route, raw, failure, skew, signed_offset)
+      return false unless raw.status == 401 && SIGNATURE_FAILURE_CODES.include?(failure.code)
+
+      if skew[:tried]
+        # The corrected timestamp did not help, so it was not skew — but only this call's own
+        # correction may be undone; a sibling's newer one stays.
+        @clock.revert_if_unchanged(skew[:installed], skew[:before])
+        return false
+      end
+
+      offset = correct_skew(route, raw, signed_offset)
+      return false if offset.nil?
+
+      skew.merge!(tried: true, before: signed_offset, installed: offset)
+      true
+    end
+
     # Clock skew: the core rejected the timestamp/MAC. Learn its time from the `Date` header and
-    # re-sign once; the caller keeps the previous offset so it can be reverted when that attempt is
-    # rejected too — one bad proxy `Date` must not wedge the client.
-    # @return [Integer, nil] the offset that was in force before the correction, or nil if none was made
-    def correct_skew(route, raw)
+    # re-sign once. Measured against the offset THIS attempt signed with, not the live one: when
+    # several calls fail together the first to recover fixes the shared clock, and the rest must
+    # still re-sign their own stale request instead of concluding "the clock is already right".
+    # @return [Integer, nil] the offset that was installed, or nil when no correction was made
+    def correct_skew(route, raw, signed_offset)
       offset = @clock.observe_server_date(raw.header("date"))
-      return nil if offset.nil? || (offset - @clock.offset).abs <= Signing::SKEW_SECONDS / 2
+      return nil if offset.nil? || (offset - signed_offset).abs <= Signing::SKEW_SECONDS / 2
 
       @logger.warn("clock skew detected; re-signing with server time",
                    { route: route.key, offset_sec: offset })
-      previous = @clock.offset
       @clock.correct(offset)
-      previous
+      offset
     end
 
     def resolve_idempotency_key(route, key)
@@ -174,10 +211,8 @@ module Oblodai
       key
     end
 
-    def extra_headers_for(route)
-      return @headers unless route.auth == :onboard && @admin_token
-
-      @headers.merge("X-Admin-Token" => @admin_token)
+    def describe_credentials(credentials)
+      credentials ? "#{credentials.public_id} (secret [redacted])" : "none"
     end
 
     def classify(route, raw)
@@ -202,16 +237,47 @@ module Oblodai
       sleep(ms / 1000.0) if ms.positive?
     end
 
-    def send_once(request, timeout_ms, deadline)
+    def send_once(request, timeout_ms, deadline, max_bytes)
       remaining = deadline - Util.monotonic_ms
       if remaining <= 0
         raise TransportError.new("transport.deadline", "the call deadline elapsed before the request was sent")
       end
 
       budget = [timeout_ms || @timeout_ms, remaining.ceil].min
-      @http.call(HTTP::Request.new(method: request.method, url: request.url,
-                                   headers: request.headers, body: request.body),
-                 timeout_ms: budget)
+      raw = @http.call(HTTP::Request.new(method: request.method, url: request.url,
+                                         headers: request.headers, body: request.body,
+                                         max_bytes: max_bytes),
+                       timeout_ms: budget)
+      assert_not_redirected!(request.url, raw)
+      assert_within_cap!(request, raw, max_bytes)
+      raw
+    end
+
+    # The SDK never follows a redirect: the signature is bound to the path it signed, and a 3xx to
+    # another origin would replay the request (and its Idempotency-Key) somewhere else. An injected
+    # adapter may follow one anyway, so the answer's own URL is checked against the one asked for.
+    def assert_not_redirected!(requested, raw)
+      landed = raw.url.to_s
+      return if landed.empty? || landed == requested
+
+      raise ContractError.new(
+        "unexpected redirect: the request to #{requested} was answered by #{landed}; the SDK never " \
+        "follows redirects — check base_url",
+        0, nil, "sdk.bad_envelope"
+      )
+    end
+
+    # An adapter that cannot stream hands back a body already in memory; the cap can only be checked
+    # after the fact there, which still beats parsing an unbounded document.
+    def assert_within_cap!(request, raw, max_bytes)
+      size = raw.body.to_s.bytesize
+      return if size <= max_bytes
+
+      raise ContractError.new(
+        "#{request.method} #{request.url}: response body exceeds #{max_bytes} bytes (saw #{size}) — " \
+        "refusing to buffer it",
+        raw.status, nil, "sdk.response_too_large"
+      )
     end
   end
 end

@@ -19,16 +19,18 @@ module Oblodai
       end
 
       # `POST /v1/documents/jobs/info`.
-      # @param job_id [String]
+      # @param job_id [String, Oblodai::Models::DocumentJob] the job, or its `job_id`
       # @return [Oblodai::Models::DocumentJob]
       def job_info(job_id, **options)
-        call("POST /v1/documents/jobs/info", { job_id: job_id }, model: Models::DocumentJob, **options)
+        call("POST /v1/documents/jobs/info", { job_id: id_of(job_id, :job_id) },
+             model: Models::DocumentJob, **options)
       end
 
       # `GET /v1/documents/jobs/file` — the finished job's bytes.
+      # @param job_id [String, Oblodai::Models::DocumentJob] the job, or its `job_id`
       # @return [Oblodai::FileResult]
       def job_file(job_id, **options)
-        file("GET /v1/documents/jobs/file", query: { job_id: job_id }, **options)
+        file("GET /v1/documents/jobs/file", query: { job_id: id_of(job_id, :job_id) }, **options)
       end
 
       # `GET /v1/documents/statement` — account statement for a period (PDF or CSV).
@@ -60,35 +62,36 @@ module Oblodai
       end
 
       # `GET /v1/documents/split` — how one payment was split between partners (PDF).
-      # @param payment_uuid [String]
+      # @param payment_uuid [String, Oblodai::Models::Payment] the invoice, or its uuid
       # @return [Oblodai::FileResult]
       def split_report(payment_uuid, **query)
         options = Base.take_options!(query)
-        file("GET /v1/documents/split", query: query.merge(uuid: payment_uuid), **options)
+        file("GET /v1/documents/split", query: query.merge(uuid: id_of(payment_uuid, :uuid)), **options)
       end
 
       # `GET /v1/documents/batch` — per-row report of an asynchronous batch.
-      # @param batch_id [String]
+      # @param batch_id [String, Oblodai::Models::BatchSubmitted] the batch, or its `batch_id`
       # @return [Oblodai::FileResult]
       def batch_report(batch_id, **query)
         options = Base.take_options!(query)
-        file("GET /v1/documents/batch", query: query.merge(uuid: batch_id), **options)
+        file("GET /v1/documents/batch", query: query.merge(uuid: id_of(batch_id, :batch_id)), **options)
       end
 
       # `GET /v1/documents/link` — payment-link report (its invoices).
-      # @param link_id [String]
+      # @param link_id [String, Oblodai::Models::PaymentLink] the link, or its `link_id`
       # @return [Oblodai::FileResult]
       def link_report(link_id, **query)
         options = Base.take_options!(query)
-        file("GET /v1/documents/link", query: query.merge(uuid: link_id), **options)
+        file("GET /v1/documents/link", query: query.merge(uuid: id_of(link_id, :link_id)), **options)
       end
 
       # `GET /v1/documents/wallet/statement` — static-wallet statement.
-      # @param wallet_uuid [String]
+      # @param wallet_uuid [String, Oblodai::Models::Wallet] the wallet, or its uuid
       # @return [Oblodai::FileResult]
       def wallet_statement(wallet_uuid, **query)
         options = Base.take_options!(query)
-        file("GET /v1/documents/wallet/statement", query: query.merge(uuid: wallet_uuid), **options)
+        file("GET /v1/documents/wallet/statement",
+             query: query.merge(uuid: id_of(wallet_uuid, :uuid)), **options)
       end
 
       # `GET /v1/documents/referrals` — referral earnings report.

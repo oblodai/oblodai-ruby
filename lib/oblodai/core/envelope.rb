@@ -15,6 +15,11 @@ module Oblodai
   module Envelope
     # Outcome of {Envelope.decode}: either a result or an error, never both.
     Decoded = Struct.new(:ok, :result, :error, keyword_init: true) do
+      def initialize(*)
+        super
+        freeze
+      end
+
       def ok?
         ok
       end
@@ -52,32 +57,54 @@ module Oblodai
       end
 
       if body.is_a?(Hash) && body["error"].is_a?(Hash)
-        return failure(Oblodai.api_error_from(http_status, body["error"], raw: body,
-                                                                          retry_after_header: retry_after_header))
+        decoded = decode_error_envelope(http_status, text, body, retry_after_header)
+        return decoded if decoded
       end
       return failure(no_envelope_error(http_status, text, retry_after_header)) if http_status >= 400
-      if body.is_a?(Hash) && body["state"].zero? && body.key?("result")
-        return Decoded.new(ok: true,
-                           result: body["result"])
-      end
+      return Decoded.new(ok: true, result: body["result"]) if success_envelope?(body)
 
       raise ContractError.new(
         "response is not a {state:0,result} envelope: #{describe(text)}", http_status, body
       )
     end
 
-    # `Retry-After` as delta-seconds or an HTTP-date.
+    # An `{error}` member decoded field by field: a body with the envelope shape but the wrong types
+    # must not be able to steer the SDK (a non-boolean `retryable` deciding retries, a numeric
+    # `code` breaking #family). An unusable `code` demotes the whole body to "no envelope".
+    # @return [Oblodai::Envelope::Decoded, nil] nil when the body is not a usable error envelope
+    def decode_error_envelope(http_status, text, body, retry_after_header)
+      detail, usable = Oblodai.decode_error_detail(body["error"])
+      if usable
+        return failure(Oblodai.api_error_from(http_status, detail, raw: body,
+                                                                   retry_after_header: retry_after_header))
+      end
+      return nil if http_status < 400
+
+      failure(no_envelope_error(http_status, text, retry_after_header,
+                                request_id: detail["request_id"], raw: body))
+    end
+
+    # `state` must be the integer 0, compared without calling a method ON the value: `#zero?` on a
+    # body where `state` is absent or a string is a NoMethodError escaping the SDK's error family.
+    # @return [Boolean]
+    def success_envelope?(body)
+      body.is_a?(Hash) && body["state"].eql?(0) && body.key?("result")
+    end
+
+    # `Retry-After` as delta-seconds or an HTTP-date. Whatever the peer wrote, the result is a whole
+    # number of seconds in [0, {Oblodai::MAX_RETRY_AFTER_SECONDS}]: a date in the year 9999, a
+    # 400-digit integer or a negative delta can never become a wait the caller honours.
     # @return [Integer, nil] nil when absent or unparsable
     def parse_retry_after(value, now = Time.now)
       return nil if value.nil?
 
       v = value.to_s.strip
       return nil if v.empty?
-      return v.to_i if /\A\d+\z/.match?(v)
+      return Oblodai.coerce_retry_after(v) if /\A\d+\z/.match?(v)
 
       begin
-        [0, (Time.httpdate(v) - now).ceil].max
-      rescue ArgumentError
+        Oblodai.coerce_retry_after((Time.httpdate(v) - now).ceil)
+      rescue ArgumentError, RangeError
         nil
       end
     end
@@ -104,13 +131,13 @@ module Oblodai
       Decoded.new(ok: false, error: error)
     end
 
-    def no_envelope_error(http_status, text, retry_after_header)
+    def no_envelope_error(http_status, text, retry_after_header, request_id: nil, raw: nil)
       Oblodai.api_error_from(
         http_status,
-        { "code" => "internal",
+        { "code" => "internal", "request_id" => request_id,
           "message" => "HTTP #{http_status} without an Oblodai error envelope (#{describe(text)}) — " \
                        "the answer came from a proxy or load balancer, not the API" },
-        raw: text, synthetic: true, retry_after_header: retry_after_header
+        raw: raw || text, synthetic: true, retry_after_header: retry_after_header
       )
     end
 

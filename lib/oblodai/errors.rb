@@ -138,9 +138,20 @@ module Oblodai
 
   # The response could not be interpreted as the documented envelope.
   class ContractError < Error
-    def initialize(message, http_status, raw = nil)
-      super(code: "sdk.bad_envelope", message: message, http_status: http_status,
+    # @param code [String] "sdk.bad_envelope", or a narrower contract-family code
+    def initialize(message, http_status, raw = nil, code = "sdk.bad_envelope")
+      super(code: code, message: message, http_status: http_status,
             retryable: false, raw: raw)
+    end
+  end
+
+  # The delivery's signature verified but its body is not a usable event. Deliberately NOT a
+  # {SignatureError}: a receiver that answers 401 to signature failures must not answer 401 here —
+  # the sender is authentic and the delivery should be retried or investigated, not rejected as
+  # forged.
+  class WebhookPayloadError < ContractError
+    def initialize(message, raw = nil)
+      super(message, 0, raw, "webhook.bad_payload")
     end
   end
 
@@ -157,6 +168,70 @@ module Oblodai
     404 => NotFoundError, 409 => ConflictError, 429 => RateLimitError, 503 => UnavailableError
   }.freeze
 
+  # Upper bound for any retry hint the SDK will report, seconds. A hostile or broken peer can put
+  # anything in `retry_after` / `Retry-After`; clamping here means no caller ever schedules a wait
+  # from a negative, infinite or overflowing number. The retry loop separately honours at most
+  # `RetryPolicy#max_retry_after_ms` (default 30 s) of it.
+  MAX_RETRY_AFTER_SECONDS = 86_400
+
+  # A retry hint as whole seconds, or nil when the value carries no usable number. Integers, floats
+  # and numeric strings are accepted (the core writes an integer; a proxy may not); anything else —
+  # a boolean, a hash, "soon", NaN — is not an instruction and is dropped.
+  # @return [Integer, nil] clamped to [0, MAX_RETRY_AFTER_SECONDS]
+  def self.coerce_retry_after(value)
+    seconds = case value
+              when Integer then value
+              when Float then value.finite? ? value : nil
+              when String then numeric_string(value)
+              end
+    return nil if seconds.nil?
+
+    # Ruby integers are arbitrary precision, so a 400-digit hint cannot overflow — it is clamped
+    # like any other out-of-range number.
+    seconds.clamp(0, MAX_RETRY_AFTER_SECONDS).ceil
+  end
+
+  # @return [Numeric, nil]
+  def self.numeric_string(value)
+    v = value.strip
+    return nil if v.empty?
+    return Integer(v, 10) if /\A[+-]?\d+\z/.match?(v)
+
+    f = Float(v, exception: false)
+    f&.finite? ? f : nil
+  end
+
+  # @return [String, nil] the value when it is a string, nil otherwise
+  def self.string_or_nil(value)
+    value.is_a?(String) ? value : nil
+  end
+
+  # Decode `{"error": {...}}` field by field. A peer that answers with the right shape but the wrong
+  # types (`code: 123`, `retryable: "yes"`) must not be able to change how the SDK behaves: an
+  # unusable `code` demotes the whole body to "no envelope", and every other field falls back to the
+  # value the HTTP status alone justifies. Never raises.
+  #
+  # @param raw [Object] the `error` member of the body, whatever it turned out to be
+  # @return [Array(Hash, Boolean)] the decoded detail and whether it is usable as an envelope
+  def self.decode_error_detail(raw)
+    src = raw.is_a?(Hash) ? raw : {}
+    request_id = string_or_nil(src["request_id"])
+    code = string_or_nil(src["code"])
+    return [{ "request_id" => request_id }, false] if code.nil? || code.empty?
+
+    detail = {
+      "code" => code,
+      "message" => string_or_nil(src["message"]),
+      "field" => string_or_nil(src["field"]),
+      "request_id" => request_id
+    }
+    # Only a literal boolean is the core's classification; anything else leaves the decision to the
+    # status, which is what a body without the field gets.
+    detail["retryable"] = src["retryable"] if [true, false].include?(src["retryable"])
+    detail["retry_after"] = coerce_retry_after(src["retry_after"])
+    [detail, true]
+  end
+
   # Statuses a response without an envelope may carry transiently (LB/proxy/timeouts).
   TRANSIENT_STATUSES = [408, 425, 429, 500, 502, 503, 504].freeze
 
@@ -165,12 +240,14 @@ module Oblodai
   # @return [Boolean]
   def self.retryable?(http_status, detail, synthetic)
     return TRANSIENT_STATUSES.include?(http_status) if synthetic
-    return detail["retryable"] == true if detail.key?("retryable")
+    return detail["retryable"] if [true, false].include?(detail["retryable"])
 
     [429, 503].include?(http_status)
   end
 
   # Build the right subclass from an error envelope (or a synthesized one) and the HTTP status.
+  # The detail is expected to have come from {decode_error_detail}; a hand-built one is decoded the
+  # same way, so no path into this method can bypass the type checks.
   #
   # @param http_status [Integer]
   # @param detail [Hash] the `error` object of the envelope, string-keyed
@@ -179,18 +256,14 @@ module Oblodai
   # @param retry_after_header [Integer, nil] parsed `Retry-After`, seconds
   # @return [Oblodai::ApiError]
   def self.api_error_from(http_status, detail, raw: nil, synthetic: false, retry_after_header: nil)
-    code = detail["code"].to_s.empty? ? "internal" : detail["code"]
+    code = string_or_nil(detail["code"]).to_s.empty? ? "internal" : detail["code"]
+    message = string_or_nil(detail["message"])
     args = {
       code: code,
-      message: if detail["message"].to_s.empty?
-                 "request failed with HTTP #{http_status} " \
-                   "(#{synthetic ? "no envelope" : code})"
-               else
-                 detail["message"]
-               end,
+      message: message.nil? || message.empty? ? "HTTP #{http_status} (#{code})" : message,
       http_status: http_status, retryable: retryable?(http_status, detail, synthetic),
-      retry_after: detail["retry_after"] || retry_after_header,
-      request_id: detail["request_id"], field: detail["field"],
+      retry_after: coerce_retry_after(detail["retry_after"]) || coerce_retry_after(retry_after_header),
+      request_id: string_or_nil(detail["request_id"]), field: string_or_nil(detail["field"]),
       synthetic: synthetic, raw: raw
     }
     error_class(http_status, code).new(**args)

@@ -41,7 +41,7 @@ RSpec.describe Oblodai::Transport do
     http = FakeHTTP.new([])
     expect do
       client_with(http).payments.create(amount: "1", currency: "USDT", idempotency_key: "with space")
-    end.to raise_error(Oblodai::ValidationError, /printable ASCII/)
+    end.to raise_error(Oblodai::ConfigError, /printable ASCII/)
     expect(http.calls).to be_empty
   end
 

@@ -37,10 +37,13 @@ module Oblodai
       field :expires_at
       # @return [String]
       field :created_at
-      # @return [String, nil] create and batch-create only — the secret the recipient claims with
-      field :claim_token, optional: true
-      # @return [String, nil] create only — the ready-made claim URL
-      field :claim_url, optional: true
+      # @return [String, nil] create and batch-create only — the secret the recipient claims with.
+      #   A bearer instrument: whoever reads it can take the money, so it is kept out of `to_h`,
+      #   `to_json` and `inspect`. Read it here and hand it to the recipient over a private channel.
+      field :claim_token, optional: true, secret: true
+      # @return [String, nil] create only — the ready-made claim URL. It embeds `claim_token`, so it is
+      #   kept out of `to_h`, `to_json` and `inspect` just like the token.
+      field :claim_url, optional: true, secret: true
       # @return [String, nil] batch-create only — the batch this link belongs to
       field :batch_id, optional: true
       # @return [String, nil] set once claimed: the payout that paid the recipient
@@ -49,8 +52,9 @@ module Oblodai
       field :claim_address, optional: true
       # @return [String, nil] recipient email, when the link was emailed
       field :email, optional: true
-      # @return [String, nil] the generated passcode, shown once on create when `passcode: "auto"`
-      field :passcode, optional: true
+      # @return [String, nil] the generated passcode, shown once on create when `passcode: "auto"`.
+      #   Kept out of `to_h`, `to_json` and `inspect` for the same reason as `claim_token`.
+      field :passcode, optional: true, secret: true
     end
 
     # Element of a synchronous payout-link batch (`/v1/payout/link/batch`).

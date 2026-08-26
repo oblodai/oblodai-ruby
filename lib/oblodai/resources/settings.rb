@@ -144,10 +144,11 @@ module Oblodai
       end
 
       # `POST /v1/split/rule/delete`.
-      # @param rule_id [String]
+      # @param rule_id [String, Oblodai::Models::SplitRule] the rule, or its `rule_id`
       # @return [Oblodai::Models::OkResult]
       def delete_rule(rule_id, **options)
-        call("POST /v1/split/rule/delete", { rule_id: rule_id }, model: Models::OkResult, **options)
+        call("POST /v1/split/rule/delete", { rule_id: id_of(rule_id, :rule_id) },
+             model: Models::OkResult, **options)
       end
 
       # `POST /v1/split/config/get`.

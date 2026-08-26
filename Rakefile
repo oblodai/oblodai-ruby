@@ -34,6 +34,11 @@ task :drift do
   puts "drift: #{GENERATED.size} generated files are in sync with contract/contract.json"
 end
 
+desc "Generate the YARD reference into doc/ (development dependency: yard)"
+task :yard do
+  sh "yard doc --output-dir doc --no-progress lib"
+end
+
 desc "Everything CI runs: lint, contract drift, unit and contract specs"
 task ci: %i[rubocop drift spec]
 

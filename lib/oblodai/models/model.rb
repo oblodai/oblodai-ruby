@@ -2,6 +2,9 @@
 
 module Oblodai
   module Models
+    # What a redacted field renders as in every automatic rendering of a model.
+    REDACTED = "[redacted]"
+
     # Wire models. Every response body the core documents has a model here: a frozen value object
     # whose attributes are named EXACTLY as the wire names them (snake_case, no renaming), with the
     # English description of each field in its YARD doc.
@@ -21,9 +24,17 @@ module Oblodai
         # @param list [Boolean] the value is an array of `model`
         # @param optional [Boolean] not present on every route that returns this model
         # @return [void]
-        def field(name, model: nil, list: false, optional: false)
-          declared[name] = { model: model, list: list, optional: optional }
+        def field(name, model: nil, list: false, optional: false, secret: false)
+          declared[name] = { model: model, list: list, optional: optional, secret: secret }
           define_method(name) { @attributes[name] }
+        end
+
+        # Fields whose value must never print. They stay readable through their own accessor
+        # (`endpoint.secret`), and every automatic rendering — {Model#to_h}, {Model#to_json},
+        # {Model#inspect} — shows a placeholder instead.
+        # @return [Array<Symbol>]
+        def secret_keys
+          declared.select { |_, spec| spec[:secret] }.keys
         end
 
         # Declare several plain fields at once.
@@ -83,7 +94,7 @@ module Oblodai
           name = key.to_sym
           spec = declared[name]
           if spec.nil?
-            @extra[name] = value
+            @extra[name] = deep_freeze(value)
           else
             @attributes[name] = coerce(value, spec)
           end
@@ -118,11 +129,19 @@ module Oblodai
         @attributes.key?(key) || @extra.key?(key)
       end
 
-      # The wire shape: declared fields in declaration order, then anything unknown.
+      # The wire shape: declared fields in declaration order, then anything unknown. Fields declared
+      # `secret: true` render as `"[redacted]"` — a serialized model is what ends up in a log line or
+      # an audit record, and a one-time secret must not be in either. Read them through their own
+      # accessor when you mean to store them.
       # @return [Hash{Symbol => Object}]
       def to_h
+        secrets = self.class.secret_keys
         out = {}
-        self.class.all_keys.each { |k| out[k] = unwrap(@attributes[k]) if @attributes.key?(k) }
+        self.class.all_keys.each do |k|
+          next unless @attributes.key?(k)
+
+          out[k] = secrets.include?(k) && !@attributes[k].nil? ? REDACTED : unwrap(@attributes[k])
+        end
         @extra.each { |k, v| out[k] = v }
         out
       end
@@ -134,18 +153,26 @@ module Oblodai
         to_h.to_json(*args)
       end
 
+      # Compared on the wire values themselves, not on {#to_h}: two endpoints with different secrets
+      # are different objects even though both serialize to "[redacted]".
       def ==(other)
-        other.class == self.class && other.to_h == to_h
+        other.class == self.class && other.attributes == attributes && other.extra == extra
       end
       alias eql? ==
 
       def hash
-        [self.class, to_h].hash
+        [self.class, attributes, extra].hash
       end
 
+      # The decoded wire values, secrets included. This is the raw material; {#to_h} is the
+      # printable rendering of it.
+      # @return [Hash{Symbol => Object}]
+      attr_reader :attributes
+
       def inspect
-        shown = to_h.first(6).map { |k, v| "#{k}=#{v.inspect}" }.join(" ")
-        more = to_h.size > 6 ? " …" : ""
+        printable = to_h
+        shown = printable.first(6).map { |k, v| "#{k}=#{v.inspect}" }.join(" ")
+        more = printable.size > 6 ? " ..." : ""
         "#<#{self.class.name} #{shown}#{more}>"
       end
 
@@ -153,10 +180,22 @@ module Oblodai
 
       def coerce(value, spec)
         model = spec[:model]
-        return value if model.nil? || value.nil?
-        return model.from_list(value) if spec[:list]
+        return deep_freeze(value) if model.nil? || value.nil?
+        return model.from_list(value).freeze if spec[:list]
 
         model.from(value)
+      end
+
+      # A model is a value object: freezing only the top-level hash left every nested array and
+      # string it decoded writable, so one holder could mutate another's copy.
+      def deep_freeze(value)
+        case value
+        when Array then value.each { |v| deep_freeze(v) }.freeze
+        when Hash
+          value.each { |k, v| [k, v].each { |m| deep_freeze(m) } }
+          value.freeze
+        else value.frozen? ? value : value.freeze
+        end
       end
 
       def unwrap(value)

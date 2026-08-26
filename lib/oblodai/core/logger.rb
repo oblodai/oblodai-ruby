@@ -23,6 +23,29 @@ module Oblodai
       else value
       end
     end
+
+    # Wrap a logger so its fields are redacted before it sees them. The SDK does this once, around
+    # the logger the caller supplied: redaction that lived inside {Oblodai::IOLogger} alone would
+    # protect only the SDK's own logger and quietly leave a Rails or semantic_logger user exposed.
+    # @param logger [#debug]
+    # @return [Oblodai::Logging::Redacting]
+    def redacting(logger)
+      logger.is_a?(Redacting) || logger.is_a?(NullLogger) ? logger : Redacting.new(logger)
+    end
+  end
+
+  # A logger façade that scrubs every field before passing it on. See {Logging.redacting}.
+  class Logging::Redacting
+    # @param inner [#debug]
+    def initialize(inner)
+      @inner = inner
+    end
+
+    %i[debug info warn error].each do |level|
+      define_method(level) do |message, fields = nil|
+        @inner.public_send(level, message, fields && Logging.redact(fields))
+      end
+    end
   end
 
   # Discards everything. The default when no logger is configured.
