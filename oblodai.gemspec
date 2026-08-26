@@ -30,7 +30,7 @@ Gem::Specification.new do |spec|
     "contract/*.json",
     "contract/fixtures/*.json",
     "contract/errors/*.json",
-    "README.md", "CHANGELOG.md", "MIGRATION-1.3.md", "AGENTS.md", "LICENSE"
+    "README.md", "README.ru.md", "CHANGELOG.md", "MIGRATION-1.3.md", "AGENTS.md", "LICENSE"
   ]
   spec.require_paths = ["lib"]
 end
