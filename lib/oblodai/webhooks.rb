@@ -14,7 +14,9 @@ module Oblodai
   #     X-Webhook-Signature: hex(HMAC-SHA256(secret, "<ts>." + rawBody))
   #     X-Webhook-Signature-Prev: same, with the previous secret — only during a rotation overlap
   #     X-Webhook-Event: an event of Oblodai::Generated::WEBHOOK_EVENTS (a newer core may add more)
-  #     X-Webhook-Id: stable per delivery (identical across retries) — use it to deduplicate
+  #     X-Webhook-Id: the delivery — identical across its retries, but a resend is a new delivery
+  #     X-Webhook-Event-Id: the state — identical across retries AND resends of the same state; the
+  #       key to deduplicate on ({Delivery#event_id})
   #     X-Webhook-Event-Time: unix seconds when the state change committed (order events by it)
   #     X-Webhook-Test: "true" on a rehearsal delivery (`webhooks.test`, sandbox) — see below
   #
@@ -39,6 +41,7 @@ module Oblodai
     HEADER_SIGNATURE_PREV = "X-Webhook-Signature-Prev"
     HEADER_EVENT = "X-Webhook-Event"
     HEADER_ID = "X-Webhook-Id"
+    HEADER_EVENT_ID = "X-Webhook-Event-Id"
     HEADER_EVENT_TIME = "X-Webhook-Event-Time"
     HEADER_TEST = "X-Webhook-Test"
 
@@ -51,7 +54,11 @@ module Oblodai
     #   @return [Oblodai::Models::Base, Hash] the model of the event's kind ({EVENT_MODELS}), or the
     #     parsed body of a kind this release does not know
     # @!attribute [r] id
-    #   @return [String, nil] `X-Webhook-Id` — stable across retries; use it as your idempotency key
+    #   @return [String, nil] `X-Webhook-Id` — the delivery: identical across its retries, but a
+    #     resend (`POST /v1/payment/resend`, a sandbox replay) is a new delivery with a new id
+    # @!attribute [r] event_id
+    #   @return [String, nil] `X-Webhook-Event-Id` — the state the delivery carries: identical across
+    #     retries and resends of the same state, different once the state changes. Deduplicate on it.
     # @!attribute [r] event_type
     #   @return [String, nil] `X-Webhook-Event`
     # @!attribute [r] event_time
@@ -60,7 +67,7 @@ module Oblodai
     #   @return [Integer] `X-Webhook-Timestamp` — when this attempt was sent
     # @!attribute [r] test
     #   @return [Boolean] a rehearsal delivery — see {Delivery#test?}
-    Delivery = Struct.new(:event, :id, :event_type, :event_time, :sent_at, :test, keyword_init: true) do
+    Delivery = Struct.new(:event, :id, :event_id, :event_type, :event_time, :sent_at, :test, keyword_init: true) do
       def initialize(*)
         super
         freeze
@@ -106,7 +113,7 @@ module Oblodai
                                          tolerance: tolerance, now: now).event
     end
 
-    # Like {verify}, and also returns the delivery id, event type and times from the headers.
+    # Like {verify}, and also returns the delivery and event ids, event type and times from the headers.
     # @return [Oblodai::Webhooks::Delivery]
     def verify_delivery(raw_body, headers, secret:, previous_secret: nil,
                         tolerance: DEFAULT_TOLERANCE, now: nil)
@@ -125,6 +132,7 @@ module Oblodai
       Delivery.new(
         event: event,
         id: Util.header_value(headers, HEADER_ID),
+        event_id: Util.header_value(headers, HEADER_EVENT_ID),
         event_type: Util.header_value(headers, HEADER_EVENT),
         event_time: /\A\d+\z/.match?(event_time.to_s.strip) ? event_time.to_s.strip.to_i : nil,
         sent_at: ts,
@@ -230,9 +238,6 @@ module Oblodai
 
       model = EVENT_MODELS[body["type"]]
       return deep_freeze(body) if model.nil?
-      unless body["uuid"].is_a?(String)
-        raise WebhookPayloadError.new("#{body["type"]} event has no `uuid` string", body)
-      end
 
       begin
         model.from_h(body)
@@ -267,8 +272,24 @@ module Oblodai
       value == true
     end
 
+    # The id of the object the event is about — the body field {Oblodai::Generated::WEBHOOK_ID_FIELDS}
+    # names for its kind (`uuid` for payments, payouts and wallets, `id` for conversions). Key your
+    # per-object state (the last `sequence`) by it together with the kind. Never raises.
+    #
+    # @param event [Oblodai::Models::Base, Hash] an event model or a decoded body
+    # @return [String, nil] nil for a kind without an id field, or a body without a string there
+    def subject_id(event)
+      kind = event.is_a?(Models::Base) && event.respond_to?(:type) ? event.type : event_field(event, :type)
+      field = Generated::WEBHOOK_ID_FIELDS[kind]
+      return nil if field.nil?
+
+      model = event.is_a?(Models::Base) && event.respond_to?(field)
+      value = model ? event.public_send(field) : event_field(event, field.to_sym)
+      value.is_a?(String) ? value : nil
+    end
+
     # Deliveries can arrive out of order (a retried `paid` after a `refund`). Keep the last
-    # `sequence` you processed per object and skip anything not newer. Never raises: an event
+    # `sequence` you processed per object ({subject_id}) and skip anything not newer. Never raises: an event
     # without a usable `sequence` is not stale, because nothing about it can be compared.
     #
     # @param event [#sequence, Hash]

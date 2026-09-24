@@ -149,6 +149,36 @@ RSpec.describe "conformance" do
     end
   end
 
+  describe "webhook deliveries" do
+    suite = Conformance.suite("webhook_delivery")
+    _, deliveries = Conformance.source(suite)
+
+    it "has a delivery of every event this release knows" do
+      expect(deliveries.map { |d| d["event"] }).to match_array(Oblodai::Generated::WEBHOOK_EVENTS.keys)
+    end
+
+    suite.fetch("checks").each do |check|
+      raise "unknown check kind #{check["kind"]}" unless check["kind"] == "webhook_delivery"
+
+      deliveries.each do |vector|
+        it "#{check["name"]} — #{vector["event"]} (#{check["key"]})" do
+          secret = vector.fetch({ "current" => "secret", "previous" => "previous_secret" }.fetch(check["key"]))
+          delivery = Oblodai::Webhooks.verify_delivery(vector["payload"], vector["headers"],
+                                                       secret: secret, now: vector["ts"])
+          expect(delivery.event).to be_a(Oblodai::Generated::WEBHOOK_MODELS.fetch(vector["kind"]))
+          expect(Oblodai::Webhooks.known_event?(delivery.event)).to be(true)
+          suite.fetch("headers").each do |header, field|
+            next if field.empty?
+
+            value = delivery.public_send(field)
+            want = vector.dig("headers", header)
+            expect(value).to eq(value.is_a?(Integer) ? Integer(want) : want), "#{field} ≠ #{header}"
+          end
+        end
+      end
+    end
+  end
+
   describe "calls" do
     # A value of the answer as the scenario spells it: amounts compare as numbers.
     def plain_equal?(got, want)

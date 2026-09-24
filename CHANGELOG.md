@@ -22,6 +22,9 @@ and the minimum Ruby change — every old name and its new one is in [MIGRATION-
 - facts of the API generated from the contract rather than kept by hand: status classes
   (`Oblodai::Enums::PaymentStatus.final?` / `.success?`, behind `Oblodai::Status`), webhook kinds
   and their models (`Oblodai::Generated::WEBHOOK_MODELS`), non-money numbers of requests.
+- `Delivery#event_id` (`X-Webhook-Event-Id`): the id of the state a delivery carries, the same
+  across retries and resends — the key to deduplicate on (`Delivery#id` changes on a resend);
+  `Oblodai::Webhooks.subject_id(event)` — the object's id by kind (`Generated::WEBHOOK_ID_FIELDS`).
 - the shared conformance suite of the backend (`spec/conformance`), README and example snippets run
   in the specs, and a drift check of the generated code in `make ci`.
 
