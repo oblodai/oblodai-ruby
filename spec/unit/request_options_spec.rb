@@ -73,6 +73,20 @@ RSpec.describe "call options" do
     expect(http.calls[0].json).to include("idempotency_key" => "faucet-1")
     expect(http.calls[0].headers).not_to have_key("idempotency-key")
   end
+
+  it "refuses the faucet key given twice — in params and as the keyword — before the network" do
+    http = FakeHTTP.new([FakeHTTP.ok_for("sandboxFaucet")])
+    sandbox = client_with(http).sandbox
+    own = [
+      { "asset" => "USDT", "amount" => "5", "idempotency_key" => "own" },
+      Oblodai::Models::FaucetRequest.new(asset: "USDT", amount: "5", idempotency_key: "own")
+    ]
+    own.each do |params|
+      expect { sandbox.faucet(params, idempotency_key: "faucet-2") }
+        .to raise_error(ArgumentError, /idempotency_key/)
+    end
+    expect(http.calls).to be_empty
+  end
 end
 
 RSpec.describe "Oblodai::Client#with_options" do
