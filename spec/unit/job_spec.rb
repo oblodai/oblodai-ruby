@@ -58,12 +58,30 @@ RSpec.describe Oblodai::Job do
     expect { job_client(http).batches.create_payout(payouts: []) }.to raise_error(Oblodai::ContractError)
   end
 
-  it "lists every long-running operation with a poll the contract has" do
-    Oblodai::LRO::CREATES.each do |create, poll|
+  it "follows every long-running operation the contract declares, by routes it has" do
+    lro = Oblodai::Generated::LRO
+    expect(lro.keys).to contain_exactly("createPaymentBatch", "createPayoutBatch", "createRefundBatch",
+                                        "createTransferBatch", "createDocumentJob")
+    lro.each do |create, poll|
       expect(Oblodai::Generated::ROUTES).to have_key(create)
-      expect(Oblodai::Generated::ROUTES).to have_key(poll)
-      model = Oblodai::LRO::POLLS.fetch(poll).model
-      expect(Oblodai::Models.const_defined?(model)).to be(true), model
+      expect(Oblodai::Generated::ROUTES).to have_key(poll.operation)
+      expect(Oblodai::Generated::ROUTES).to have_key(poll.download) if poll.download
+      expect(poll.model).to be < Oblodai::Models::Base
+      expect(poll.terminal).not_to be_empty
     end
+    expect(lro.fetch("createDocumentJob").terminal).to eq(Oblodai::Enums::DocumentJobStatus::FINAL)
+  end
+
+  it "stops at the terminal statuses of its own operation, not another's" do
+    # `done` ends a document job, never a batch: a batch waits on through it.
+    http = FakeHTTP.new([
+                          FakeHTTP.ok_for("createRefundBatch", "batch_id" => "b-3"),
+                          FakeHTTP.ok_for("getBatchInfo", "batch_id" => "b-3", "status" => "done"),
+                          FakeHTTP.ok_for("getBatchInfo", "batch_id" => "b-3", "status" => "stopped")
+                        ])
+    job = job_client(http).batches.create_refund(refunds: [])
+    allow(job).to receive(:pause)
+    expect(job.wait(timeout: 5, interval: 0.01).status).to eq("stopped")
+    expect(http.calls.size).to eq(3)
   end
 end

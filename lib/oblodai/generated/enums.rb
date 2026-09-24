@@ -83,6 +83,23 @@ module Oblodai
 
       # Every value this release knows.
       VALUES = [PENDING, PROCESSING, COMPLETED, STOPPED].freeze
+
+      # Values after which the status no longer changes.
+      FINAL = [COMPLETED, STOPPED].freeze
+      # Final values that mean success.
+      SUCCESS = [].freeze
+
+      # @param value [String]
+      # @return [Boolean] the status no longer changes
+      def self.final?(value)
+        FINAL.include?(value)
+      end
+
+      # @param value [String]
+      # @return [Boolean] the status is final and a success
+      def self.success?(value)
+        SUCCESS.include?(value)
+      end
     end
 
     # Values of ConversionWebhookStatus.
@@ -114,6 +131,23 @@ module Oblodai
 
       # Every value this release knows.
       VALUES = [QUEUED, PROCESSING, DONE, FAILED, EXPIRED].freeze
+
+      # Values after which the status no longer changes.
+      FINAL = [DONE, FAILED, EXPIRED].freeze
+      # Final values that mean success.
+      SUCCESS = [DONE].freeze
+
+      # @param value [String]
+      # @return [Boolean] the status no longer changes
+      def self.final?(value)
+        FINAL.include?(value)
+      end
+
+      # @param value [String]
+      # @return [Boolean] the status is final and a success
+      def self.success?(value)
+        SUCCESS.include?(value)
+      end
     end
 
     # Коды ошибок, которыми отвечают операции этого документа.
@@ -720,6 +754,23 @@ module Oblodai
 
       # Every value this release knows.
       VALUES = [SELECT, CREATED, CONFIRM_CHECK, PAID, PAID_OVER, WRONG_AMOUNT, EXPIRED, CANCELLED, UNDER_REVIEW].freeze
+
+      # Values after which the status no longer changes.
+      FINAL = [PAID, PAID_OVER, WRONG_AMOUNT, EXPIRED, CANCELLED].freeze
+      # Final values that mean success.
+      SUCCESS = [PAID, PAID_OVER].freeze
+
+      # @param value [String]
+      # @return [Boolean] the status no longer changes
+      def self.final?(value)
+        FINAL.include?(value)
+      end
+
+      # @param value [String]
+      # @return [Boolean] the status is final and a success
+      def self.success?(value)
+        SUCCESS.include?(value)
+      end
     end
 
     # Values of PayoutFeeBearer.
@@ -784,6 +835,23 @@ module Oblodai
 
       # Every value this release knows.
       VALUES = [APPROVED, AWAITING_COSIGN, BROADCASTING, CANCELLED, CONFIRMED, FAILED, PENDING, SENT].freeze
+
+      # Values after which the status no longer changes.
+      FINAL = [CANCELLED, CONFIRMED, FAILED].freeze
+      # Final values that mean success.
+      SUCCESS = [CONFIRMED].freeze
+
+      # @param value [String]
+      # @return [Boolean] the status no longer changes
+      def self.final?(value)
+        FINAL.include?(value)
+      end
+
+      # @param value [String]
+      # @return [Boolean] the status is final and a success
+      def self.success?(value)
+        SUCCESS.include?(value)
+      end
     end
 
     # Values of RefundRollup.

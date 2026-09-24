@@ -10,7 +10,7 @@ the route table are generated from the gateway's OpenAPI contract into `lib/oblo
   responses. A `Float` is refused with `sdk.float_amount` before anything is sent. Never `to_f` an
   amount; order string amounts with `Oblodai::Money.compare` / `.equals?`.
 - Methods are `client.<resource>.<method>` — the operation's `operationId` without the resource name,
-  in snake_case (`createPayout` → `payouts.create`). `names.lock` lists all 120.
+  in snake_case (`createPayout` → `payouts.create`). `names.lock` lists all of them.
 - Request fields are keyword arguments spelled as the wire spells them (`order_id:`, `url_callback:`);
   a body may also be a Hash with the wire names or a request model, with keywords added on top. A
   keyword that clashes with Ruby gets `_` (`format_:`). Path parameters are positional
@@ -75,7 +75,9 @@ events with `Oblodai::Webhooks.stale?(event, last_sequence)`. During a rotation 
 
 ## Machine-readable surface
 
-`Oblodai::Generated::ROUTES` (120 routes by `operationId`: method, path, auth, idempotent, safe,
+`Oblodai::Generated::ROUTES` (every route by `operationId`: method, path, auth, idempotent, safe,
 bare, list_kind), `Oblodai::Models::*` (`REQUIRED`, `FIELDS`, `from_h`, `to_h`), `Oblodai::Enums::*`
-(`VALUES` per enumeration), `Oblodai::LRO` (long-running operations and how they are polled),
-`names.lock`.
+(`VALUES` per enumeration; `FINAL`, `SUCCESS`, `final?`, `success?` for the classified statuses),
+`Oblodai::Generated::LRO` (long-running operations and how they are polled),
+`Oblodai::Generated::WEBHOOK_MODELS` / `WEBHOOK_KINDS` / `WEBHOOK_EVENTS`,
+`Oblodai::Generated::NON_MONEY_NUMBERS`, `names.lock`. All of it is generated from the contract.

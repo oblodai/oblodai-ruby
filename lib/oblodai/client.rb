@@ -3,6 +3,7 @@
 require_relative "config"
 require_relative "core/transport"
 require_relative "generated/resources"
+require_relative "generated/facts"
 require_relative "version"
 
 module Oblodai

@@ -96,7 +96,7 @@ RSpec.describe "route coverage" do
 
       if route.bare
         expect(result).to be_a(Oblodai::FileResult)
-      elsif Oblodai::LRO::CREATES.key?(operation_id)
+      elsif Oblodai::Generated::LRO.key?(operation_id)
         expect(result).to be_a(Oblodai::Job)
       elsif route.paged?
         expect(result).to be_a(Oblodai::Page)

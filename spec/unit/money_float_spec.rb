@@ -31,14 +31,9 @@ RSpec.describe "money on the wire" do
     expect(http.calls[0].json).to include("accuracy_payment_percent" => 1.5)
   end
 
-  it "keeps the list of non-money numbers equal to the contract's number fields" do
-    spec = backend_spec
-    skip "backend openapi.json not found (set OBLODAI_BACKEND)" if spec.nil?
-
-    numbers = spec.dig("components", "schemas").flat_map do |_, schema|
-      (schema["properties"] || {}).select { |_, prop| prop["type"] == "number" }.keys
-    end
-    expect(numbers.uniq.sort).to eq(Oblodai::RequestBuilder::NON_MONEY_NUMBERS.sort)
+  it "takes the non-money numbers from the contract (generated)" do
+    expect(Oblodai::Generated::NON_MONEY_NUMBERS).to include("accuracy_payment_percent")
+    expect(Oblodai::Generated::NON_MONEY_NUMBERS).not_to include("amount")
   end
 
   it "sends a request model as its wire form, amounts included" do

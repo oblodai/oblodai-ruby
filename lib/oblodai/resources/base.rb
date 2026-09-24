@@ -8,7 +8,6 @@ require_relative "../core/raw"
 require_relative "../core/route"
 require_relative "../core/transport"
 require_relative "../errors"
-require_relative "../lro"
 require_relative "../models/base"
 
 module Oblodai
@@ -122,7 +121,7 @@ module Oblodai
       # Call a route the way its kind asks; the one entry point of generated methods.
       #
       # An envelope route returns its `result`, or `parse.call(result)` when given; a long-running
-      # operation ({Oblodai::LRO}) returns an {Oblodai::Job} around that value. A paged list returns a
+      # operation ({Oblodai::Generated::LRO}) returns an {Oblodai::Job} around that value. A paged list returns a
       # lazy {Oblodai::Page} whose items go through `parse`; `limit`/`offset` in the body (the query
       # for GET) pick the first page. A `bare` route returns an {Oblodai::FileResult}. Through
       # {#with_raw_response} each returns an {Oblodai::RawAPIResponse} whose `parse` gives the same
@@ -173,14 +172,15 @@ module Oblodai
         })
       end
 
-      # The polls of a long-running operation, or nil for an ordinary route.
+      # How to follow a long-running operation (generated from the contract's `x-sdk-poll`), or nil
+      # for an ordinary route.
       def job_plan(route)
-        poll_id = LRO::CREATES[route.operation_id.to_s]
-        return nil if poll_id.nil?
+        lro = defined?(Oblodai::Generated::LRO) ? Oblodai::Generated::LRO : {}
+        poll = lro[route.operation_id.to_s]
+        return nil if poll.nil?
 
-        poll = LRO::POLLS.fetch(poll_id)
-        { poll: generated_route(poll_id), id_field: poll.id_field, model: generated_model(poll.model),
-          download: poll.download && generated_route(poll.download) }
+        { poll: generated_route(poll.operation), id_field: poll.id_field, status_field: poll.status_field,
+          terminal: poll.terminal, model: poll.model, download: poll.download && generated_route(poll.download) }
       end
 
       def build_job(plan, options, result, value)
@@ -195,14 +195,24 @@ module Oblodai
                                     extra_headers: options.extra_headers)
         transport = @transport
         poll = lambda do
-          answer = transport.call(plan[:poll], Transport::CallOptions.from(follow, body: { plan[:id_field] => id }))
+          answer = transport.call(plan[:poll], job_call(plan[:poll], follow, plan[:id_field], id))
           plan[:model] ? plan[:model].from_h(answer) : answer
         end
         download = plan[:download] && lambda do
-          call = Transport::CallOptions.from(follow, query: { plan[:id_field] => id })
+          call = job_call(plan[:download], follow, plan[:id_field], id)
           FileResult.from_response(transport.call_raw(plan[:download], call).response)
         end
-        Job.new(id: id.to_s, result: value, poll: poll, download: download)
+        Job.new(id: id.to_s, result: value, poll: poll, download: download, terminal: plan[:terminal],
+                status_field: plan[:status_field])
+      end
+
+      # The job's id where the route takes it: the query of a GET, else the body.
+      def job_call(route, options, id_field, id)
+        if route.method.to_s.upcase == "GET"
+          Transport::CallOptions.from(options, query: { id_field => id })
+        else
+          Transport::CallOptions.from(options, body: { id_field => id })
+        end
       end
 
       def generated_route(operation_id)
@@ -211,10 +221,6 @@ module Oblodai
           raise ConfigError.new("sdk.lro_unresolved",
                                 "no route for operation #{operation_id}, needed to follow a long-running call")
         end
-      end
-
-      def generated_model(name)
-        Oblodai::Models.const_defined?(name, false) ? Oblodai::Models.const_get(name, false) : nil
       end
     end
   end
