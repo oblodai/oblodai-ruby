@@ -53,10 +53,12 @@ RSpec.describe "examples" do
     let(:receiver) { WebhookReceiver.new(secret: "whsec-example", out: out) }
     let(:ts) { Time.now.to_i }
 
-    def delivery(body, id: "d-1", secret: "whsec-example")
+    def delivery(body, id: "d-1", event_id: nil, secret: "whsec-example")
       raw = JSON.generate(body)
-      [raw, { "X-Webhook-Timestamp" => ts.to_s, "X-Webhook-Id" => id,
-              "X-Webhook-Signature" => Oblodai::Signing.sign_webhook(secret, ts, raw) }]
+      headers = { "X-Webhook-Timestamp" => ts.to_s, "X-Webhook-Id" => id,
+                  "X-Webhook-Signature" => Oblodai::Signing.sign_webhook(secret, ts, raw) }
+      headers["X-Webhook-Event-Id"] = event_id if event_id
+      [raw, headers]
     end
 
     it "settles an authentic delivery once and refuses a forgery" do
@@ -65,8 +67,24 @@ RSpec.describe "examples" do
       raw, headers = delivery(body)
       expect(receiver.call(raw, headers)).to eq([200, "ok"])
       expect(receiver.call(raw, headers)).to eq([200, "ok"])
-      expect(out.string).to include("invoice", "duplicate delivery d-1")
+      expect(out.string).to include("invoice", "duplicate event d-1")
       expect(receiver.call("#{raw} ", headers).first).to eq(401)
+    end
+
+    it "processes a resent state once: the event id stays, the delivery id does not" do
+      body = Samples.body("PaymentWebhook", "type" => "payment", "uuid" => "u", "status" => "paid",
+                                            "sequence" => 3)
+      expect(receiver.call(*delivery(body, id: "d-1", event_id: "e-1")).first).to eq(200)
+      expect(receiver.call(*delivery(body.merge("sequence" => 9), id: "d-2", event_id: "e-1")).first).to eq(200)
+      expect(out.string.scan("invoice").size).to eq(1)
+      expect(out.string).to include("duplicate event e-1")
+    end
+
+    it "settles a conversion, whose object id is `id`" do
+      body = Samples.body("ConversionWebhook", "type" => "conversion", "id" => "c-1", "status" => "completed",
+                                               "sequence" => 4)
+      expect(receiver.call(*delivery(body, id: "d-5", event_id: "e-5")).first).to eq(200)
+      expect(out.string).to include("conversion c-1: completed")
     end
 
     it "acknowledges a rehearsal, an unknown kind and an unreadable body without a 401" do

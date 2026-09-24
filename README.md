@@ -319,9 +319,12 @@ event `type` a newer gateway invented does not raise either: it arrives as the p
 Hash) — `Oblodai::Webhooks.known_event?(event)` tells the two apart.
 
 Rehearsal deliveries carry `test: true` in the signed body (and `X-Webhook-Test: true`): check
-`delivery.test?` and never act on one as if money moved. `delivery.id` (`X-Webhook-Id`) is stable
-across retries — deduplicate on it; `Oblodai::Webhooks.stale?(event, last_sequence)` drops an
-out-of-order retry. After `webhooks.rotate_secret` pass `previous_secret:` for at least 26 hours.
+`delivery.test?` and never act on one as if money moved. Deduplicate on `delivery.event_id`
+(`X-Webhook-Event-Id`): it names the state and is the same for every retry and every resend of it.
+`delivery.id` (`X-Webhook-Id`) names one delivery and changes on a resend (`webhooks.resend_payment`,
+a sandbox replay), so a handler keyed on it processes a resent `invoice.paid` twice.
+`Oblodai::Webhooks.stale?(event, last_sequence)` drops an out-of-order retry — keep the last
+sequence per object, `Oblodai::Webhooks.subject_id(event)` (the `uuid`, or `id` of a conversion). After `webhooks.rotate_secret` pass `previous_secret:` for at least 26 hours.
 
 ## Errors
 

@@ -315,9 +315,13 @@ end
 (замороженный Hash) — `Oblodai::Webhooks.known_event?(event)` различает эти случаи.
 
 Репетиционные доставки несут `test: true` в подписанном теле (и `X-Webhook-Test: true`): проверяйте
-`delivery.test?` и никогда не считайте их движением денег. `delivery.id` (`X-Webhook-Id`) стабилен
-между повторами — дедуплицируйте по нему; `Oblodai::Webhooks.stale?(event, last_sequence)`
-отбрасывает повтор не по порядку. После `webhooks.rotate_secret` передавайте `previous_secret:`
+`delivery.test?` и никогда не считайте их движением денег. Дедуплицируйте по `delivery.event_id`
+(`X-Webhook-Event-Id`): он называет состояние и одинаков у всех повторов и переотправок.
+`delivery.id` (`X-Webhook-Id`) называет одну доставку и меняется при переотправке
+(`webhooks.resend_payment`, повтор в песочнице) — обработчик, ключом которого он служит, обработает
+переотправленный `invoice.paid` дважды. `Oblodai::Webhooks.stale?(event, last_sequence)` отбрасывает
+повтор не по порядку — храните последний sequence на объект, `Oblodai::Webhooks.subject_id(event)`
+(`uuid`, у конвертации — `id`). После `webhooks.rotate_secret` передавайте `previous_secret:`
 не меньше 26 часов.
 
 ## Ошибки

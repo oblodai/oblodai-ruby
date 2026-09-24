@@ -2,7 +2,8 @@
 # frozen_string_literal: true
 
 # A webhook receiver on Ruby's own HTTP server — no framework, no client, no API key. The two rules
-# that matter: verify over the RAW bytes, and deduplicate on the delivery id.
+# that matter: verify over the RAW bytes, and deduplicate on the event id (`X-Webhook-Event-Id`) — not
+# on the delivery id, which a resend changes.
 #
 # WEBrick left the standard library in Ruby 3.0 — `gem install webrick` (it is in this repository's
 # development bundle) before running the example. Nothing in the gem itself needs it.
@@ -21,8 +22,8 @@ class WebhookReceiver
     @secret = secret
     @previous_secret = previous_secret
     @out = out
-    @seen = {}          # delivery id → true, so a retried delivery is processed once
-    @last_sequence = {} # object uuid → the last sequence processed, so an out-of-order retry is dropped
+    @seen = {}          # event id → true, so a retried or resent state is processed once
+    @last_sequence = {} # [kind, object id] → the last sequence processed, so an out-of-order retry is dropped
   end
 
   def call(raw, headers)
@@ -52,15 +53,27 @@ class WebhookReceiver
     elsif !Oblodai::Webhooks.known_event?(event)
       # A newer gateway may send an event kind this release does not model; it arrives as a Hash.
       @out.puts "unknown event type #{event["type"]}, ignored"
-    elsif @seen[delivery.id]
-      @out.puts "duplicate delivery #{delivery.id}, ignored"
-    elsif Oblodai::Webhooks.stale?(event, @last_sequence[event.uuid])
-      @out.puts "stale event #{event.sequence} for #{event.uuid}, ignored"
+    elsif @seen[dedup_key(delivery)]
+      @out.puts "duplicate event #{dedup_key(delivery)}, ignored"
+    elsif Oblodai::Webhooks.stale?(event, @last_sequence[object_key(event)])
+      @out.puts "stale event #{event.sequence} for #{object_key(event).join(" ")}, ignored"
     else
-      @seen[delivery.id] = true if delivery.id
-      @last_sequence[event.uuid] = event.sequence
+      @seen[dedup_key(delivery)] = true
+      @last_sequence[object_key(event)] = event.sequence
       settle(event)
     end
+  end
+
+  # X-Webhook-Event-Id names the STATE: the same for every retry and every resend of it. X-Webhook-Id
+  # names one delivery — a resend (payments resend, sandbox replay) gets a new one. A core that does
+  # not send the event id yet leaves the delivery id as the next best key.
+  def dedup_key(delivery)
+    delivery.event_id || delivery.id
+  end
+
+  # Sequences are ordered per object; the object's id field depends on the kind (conversions: `id`).
+  def object_key(event)
+    [event.type, Oblodai::Webhooks.subject_id(event)]
   end
 
   def settle(event)
@@ -73,7 +86,7 @@ class WebhookReceiver
     when Oblodai::Models::WalletWebhook
       @out.puts "wallet #{event.address} received #{event.payment_amount} #{event.payer_currency}"
     else
-      @out.puts "#{event.type} #{event.uuid}: #{event.status}"
+      @out.puts "#{event.type} #{Oblodai::Webhooks.subject_id(event)}: #{event.status}"
     end
   end
 end

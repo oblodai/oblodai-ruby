@@ -15,6 +15,7 @@ RSpec.describe Oblodai::Webhooks do
         expect(delivery.event.uuid).to eq(sample["body"]["uuid"])
         expect(delivery.event.type).to eq(sample["body"]["type"])
         expect(delivery.id).to eq(sample["headers"]["X-Webhook-Id"])
+        expect(delivery.event_id).to eq(sample["headers"]["X-Webhook-Event-Id"])
         expect(delivery.event_type).to eq(sample["headers"]["X-Webhook-Event"])
         expect(delivery.sent_at).to eq(ts)
         expect(delivery.event.sequence).to be_a(Integer)
@@ -97,9 +98,41 @@ RSpec.describe Oblodai::Webhooks do
       expect { described_class.parse("not json") }
         .to raise_error(Oblodai::WebhookPayloadError, /not JSON/)
       expect { described_class.parse('{"type":"payment"}') }
-        .to raise_error(Oblodai::WebhookPayloadError, /uuid/)
+        .to raise_error(Oblodai::WebhookPayloadError, /not usable/)
       expect { described_class.parse('{"type":"payment","uuid":"u"}') }
         .to raise_error(Oblodai::WebhookPayloadError, /not usable/)
+    end
+
+    # Every kind the contract knows parses into its model — the id field differs by kind
+    # (conversions carry `id`, not `uuid`), and nothing in the parser may assume one of them.
+    Oblodai::Generated::WEBHOOK_MODELS.each do |kind, model|
+      it "parses a #{kind} body into #{model.name.split("::").last}" do
+        body = Samples.body(model.name.split("::").last, "type" => kind)
+        id_field = Oblodai::Generated::WEBHOOK_ID_FIELDS.fetch(kind)
+        body[id_field] = "obj-#{kind}"
+        event = described_class.parse(JSON.generate(body))
+        expect(event).to be_a(model)
+        expect(described_class.known_event?(event)).to be(true)
+        expect(described_class.subject_id(event)).to eq("obj-#{kind}")
+        expect(described_class.subject_id(body)).to eq("obj-#{kind}")
+        expect(described_class.subject_id(body.transform_keys(&:to_sym))).to eq("obj-#{kind}")
+        body.delete(id_field)
+        expect { described_class.parse(JSON.generate(body)) }
+          .to raise_error(Oblodai::WebhookPayloadError, /not usable.*#{id_field}/)
+      end
+    end
+
+    it "has no subject id for a kind this release does not know" do
+      expect(described_class.subject_id({ "type" => "alien", "uuid" => "x" })).to be_nil
+      expect(described_class.subject_id(nil)).to be_nil
+    end
+
+    it "reads the event id apart from the delivery id" do
+      delivery = described_class.verify_delivery(
+        body, headers("X-Webhook-Id" => "d-1", "X-Webhook-Event-Id" => "e-1"), secret: "whsec", now: ts
+      )
+      expect([delivery.id, delivery.event_id]).to eq(%w[d-1 e-1])
+      expect(described_class.verify_delivery(body, headers, secret: "whsec", now: ts).event_id).to be_nil
     end
 
     it "marks a rehearsal delivery from either the body flag or the header" do
