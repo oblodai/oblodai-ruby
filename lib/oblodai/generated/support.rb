@@ -49,19 +49,20 @@ module Oblodai
         value.transform_keys(&:to_s)
       end
 
-      # A JSON value as the type the generated model declares; nil stays nil. `type` is
-      # :string, :decimal, :integer, :float, :boolean, :any, a model class (or oneOf module) with
-      # `from_h`, `[:array, type]` or `[:map, type]`. An enum value is a :string, so a value this
-      # release does not know yet parses like any other.
+      # A JSON value as the type the generated model declares, frozen all the way down; nil stays
+      # nil. `type` is :string, :decimal, :integer, :float, :boolean, :any, a model class (or oneOf
+      # module) with `from_h`, `[:array, type]` or `[:map, type]`. An enum value is a :string, so a
+      # value this release does not know yet parses like any other.
       def read(value, type)
         return nil if value.nil?
 
         case type
-        when :string then value.is_a?(String) ? value : value.to_s
+        when :string then -value.to_s
         when :decimal then value.is_a?(BigDecimal) ? value : BigDecimal(value.to_s)
         when :integer then Integer(value)
         when :float then Float(value)
-        when :boolean, :any then value
+        when :boolean then value
+        when :any then frozen_copy(value)
         when Array then read_container(value, *type)
         else type.from_h(value)
         end
@@ -69,18 +70,28 @@ module Oblodai
 
       def read_container(value, kind, type)
         if kind == :map
-          object(value).transform_values { |item| read(item, type) }
+          object(value).transform_values { |item| read(item, type) }.freeze
         else
           raise ArgumentError, "expected a JSON array, got #{value.class}" unless value.is_a?(Array)
 
-          value.map { |item| read(item, type) }
+          value.map { |item| read(item, type) }.freeze
         end
       end
 
       # Fields of `data` outside `known`: what this release does not know yet, kept as sent.
       # @return [Hash{String => Object}]
       def extra(data, known)
-        data.except(*known).freeze
+        frozen_copy(data.except(*known))
+      end
+
+      # A frozen copy of a decoded JSON value; the caller's own objects are left as they were.
+      def frozen_copy(value)
+        case value
+        when Hash then value.to_h { |key, item| [frozen_copy(key), frozen_copy(item)] }.freeze
+        when Array then value.map { |item| frozen_copy(item) }.freeze
+        when String then -value
+        else value.frozen? ? value : value.dup.freeze
+        end
       end
 
       # The wire form of a value: models as Hashes, BigDecimal as a decimal string.
