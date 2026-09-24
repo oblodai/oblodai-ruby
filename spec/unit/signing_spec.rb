@@ -1,8 +1,14 @@
 # frozen_string_literal: true
 
 RSpec.describe Oblodai::Signing do
-  describe "request signing (vectors exported from the core test suite)" do
-    Fixtures.contract["signing_vectors"].each do |vector|
+  describe "request signing (vectors from x-oblodai-signing of the backend spec)" do
+    it "has the spec's vectors" do
+      skip "backend openapi.json not found (set OBLODAI_BACKEND)" if backend_spec.nil?
+      expect(SigningVectors.request).not_to be_empty
+      expect(SigningVectors.webhook).not_to be_empty
+    end
+
+    SigningVectors.request.each do |vector|
       it vector["name"] do
         input = {
           ts: vector["ts"], method: vector["method"], request_uri: vector["request_uri"],
@@ -38,7 +44,7 @@ RSpec.describe Oblodai::Signing do
   end
 
   describe "webhook signing" do
-    Fixtures.contract["webhook_vectors"].each_with_index do |vector, index|
+    SigningVectors.webhook.each_with_index do |vector, index|
       it "vector #{index}" do
         expect(described_class.sign_webhook(vector["secret"], vector["ts"], vector["payload"]))
           .to eq(vector["signature"])
