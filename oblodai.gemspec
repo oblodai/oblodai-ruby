@@ -35,5 +35,5 @@ Gem::Specification.new do |spec|
   spec.require_paths = ["lib"]
 
   # Amounts are BigDecimal; from Ruby 3.4 on it is a bundled gem, no longer part of the default set.
-  spec.add_dependency "bigdecimal", ">= 3.1"
+  spec.add_dependency "bigdecimal", "~> 3.1"
 end
