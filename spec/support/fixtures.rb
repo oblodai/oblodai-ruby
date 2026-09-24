@@ -2,18 +2,13 @@
 
 require "json"
 
-# Loads the recordings kept in contract/ as test data (the gem no longer ships them): the signing
-# vectors of the older export, the golden response bodies recorded from a live core, the error
-# samples and the real signed webhook deliveries.
+# Loads the recordings kept in contract/ as test data (the gem does not ship them): the golden
+# response bodies recorded from a live core, the error samples and the real signed webhook
+# deliveries. Signing vectors are not recorded here: {SigningVectors} reads them from the spec.
 module Fixtures
   DIR = File.expand_path("../../contract", __dir__)
 
   module_function
-
-  # @return [Hash] the whole contract.json
-  def contract
-    @contract ||= JSON.parse(File.read(File.join(DIR, "contract.json")))
-  end
 
   # @return [Hash{String => Hash}] golden bodies by route key
   def fixtures
@@ -48,5 +43,26 @@ module Fixtures
     @error_samples ||= Dir[File.join(DIR, "errors", "*.json")].to_h do |path|
       [File.basename(path, ".json"), JSON.parse(File.read(path))]
     end
+  end
+end
+
+# The signing vectors of `x-oblodai-signing` in the backend's openapi.json — the one source the
+# generator and the conformance suite read too. Empty when the backend checkout is absent.
+module SigningVectors
+  module_function
+
+  # @return [Hash] x-oblodai-signing, or {} without the backend spec
+  def signing
+    @signing ||= backend_spec&.fetch("x-oblodai-signing") || {}
+  end
+
+  # @return [Array<Hash>]
+  def request
+    signing.fetch("request_vectors", [])
+  end
+
+  # @return [Array<Hash>]
+  def webhook
+    signing.dig("webhook", "vectors") || []
   end
 end

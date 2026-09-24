@@ -60,8 +60,12 @@ RSpec.describe Oblodai::Job do
 
   it "follows every long-running operation the contract declares, by routes it has" do
     lro = Oblodai::Generated::LRO
-    expect(lro.keys).to contain_exactly("createPaymentBatch", "createPayoutBatch", "createRefundBatch",
-                                        "createTransferBatch", "createDocumentJob")
+    expect(lro).not_to be_empty
+    spec = backend_spec
+    if spec
+      declared = spec.fetch("paths").values.flat_map(&:values).select { |op| op.is_a?(Hash) && op["x-sdk-poll"] }
+      expect(lro.keys).to match_array(declared.map { |op| op.fetch("operationId") })
+    end
     lro.each do |create, poll|
       expect(Oblodai::Generated::ROUTES).to have_key(create)
       expect(Oblodai::Generated::ROUTES).to have_key(poll.operation)
