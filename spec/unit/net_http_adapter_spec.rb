@@ -58,7 +58,7 @@ RSpec.describe Oblodai::HTTP::NetHTTPAdapter do
       Oblodai::HTTP::Request.new(method: "GET", url: "http://127.0.0.1:#{port}#{path}",
                                  headers: { "Accept" => "application/json" }, body: nil,
                                  max_bytes: max_bytes),
-      timeout_ms: 3000
+      timeout: 3
     )
   end
 
@@ -85,7 +85,7 @@ RSpec.describe Oblodai::HTTP::NetHTTPAdapter do
                                    headers: { "Content-Type" => "application/json",
                                               "Idempotency-Key" => "k-1" },
                                    body: '{"amount":"1"}', max_bytes: 1_000_000),
-        timeout_ms: 3000
+        timeout: 3
       )
       wire = server.request
       expect(wire).to include("POST /v1/payment HTTP/1.1", "Idempotency-Key: k-1", '{"amount":"1"}')
@@ -129,7 +129,7 @@ RSpec.describe Oblodai::HTTP::NetHTTPAdapter do
 
     request = Oblodai::HTTP::Request.new(method: "GET", url: "http://127.0.0.1:#{port}/v1/x",
                                          headers: {}, body: nil, max_bytes: 1_000_000)
-    expect { described_class.new.call(request, timeout_ms: 200) }
+    expect { described_class.new.call(request, timeout: 0.2) }
       .to raise_error(Oblodai::TransportError) { |e| expect(e.code).to eq("transport.timeout") }
   ensure
     trickler&.kill

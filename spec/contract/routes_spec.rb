@@ -1,181 +1,36 @@
 # frozen_string_literal: true
 
-# Every route the core declares has exactly one SDK method, wired to the right METHOD and path,
-# signed the way the core's gate expects and carrying an Idempotency-Key exactly where the core
-# deduplicates. The table below is the SDK's coverage ledger: a new core route fails this spec
-# until a method is added for it.
-ANY_RESULT = { "state" => 0,
-               "result" => { "items" => [], "enabled" => true,
-                             "paginate" => { "total" => 0, "per_page" => 1, "offset" => 0,
-                                             "has_pages" => false } } }.freeze
-
-COVERAGE = {
-  "GET /v1/claim/{token}" => ->(c) { c.payout_links.claim_preview("tok") },
-  "GET /v1/currencies" => ->(c) { c.catalog.currencies },
-  "GET /v1/documents/balance" => ->(c) { c.documents.balance_certificate },
-  "GET /v1/documents/batch" => ->(c) { c.documents.batch_report("b1") },
-  "GET /v1/documents/fees" => ->(c) { c.documents.fee_schedule },
-  "GET /v1/documents/jobs/file" => ->(c) { c.documents.job_file("j1") },
-  "GET /v1/documents/ledger" => ->(c) { c.documents.ledger },
-  "GET /v1/documents/link" => ->(c) { c.documents.link_report("l1") },
-  "GET /v1/documents/referrals" => ->(c) { c.documents.referrals_report },
-  "GET /v1/documents/split" => ->(c) { c.documents.split_report("i1") },
-  "GET /v1/documents/statement" => ->(c) { c.documents.statement(from: "2026-01-01", to: "2026-02-01") },
-  "GET /v1/documents/wallet/statement" => ->(c) { c.documents.wallet_statement("w1") },
-  "GET /v1/documents/{kind}/{id}" => ->(c) { c.documents.download("invoice", "i1", exp: 1, sig: "s") },
-  "GET /v1/link/{id}" => ->(c) { c.payment_links.public_view("l1") },
-  "GET /v1/pay/{id}" => ->(c) { c.payments.public_view("i1") },
-  "GET /v1/pay/{id}/qr" => ->(c) { c.payments.public_qr("i1") },
-  "GET /v1/sandbox/webhooks" => ->(c) { c.sandbox.webhooks.first_page },
-  "POST /v1/api-allowlist/add" => ->(c) { c.settings.add_api_allowlist("10.0.0.0/8") },
-  "POST /v1/api-allowlist/enable" => ->(c) { c.settings.enable_api_allowlist(true) },
-  "POST /v1/api-allowlist/list" => ->(c) { c.settings.list_api_allowlist },
-  "POST /v1/api-allowlist/remove" => ->(c) { c.settings.remove_api_allowlist("10.0.0.0/8") },
-  "POST /v1/auto-withdraw/delete" => ->(c) { c.settings.delete_auto_withdraw("USDT") },
-  "POST /v1/auto-withdraw/list" => ->(c) { c.settings.list_auto_withdraw },
-  "POST /v1/auto-withdraw/set" => lambda { |c|
-    c.settings.set_auto_withdraw(currency: "USDT", network: "tron", address: "T")
-  },
-  "POST /v1/balance" => ->(c) { c.account.balance },
-  "POST /v1/batch/info" => ->(c) { c.batches.info("b1") },
-  "POST /v1/claim/{token}" => ->(c) { c.payout_links.claim("tok", address: "T") },
-  "POST /v1/exchange-rate/list" => ->(c) { c.catalog.exchange_rates.first_page },
-  "POST /v1/link/{id}/checkout" => ->(c) { c.payment_links.checkout("l1") },
-  "POST /v1/pay/{id}/select" => ->(c) { c.payments.select("i1", currency: "USDT", network: "tron") },
-  "POST /v1/payment" => ->(c) { c.payments.create(amount: "1", currency: "USDT") },
-  "POST /v1/payment/accepted/list" => ->(c) { c.settings.list_accepted.first_page },
-  "POST /v1/payment/accepted/set" => ->(c) { c.settings.set_accepted(accepted: []) },
-  "POST /v1/payment/accuracy/get" => ->(c) { c.settings.get_accuracy },
-  "POST /v1/payment/accuracy/set" => ->(c) { c.settings.set_accuracy(enabled: true) },
-  "POST /v1/payment/autorefund/get" => ->(c) { c.settings.get_auto_refund },
-  "POST /v1/payment/autorefund/set" => ->(c) { c.settings.set_auto_refund(overpay: true, underpay: false) },
-  "POST /v1/payment/batch" => ->(c) { c.payments.batch(payments: []) },
-  "POST /v1/payment/cancel" => ->(c) { c.payments.cancel("i1") },
-  "POST /v1/payment/discount/list" => ->(c) { c.settings.list_discounts.first_page },
-  "POST /v1/payment/discount/set" => ->(c) { c.settings.set_discount(discount_percent: 1) },
-  "POST /v1/payment/fee-config/get" => ->(c) { c.settings.get_payment_fee_config },
-  "POST /v1/payment/fee-config/set" => ->(c) { c.settings.set_payment_fee_config(payer_pays_percent: 50) },
-  "POST /v1/payment/history" => ->(c) { c.payments.history.first_page },
-  "POST /v1/payment/info" => ->(c) { c.payments.info("i1") },
-  "POST /v1/payment/link" => ->(c) { c.payment_links.create(amount_mode: "open", currency: "USDT") },
-  "POST /v1/payment/link/info" => ->(c) { c.payment_links.info("l1") },
-  "POST /v1/payment/link/list" => ->(c) { c.payment_links.list.first_page },
-  "POST /v1/payment/link/toggle" => ->(c) { c.payment_links.toggle("l1", false) },
-  "POST /v1/payment/qr" => ->(c) { c.payments.qr("i1") },
-  "POST /v1/payment/refund" => ->(c) { c.refunds.create(uuid: "i1") },
-  "POST /v1/payment/resend" => ->(c) { c.payments.resend("i1") },
-  "POST /v1/payment/resolve" => ->(c) { c.refunds.resolve(uuid: "i1", action: "accept") },
-  "POST /v1/payment/send-email" => ->(c) { c.payments.send_email(uuid: "i1") },
-  "POST /v1/payment/services" => ->(c) { c.payments.services.first_page },
-  "POST /v1/payment/testing-webhook" => ->(c) { c.webhooks.test_legacy(url: "https://x") },
-  "POST /v1/payout" => lambda { |c|
-    c.payouts.create(amount: "1", currency: "USDT", address: "T", order_id: "o")
-  },
-  "POST /v1/payout/approve" => ->(c) { c.payouts.approve("p1") },
-  "POST /v1/payout/batch" => ->(c) { c.payouts.batch(payouts: []) },
-  "POST /v1/payout/calculate" => ->(c) { c.payouts.calculate(amount: "1", currency: "USDT") },
-  "POST /v1/payout/cancel" => ->(c) { c.payouts.cancel("p1") },
-  "POST /v1/payout/fee-config/get" => ->(c) { c.payouts.get_fee_config },
-  "POST /v1/payout/fee-config/set" => ->(c) { c.payouts.set_fee_config(fee_on_recipient: true) },
-  "POST /v1/payout/history" => ->(c) { c.payouts.history.first_page },
-  "POST /v1/payout/info" => ->(c) { c.payouts.info("p1") },
-  "POST /v1/payout/link" => lambda { |c|
-    c.payout_links.create(amount: "1", currency: "USDT", network: "tron")
-  },
-  "POST /v1/payout/link/batch" => ->(c) { c.payout_links.batch(items: []) },
-  "POST /v1/payout/link/cancel" => ->(c) { c.payout_links.cancel("l1") },
-  "POST /v1/payout/link/cheque" => ->(c) { c.payout_links.cheque(claim_token: "t") },
-  "POST /v1/payout/link/info" => ->(c) { c.payout_links.info("l1") },
-  "POST /v1/payout/link/list" => ->(c) { c.payout_links.list.first_page },
-  "POST /v1/payout/mass" => ->(c) { c.payouts.mass(payouts: []) },
-  "POST /v1/payout/refund-fee-config/get" => ->(c) { c.payouts.get_refund_fee_config },
-  "POST /v1/payout/refund-fee-config/set" => ->(c) { c.payouts.set_refund_fee_config(fee_on_customer: true) },
-  "POST /v1/payout/services" => ->(c) { c.payouts.services.first_page },
-  "POST /v1/payout/validate" => lambda { |c|
-    c.payouts.validate(amount: "1", currency: "USDT", address: "T")
-  },
-  "POST /v1/referral/info" => ->(c) { c.account.referral },
-  "POST /v1/refund/batch" => ->(c) { c.refunds.batch(refunds: []) },
-  "POST /v1/sandbox/deposit" => ->(c) { c.sandbox.deposit(invoice_id: "i1") },
-  "POST /v1/sandbox/faucet" => ->(c) { c.sandbox.faucet(asset: "USDT", amount: "1") },
-  "POST /v1/sandbox/reset" => ->(c) { c.sandbox.reset },
-  "POST /v1/sandbox/webhooks/replay" => ->(c) { c.sandbox.replay("d1") },
-  "POST /v1/split/config/get" => ->(c) { c.splits.get_config },
-  "POST /v1/split/config/set" => ->(c) { c.splits.set_config(refund_hold_seconds: 60) },
-  "POST /v1/split/recipient/optin" => ->(c) { c.splits.set_opt_in(true) },
-  "POST /v1/split/recipient/optin/get" => ->(c) { c.splits.get_opt_in },
-  "POST /v1/split/rule" => ->(c) { c.splits.create_rule(percent: "10") },
-  "POST /v1/split/rule/delete" => ->(c) { c.splits.delete_rule("r1") },
-  "POST /v1/split/rule/list" => ->(c) { c.splits.list_rules.first_page },
-  "POST /v1/test-webhook/payment" => ->(c) { c.webhooks.test("payment", url_callback: "https://x") },
-  "POST /v1/test-webhook/payout" => ->(c) { c.webhooks.test("payout", url_callback: "https://x") },
-  "POST /v1/test-webhook/wallet" => ->(c) { c.webhooks.test("wallet", url_callback: "https://x") },
-  "POST /v1/transfer/batch" => ->(c) { c.transfers.batch(transfers: []) },
-  "POST /v1/transfer/to-personal" => ->(c) { c.transfers.to_personal(amount: "1", currency: "USDT") },
-  "POST /v1/transfer/to-user" => lambda { |c|
-    c.transfers.to_user(to_user_id: "u", amount: "1", currency: "USDT")
-  },
-  "POST /v1/vrcs" => ->(c) { c.account.vrcs },
-  "POST /v1/wallet" => ->(c) { c.wallets.create(currency: "USDT", network: "tron") },
-  "POST /v1/wallet/block" => ->(c) { c.wallets.block(address: "T") },
-  "POST /v1/wallet/blocked-address-refund" => ->(c) { c.wallets.refund_blocked_deposit(uuid: "w1", address: "T") },
-  "POST /v1/wallet/qr" => ->(c) { c.wallets.qr("T") },
-  "POST /v1/webhooks" => ->(c) { c.webhooks.register("https://x") },
-  "POST /v1/webhooks/deliveries" => ->(c) { c.webhooks.deliveries.first_page },
-  "POST /v1/webhooks/rotate-secret" => ->(c) { c.webhooks.rotate_secret },
-  "POST /v1/documents/jobs" => ->(c) { c.documents.create_job(kind: "statement") },
-  "POST /v1/documents/jobs/info" => ->(c) { c.documents.job_info("j1") },
-  "POST /v1/merchants" => ->(c) { c.merchants.create(email: "a@b.c", name: "A") },
-  "POST /v1/merchants/{id}/sandbox" => ->(c) { c.merchants.create_sandbox("m1") }
-}.freeze
-
-# Every field of a generated route, compared with the core's own declaration. Extracted so the
-# mutation test below can prove the comparison would catch a flipped flag.
-def route_mismatches(spec, declared)
-  expected = {
-    method: declared["method"], path: declared["path"], auth: declared["auth"].to_sym,
-    idempotent: declared["idempotent"] == true, safe: declared["safe"] == true,
-    bare: declared["bare"] == true, list: declared["list"]&.to_sym
-  }
-  expected.filter_map do |field, want|
-    got = spec[field]
-    got = got == true if %i[idempotent safe bare].include?(field)
-    "#{field}: #{got.inspect} != #{want.inspect}" unless got == want
-  end
-end
-
+# Route coverage: every operation of the contract has exactly one SDK method behind it, wired to the
+# right METHOD and path, signed the way the core's gate expects and carrying an Idempotency-Key
+# exactly where the core deduplicates. The ledger (spec/support/coverage.rb) is read off the
+# generated namespaces.
 RSpec.describe "route coverage" do
-  it "is the core's merchant surface, nothing more and nothing less" do
-    expect(Oblodai::Contract::ROUTES.keys.sort).to eq(Fixtures.declared_routes.sort)
-    expect(Oblodai::Contract::ROUTES.size).to eq(107)
+  routes = Oblodai::Generated::ROUTES
+  names_lock = File.readlines(File.expand_path("../../names.lock", __dir__), chomp: true)
+
+  it "reaches every operation from exactly one method" do
+    expect(Coverage.ledger.keys.sort).to eq(routes.keys.sort)
   end
 
-  it "carries the core's own flags for every route, field by field" do
-    declared = Fixtures.contract["routes"].to_h { |r| ["#{r["method"]} #{r["path"]}", r] }
-    Oblodai::Contract::ROUTES.each do |key, spec|
-      source = declared.fetch(key)
-      expect(source).to have_key("safe"), "#{key}: the export declares no `safe` flag"
-      expect(route_mismatches(spec, source)).to be_empty, "#{key}: #{route_mismatches(spec, source).join("; ")}"
+  it "is what names.lock pins" do
+    expect(Coverage.ledger.values.map { |ns, name| "#{ns}.#{name}" }.sort).to eq(names_lock.sort)
+  end
+
+  it "is the operation list of the backend's openapi.json" do
+    spec = backend_spec
+    skip "backend openapi.json not found (set OBLODAI_BACKEND)" if spec.nil?
+
+    declared = spec["paths"].flat_map do |path, item|
+      item.filter_map { |verb, op| [op["operationId"], verb.upcase, path] if op.is_a?(Hash) && op["operationId"] }
     end
-  end
-
-  it "would notice a flag that drifted from the contract" do
-    key = "POST /v1/payout"
-    declared = Fixtures.contract["routes"].find { |r| "#{r["method"]} #{r["path"]}" == key }
-    spec = Oblodai::Contract::ROUTES.fetch(key)
-    expect(route_mismatches(spec, declared)).to be_empty
-    # A payout re-sent after a transport failure is a second payout: `safe` is the one flag whose
-    # drift costs money, and the comparison above is what stands between the two.
-    expect(route_mismatches(spec, declared.merge("safe" => true))).to eq(["safe: false != true"])
-    expect(route_mismatches(spec, declared.merge("idempotent" => false)))
-      .to eq(["idempotent: true != false"])
-    expect(route_mismatches(spec, declared.merge("auth" => "public"))).to eq(["auth: :key != :public"])
-    expect(route_mismatches(spec, declared.merge("list" => "paged"))).to eq(["list: nil != :paged"])
+    expect(routes.values.map { |r| [r.operation_id, r.method, r.path] }).to match_array(declared)
+    retry_safe = declared.select { |_, verb, path| spec.dig("paths", path, verb.downcase, "x-retry-safe") == true }
+    expect(routes.select { |_, r| r.safe }.keys).to match_array(retry_safe.map(&:first))
   end
 
   it "names only error codes the contract catalogue declares" do
     named = Hash.new { |h, k| h[k] = [] }
-    Dir["lib/**/*.rb", "*.md"].each do |path|
+    Dir["lib/**/*.rb", "*.md"].reject { |path| path.include?("/generated/") }.each do |path|
       collecting = false
       File.readlines(path).each_with_index do |line, index|
         comment = path.end_with?(".md") || line.match?(/^\s*#/)
@@ -190,42 +45,35 @@ RSpec.describe "route coverage" do
 
     # The SDK's own families are not gateway codes and are not in the catalogue.
     gateway = named.reject { |code, _| code.start_with?("sdk.", "transport.", "webhook.") }
-    expect(gateway.size).to be > 30
-    unknown = gateway.except(*Oblodai::Enums::ERROR_CODES)
+    expect(gateway.size).to be > 5
+    unknown = gateway.except(*Oblodai::Enums::ErrorCode::VALUES)
     expect(unknown).to be_empty,
                        "documented codes the core does not declare: " \
                        "#{unknown.map { |c, where| "#{c} (#{where.join(", ")})" }.join("; ")}"
   end
 
-  it "has one SDK method per route" do
-    expect(COVERAGE.keys.sort).to eq(Oblodai::Contract::ROUTES.keys.sort)
-  end
-
-  it "every recorded fixture belongs to a known route" do
-    Fixtures.fixtures.each_key { |route| expect(Oblodai::Contract::ROUTES).to have_key(route) }
-  end
-
-  Oblodai::Contract::ROUTES.each do |key, spec|
-    it "#{key} is wired to the right method, path, auth gate and idempotency" do
-      http = FakeHTTP.new([
-                            if spec.bare
-                              { status: 200, body: "%PDF", headers: { "content-type" => "application/pdf" } }
-                            else
-                              { status: 200, body: ANY_RESULT }
-                            end
-                          ])
+  routes.each do |operation_id, route|
+    it "#{operation_id} (#{route.key}) is wired to the right method, path, auth gate and idempotency" do
+      answer = if route.bare
+                 { status: 200, body: "%PDF", headers: { "content-type" => "application/pdf" } }
+               else
+                 FakeHTTP.ok_for(operation_id)
+               end
+      http = FakeHTTP.new([answer])
       client = Oblodai::Client.new(public_id: "pk", secret: "s", admin_token: "adm",
-                                   base_url: "https://api.test", http: http)
-      COVERAGE.fetch(key).call(client)
+                                   base_url: "https://api.test", http: http, env: {})
+      result = Coverage.call(client, operation_id)
+      result.first_page if result.is_a?(Oblodai::Page)
 
       expect(http.calls.size).to eq(1)
       call = http.calls.first
-      expect(call.verb).to eq(spec.method)
-      expect(call.path).to match(/\A#{spec.path.gsub(/\{[a-z_]+\}/, "[^/]+")}\z/)
+      expect(call.verb).to eq(route.method)
+      expect(call.path).to match(/\A#{route.path.gsub(/\{[a-z_]+\}/, "[^/]+")}\z/)
+      expect(call.body).to be_nil if route.method == "GET"
 
       # One API key signs every signed route; the admin token appears on the onboarding routes and
       # nowhere else; a public route carries no credential at all.
-      case spec.auth
+      case route.auth
       when :public
         expect(call.headers).not_to have_key("x-signature")
         expect(call.headers).not_to have_key("x-public-id")
@@ -234,16 +82,28 @@ RSpec.describe "route coverage" do
         expect(call.headers).not_to have_key("x-signature")
         expect(call.headers["x-admin-token"]).to eq("adm")
       else
-        expect(spec.auth).to eq(:key)
+        expect(route.auth).to eq(:key)
         expect(call.headers["x-public-id"]).to eq("pk")
         expect(call.headers["x-signature"]).to match(/\A[0-9a-f]{64}\z/)
         expect(call.headers).not_to have_key("x-admin-token")
       end
 
-      if spec.idempotent
+      if route.idempotent
         expect(call.headers["idempotency-key"]).to match(/\A[0-9a-f-]{36}\z/)
       else
         expect(call.headers).not_to have_key("idempotency-key")
+      end
+
+      if route.bare
+        expect(result).to be_a(Oblodai::FileResult)
+      elsif Oblodai::LRO::CREATES.key?(operation_id)
+        expect(result).to be_a(Oblodai::Job)
+      elsif route.paged?
+        expect(result).to be_a(Oblodai::Page)
+      elsif Samples.parsers[operation_id]
+        model = Oblodai::Models.const_get(Samples.parsers[operation_id])
+        variants = model.is_a?(Class) ? [model] : model::VARIANTS
+        expect(variants).to include(result.class)
       end
     end
   end

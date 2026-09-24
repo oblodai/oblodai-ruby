@@ -1,15 +1,18 @@
 # frozen_string_literal: true
 
+require "bigdecimal"
 require_relative "../errors"
 
 module Oblodai
-  # Amounts are decimal strings; never `to_f` them (USDT has 6 decimals, BTC 8, ETH 18). These
-  # helpers compare and add at arbitrary precision, and keep the scale of the widest operand, so
-  # `add("10.000000", "0.5")` is `"10.500000"` — the shape the core would have rendered.
+  # Amounts are decimal strings on the wire and `BigDecimal` in the models; never `to_f` them (USDT
+  # has 6 decimals, BTC 8, ETH 18). These helpers take either, compare and add at arbitrary
+  # precision, and keep the scale of the widest operand, so `add("10.000000", "0.5")` is
+  # `"10.500000"` — the shape the core would have rendered. A `Float` is refused with
+  # `sdk.float_amount`: it has already lost the precision the helpers exist to keep.
   #
-  # An amount is a plain `String`, which means `a < b` and `amounts.sort` compile and are WRONG:
-  # `"9" < "10"` is true lexicographically and false numerically. Order amounts with {compare}
-  # (or {equals?}), never with `<`, `>`, `sort` or `max`.
+  # A string amount is a plain `String`, which means `a < b` and `amounts.sort` compile and are
+  # WRONG for strings: `"9" < "10"` is true lexicographically and false numerically. Order string
+  # amounts with {compare} (or {equals?}); `BigDecimal` values compare correctly on their own.
   module Money
     # Longest amount accepted. Far beyond any asset's precision, and short enough to bound the work
     # a hostile input can ask for.
@@ -28,8 +31,19 @@ module Oblodai
       amount.is_a?(String) && !amount.empty? && amount.length <= MAX_LENGTH && DECIMAL.match?(amount)
     end
 
-    # @param a [String]
-    # @param b [String]
+    # The wire form of a `BigDecimal`: "10.5", "10", "-0.001" — never an exponent, never ".0".
+    # @param value [BigDecimal]
+    # @return [String]
+    # @raise [Oblodai::ConfigError] `sdk.bad_amount` for NaN or an infinity
+    def decimal_string(value)
+      bad_amount!(value, "not finite") unless value.finite?
+
+      text = value.to_s("F")
+      text.end_with?(".0") ? text[0...-2] : text
+    end
+
+    # @param a [String, BigDecimal]
+    # @param b [String, BigDecimal]
     # @return [Integer] -1, 0 or 1 — the only correct way to order two amounts
     # @raise [Oblodai::ConfigError] `sdk.bad_amount` when either side is not a decimal amount
     def compare(a, b)
@@ -78,7 +92,9 @@ module Oblodai
     # Every rejection is one SDK error — never a native TypeError from deep inside a helper.
     # @raise [Oblodai::ConfigError]
     def parts(amount)
-      bad_amount!(amount, "expected a string") unless amount.is_a?(String)
+      amount = decimal_string(amount) if amount.is_a?(BigDecimal)
+      float_amount!(amount) if amount.is_a?(Float)
+      bad_amount!(amount, "expected a String or a BigDecimal") unless amount.is_a?(String)
       bad_amount!(amount, "empty") if amount.empty?
       bad_amount!(amount, "longer than #{MAX_LENGTH} characters") if amount.length > MAX_LENGTH
       bad_amount!(amount, "expected digits with at most one dot") unless DECIMAL.match?(amount)
@@ -86,6 +102,16 @@ module Oblodai
       neg = amount.start_with?("-")
       int, frac = (neg ? amount[1..] : amount).split(".")
       [neg, int || "0", frac || ""]
+    end
+
+    # @raise [Oblodai::ConfigError] `sdk.float_amount`
+    def float_amount!(value, field = "amount")
+      raise ConfigError.new(
+        "sdk.float_amount",
+        "amount passed as a Float (#{value.inspect}); pass a String \"#{value}\" or " \
+        "BigDecimal(\"#{value}\") — a Float loses precision in money",
+        field
+      )
     end
 
     def bad_amount!(value, why)

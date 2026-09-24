@@ -1,10 +1,15 @@
 # frozen_string_literal: true
 
+require "uri"
+require_relative "../core/options"
 require_relative "../core/page"
-require_relative "../core/envelope"
-require_relative "../contract/routes"
-require_relative "../models/common"
+require_relative "../core/poller"
+require_relative "../core/raw"
+require_relative "../core/route"
+require_relative "../core/transport"
 require_relative "../errors"
+require_relative "../lro"
+require_relative "../models/base"
 
 module Oblodai
   # A binary response (PDF/CSV documents).
@@ -15,6 +20,26 @@ module Oblodai
     attr_reader :content_type
     # @return [String, nil] name suggested by `Content-Disposition`
     attr_reader :filename
+
+    # The bytes of a `bare` route's answer, with their type and file name.
+    # @param response [Oblodai::HTTP::Response]
+    # @return [Oblodai::FileResult]
+    def self.from_response(response)
+      new(bytes: response.body.to_s.b, content_type: response.content_type || "application/octet-stream",
+          filename: filename_from(response.header("content-disposition")))
+    end
+
+    # Pull the file name out of a `Content-Disposition` header.
+    # @return [String, nil]
+    def self.filename_from(disposition)
+      return nil if disposition.nil?
+
+      if (utf8 = /filename\*=UTF-8''([^;]+)/i.match(disposition))
+        return URI.decode_www_form_component(utf8[1])
+      end
+
+      /filename="?([^";]+)"?/i.match(disposition)&.captures&.first
+    end
 
     def initialize(bytes:, content_type:, filename: nil)
       @bytes = bytes
@@ -68,147 +93,198 @@ module Oblodai
   end
 
   module Resources
-    # Base class of every resource namespace. It turns a route key plus keyword arguments into a
-    # transport call and decodes the result into a model.
+    # Base of every resource namespace on {Oblodai::Client} (the namespaces themselves are
+    # generated). Every method takes the call options of {Oblodai::RequestOptions} as trailing
+    # keywords: `idempotency_key:`, `timeout:` (seconds, per attempt), `max_retries:`,
+    # `extra_headers:` and `request_id:` (sent as `X-Request-ID`).
     class Base
-      # Per-call options every resource method accepts alongside the request body:
-      #
-      # - `idempotency_key:` your own key; generated automatically on create routes when omitted and
-      #   REFUSED on routes the core does not deduplicate (`sdk.idempotency_unsupported`).
-      # - `timeout_ms:` per-attempt timeout.
-      # - `deadline_ms:` overall budget for the call including retries.
-      OPTION_KEYS = %i[idempotency_key timeout_ms deadline_ms].freeze
-
-      # Remove the per-call options from a keyword hash, leaving the request body behind.
-      # @param params [Hash]
-      # @return [Hash]
-      def self.take_options!(params)
-        OPTION_KEYS.each_with_object({}) do |key, out|
-          out[key] = params.delete(key) if params.key?(key)
-        end
-      end
-
-      # Methods that take no request body collect their keywords as per-call options; a misspelled
-      # one would otherwise reach the transport as an unknown keyword and surface as a bare
-      # ArgumentError from inside the SDK instead of an Oblodai error naming the mistake.
-      # @raise [Oblodai::ConfigError]
-      # @return [void]
-      def self.assert_options!(options, route_key)
-        unknown = options.keys - OPTION_KEYS
-        return if unknown.empty?
-
-        raise ConfigError.new(
-          "sdk.bad_config",
-          "#{route_key}: unknown option(s) #{unknown.map(&:inspect).join(", ")}; " \
-          "this method accepts #{OPTION_KEYS.map(&:inspect).join(", ")}",
-          unknown.first.to_s
-        )
-      end
-
       # @param transport [Oblodai::Transport]
       def initialize(transport)
         @transport = transport
+        @raw_response = false
+      end
+
+      # The same methods, returning {Oblodai::RawAPIResponse} (status, headers, `request_id`,
+      # `parse`) instead of the parsed result.
+      # @return [self]
+      def with_raw_response
+        clone = dup
+        clone.instance_variable_set(:@raw_response, true)
+        clone
+      end
+
+      def inspect
+        "#<#{self.class.name}#{" (raw responses)" if @raw_response}>"
       end
 
       private
 
-      def route(key)
-        Contract::ROUTES.fetch(key)
-      end
-
-      # Accept either the object's id as a string or the model that carries it, so a value the SDK
-      # just returned can be passed straight back.
-      # @param ref [String, Oblodai::Models::Model, Hash]
-      # @param field [Symbol] the id field on the model
-      # @return [String]
-      def id_of(ref, field)
-        return ref if ref.is_a?(String) || ref.nil?
-        return ref[field].to_s if ref.respond_to?(:[]) && !ref[field].nil?
-
-        ref.to_s
-      end
-
-      # Call an envelope route and decode `result` into `model` (or return it raw when nil).
-      def call(key, body = nil, model: nil, path_params: nil, query: nil, **options)
-        Base.assert_options!(options, key)
-        result = @transport.call(route(key), body: body, query: query,
-                                             path_params: path_params, **options)
-        decode(result, model)
-      end
-
-      # Call a paged list route and return a lazy {Oblodai::Page}. Nil keywords are dropped in one
-      # place only — {Oblodai::RequestBuilder.serialize_body} for bodies, `query_string` for
-      # queries — so "unset" never reaches the wire as an explicit null.
-      def page(key, model:, params: {}, path_params: nil, via_query: false, **options)
-        Base.assert_options!(options, key)
-        params ||= {}
-        limit = params.delete(:limit) || params.delete("limit")
-        offset = params.delete(:offset) || params.delete("offset")
-        spec = route(key)
-        # One key across a paging loop would make the core replay page 1 forever, and a key per page
-        # is not what the caller asked for either — so this is refused loudly, with the same code the
-        # transport raises on any other route the core does not deduplicate. Dropping it silently
-        # would leave the caller believing a re-send is deduplicated when it is not.
-        if options.key?(:idempotency_key)
-          raise ConfigError.new(
-            "sdk.idempotency_unsupported",
-            "#{spec.key} is a list route and does not deduplicate by Idempotency-Key; " \
-            "remove idempotency_key from this call",
-            "idempotency_key"
-          )
+      # Call a route the way its kind asks; the one entry point of generated methods.
+      #
+      # An envelope route returns its `result`, or `parse.call(result)` when given; a long-running
+      # operation ({Oblodai::LRO}) returns an {Oblodai::Job} around that value. A paged list returns a
+      # lazy {Oblodai::Page} whose items go through `parse`; `limit`/`offset` in the body (the query
+      # for GET) pick the first page. A `bare` route returns an {Oblodai::FileResult}. Through
+      # {#with_raw_response} each returns an {Oblodai::RawAPIResponse} whose `parse` gives the same
+      # value.
+      #
+      # @param route [Oblodai::RouteSpec]
+      # @param body [Hash, nil]
+      # @param options [Oblodai::RequestOptions]
+      # @param path_params [Hash, nil]
+      # @param query [Hash, nil]
+      # @param parse [#call, nil]
+      def _request(route, body, options, path_params: nil, query: nil, parse: nil)
+        unless options.is_a?(RequestOptions)
+          raise TypeError, "options must be Oblodai::RequestOptions, not #{options.class}"
         end
-        use_query = spec.method == "GET" || via_query
+        return paged(route, body, options, path_params, query, parse) if route.paged?
 
-        Page.new(limit: limit, offset: offset) do |limit:, offset:|
-          page_params = params.merge(limit: limit, offset: offset)
-          result = @transport.call(
-            spec,
-            body: use_query ? nil : page_params,
-            query: use_query ? page_params : nil,
-            path_params: path_params, **options
-          )
-          checked = Envelope.as_page(result)
-          PageResult.new(items: decode_list(checked["items"], model),
-                         paginate: Models::Paginate.from(checked["paginate"]))
+        call = Transport::CallOptions.from(options, body: body, query: query, path_params: path_params)
+        decode = decoder(route, options, parse)
+        answer = @transport.call_raw(route, call)
+        @raw_response ? RawAPIResponse.new(route, answer, decode) : decode.call(answer)
+      end
+
+      # How a 2xx answer becomes the method's value.
+      def decoder(route, options, parse)
+        return ->(answer) { FileResult.from_response(answer.response) } if route.bare
+
+        job = job_plan(route)
+        lambda do |answer|
+          result = Transport.unwrap(route, answer.response)
+          value = parse ? parse.call(result) : result
+          job ? build_job(job, options, result, value) : value
         end
       end
 
-      # Call a plain list route (`{items}` without paginate) and return the decoded items.
-      def plain_list(key, body = nil, model:, **options)
-        Base.assert_options!(options, key)
-        result = @transport.call(route(key), body: body, **options)
-        decode_list(Envelope.as_plain_list(result)["items"], model)
+      def paged(route, body, options, path_params, query, parse)
+        plan = Oblodai::PagedRequest.new(route, body, query, options, path_params, parse)
+        transport = @transport
+        fetch = lambda do |limit:, offset:|
+          plan.page(transport.call(route, plan.call_options(limit, offset)))
+        end
+        return Page.new(limit: plan.limit, offset: plan.offset, &fetch) unless @raw_response
+
+        answer = transport.call_raw(route, plan.call_options(plan.first_limit, plan.first_offset))
+        RawAPIResponse.new(route, answer, lambda { |raw|
+          first = plan.page(Transport.unwrap(route, raw.response))
+          Page.new(limit: plan.limit, offset: plan.offset, first: first, &fetch)
+        })
       end
 
-      # Call a bare (binary) route.
-      def file(key, body: nil, query: nil, path_params: nil, **options)
-        Base.assert_options!(options, key)
-        raw = @transport.call_raw(route(key), body: body, query: query,
-                                              path_params: path_params, **options)
-        FileResult.new(bytes: raw.body, content_type: raw.content_type || "application/octet-stream",
-                       filename: filename_from(raw.header("content-disposition")))
+      # The polls of a long-running operation, or nil for an ordinary route.
+      def job_plan(route)
+        poll_id = LRO::CREATES[route.operation_id.to_s]
+        return nil if poll_id.nil?
+
+        poll = LRO::POLLS.fetch(poll_id)
+        { poll: generated_route(poll_id), id_field: poll.id_field, model: generated_model(poll.model),
+          download: poll.download && generated_route(poll.download) }
       end
 
-      def decode(result, model)
-        return result if model.nil?
-
-        model.from(result)
-      end
-
-      def decode_list(items, model)
-        return Array(items) if model.nil?
-
-        model.from_list(items)
-      end
-
-      def filename_from(disposition)
-        return nil if disposition.nil?
-
-        if (utf8 = /filename\*=UTF-8''([^;]+)/i.match(disposition))
-          return URI.decode_www_form_component(utf8[1])
+      def build_job(plan, options, result, value)
+        id = result.is_a?(Hash) ? result[plan[:id_field]] : nil
+        if id.nil? || id.to_s.empty?
+          raise ContractError.new("long-running call answered without #{plan[:id_field]}", 200, result)
         end
 
-        /filename="?([^";]+)"?/i.match(disposition)&.captures&.first
+        # The create call's timeout, retries and headers; not its idempotency key (it belongs to the
+        # create) and a fresh request id per poll.
+        follow = RequestOptions.new(timeout: options.timeout, max_retries: options.max_retries,
+                                    extra_headers: options.extra_headers)
+        transport = @transport
+        poll = lambda do
+          answer = transport.call(plan[:poll], Transport::CallOptions.from(follow, body: { plan[:id_field] => id }))
+          plan[:model] ? plan[:model].from_h(answer) : answer
+        end
+        download = plan[:download] && lambda do
+          call = Transport::CallOptions.from(follow, query: { plan[:id_field] => id })
+          FileResult.from_response(transport.call_raw(plan[:download], call).response)
+        end
+        Job.new(id: id.to_s, result: value, poll: poll, download: download)
+      end
+
+      def generated_route(operation_id)
+        routes = defined?(Oblodai::Generated::ROUTES) ? Oblodai::Generated::ROUTES : {}
+        routes.fetch(operation_id) do
+          raise ConfigError.new("sdk.lro_unresolved",
+                                "no route for operation #{operation_id}, needed to follow a long-running call")
+        end
+      end
+
+      def generated_model(name)
+        Oblodai::Models.const_defined?(name, false) ? Oblodai::Models.const_get(name, false) : nil
+      end
+    end
+  end
+
+  # A generated paged-list call, worked out once: the request every page repeats, and where the
+  # first page starts.
+  class PagedRequest
+    # @return [Integer, nil]
+    attr_reader :limit, :offset
+
+    def initialize(route, body, query, options, path_params, parse)
+      @route = route
+      @body = page_params(body, "body")
+      @query = query.nil? ? nil : page_params(query, "query")
+      @limit = @body.delete("limit")
+      @offset = @body.delete("offset")
+      unless @query.nil?
+        @limit = @query.delete("limit") || @limit
+        @offset = @query.delete("offset") || @offset
+      end
+      if options.idempotency_key && !route.idempotent
+        # One key reused across pages would replay page 1 forever.
+        raise ConfigError.new(
+          "sdk.idempotency_unsupported",
+          "#{route.key} does not deduplicate by Idempotency-Key; remove idempotency_key from this call",
+          "idempotency_key"
+        )
+      end
+      @options = RequestOptions.new(**options.to_h, idempotency_key: nil)
+      @path_params = path_params
+      @parse = parse
+    end
+
+    # The first page's size and offset, with the defaults {Oblodai::Page} applies.
+    def first_limit
+      @limit || Page::DEFAULT_LIMIT
+    end
+
+    def first_offset
+      @offset || 0
+    end
+
+    # @return [Oblodai::Transport::CallOptions]
+    def call_options(limit, offset)
+      paging = { "limit" => limit, "offset" => offset }
+      if @route.method == "GET"
+        body = @body.empty? ? nil : @body
+        query = (@query || {}).merge(paging)
+      else
+        body = @body.merge(paging)
+        query = @query
+      end
+      Transport::CallOptions.from(@options, body: body, query: query, path_params: @path_params)
+    end
+
+    # @return [Oblodai::PageResult]
+    def page(result)
+      checked = Envelope.as_page(result)
+      items = checked["items"]
+      PageResult.new(items: @parse ? items.map { |item| @parse.call(item) } : items,
+                     paginate: checked["paginate"])
+    end
+
+    private
+
+    def page_params(value, what)
+      case value
+      when nil then {}
+      when Hash then value.to_h { |key, item| [key.to_s, item] }
+      else raise TypeError, "a list call's #{what} must be a Hash, not #{value.class}"
       end
     end
   end

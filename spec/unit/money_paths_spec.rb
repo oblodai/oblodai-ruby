@@ -5,16 +5,16 @@
 RSpec.describe "paths that could double-spend" do
   it "rejects a caller idempotency key on a route the core does not deduplicate" do
     http = FakeHTTP.new([FakeHTTP.ok({})])
-    expect { client_with(http).payouts.approve("p1", idempotency_key: "k1") }
+    expect { client_with(http).payouts.approve(uuid: "p1", idempotency_key: "k1") }
       .to raise_error(Oblodai::ConfigError) { |e| expect(e.code).to eq("sdk.idempotency_unsupported") }
     expect(http.calls).to be_empty
   end
 
   it "never re-sends an unsafe write after a proxy 503 without an envelope" do
-    http = FakeHTTP.new([FakeHTTP.html(503), FakeHTTP.ok({})])
+    http = FakeHTTP.new([FakeHTTP.html(503), FakeHTTP.ok_for("approvePayout")])
     error = nil
     begin
-      client_with(http).payouts.approve("p1")
+      client_with(http).payouts.approve(uuid: "p1")
     rescue Oblodai::Error => e
       error = e
     end
@@ -28,15 +28,15 @@ RSpec.describe "paths that could double-spend" do
     http = FakeHTTP.new([
                           FakeHTTP.html(502),
                           FakeHTTP.html(504, "retry-after" => "0"),
-                          FakeHTTP.ok("balance" => { "merchant" => [] })
+                          FakeHTTP.ok_for("getBalance")
                         ])
-    client_with(http).account.balance
+    client_with(http).account.get_balance
     expect(http.calls.size).to eq(3)
 
     one = FakeHTTP.new([FakeHTTP.html(429, "retry-after" => "120")])
     error = nil
     begin
-      client_with(one, retry_policy: { max_retries: 0 }).account.balance
+      client_with(one, retry_policy: { max_retries: 0 }).account.get_balance
     rescue Oblodai::Error => e
       error = e
     end
@@ -47,9 +47,9 @@ RSpec.describe "paths that could double-spend" do
     http = FakeHTTP.new([
                           FakeHTTP.api_error(409, { "code" => "payout.funds_maturing", "retryable" => true,
                                                     "retry_after" => 0 }),
-                          FakeHTTP.ok("uuid" => "p")
+                          FakeHTTP.ok_for("approvePayout")
                         ])
-    client_with(http).payouts.approve("p1")
+    client_with(http).payouts.approve(uuid: "p1")
     expect(http.calls.size).to eq(2)
   end
 end
@@ -57,7 +57,7 @@ end
 RSpec.describe Oblodai::Page do
   it "requests nothing until it is consumed" do
     http = FakeHTTP.new([FakeHTTP.api_error(404, { "code" => "payment.not_found", "retryable" => false })])
-    page = client_with(http).payments.history
+    page = client_with(http).payments.list_history
     expect(http.calls).to be_empty
     expect { page.first_page }
       .to raise_error(Oblodai::NotFoundError) { |e| expect(e.code).to eq("payment.not_found") }
@@ -66,7 +66,7 @@ RSpec.describe Oblodai::Page do
 
   it "refuses a caller idempotency key on a list route instead of dropping it" do
     http = FakeHTTP.new([FakeHTTP.page([], 0, 0, 50)])
-    expect { client_with(http).payouts.history(idempotency_key: "k") }
+    expect { client_with(http).payouts.list_history(idempotency_key: "k") }
       .to raise_error(Oblodai::ConfigError) { |e| expect(e.code).to eq("sdk.idempotency_unsupported") }
     expect(http.calls).to be_empty
   end
@@ -78,7 +78,7 @@ RSpec.describe "clock skew" do
   it "ignores the Date header on a 401 that is not a signature failure" do
     http = FakeHTTP.new([FakeHTTP.api_error(401, { "code" => "auth.ip_not_allowed", "retryable" => false },
                                             far_date)])
-    expect { client_with(http, retry_policy: { max_retries: 0 }).account.balance }
+    expect { client_with(http, retry_policy: { max_retries: 0 }).account.get_balance }
       .to raise_error(Oblodai::AuthenticationError) { |e| expect(e.code).to eq("auth.ip_not_allowed") }
     expect(http.calls.size).to eq(1)
   end
@@ -88,25 +88,25 @@ RSpec.describe "clock skew" do
     http = FakeHTTP.new([
                           FakeHTTP.api_error(401, bad, far_date),
                           FakeHTTP.api_error(401, bad, far_date),
-                          FakeHTTP.ok("balance" => { "merchant" => [] })
+                          FakeHTTP.ok_for("getBalance")
                         ])
     client = client_with(http, retry_policy: { max_retries: 0 })
-    expect { client.account.balance }.to raise_error(Oblodai::AuthenticationError)
-    client.account.balance
+    expect { client.account.get_balance }.to raise_error(Oblodai::AuthenticationError)
+    client.account.get_balance
     expect(http.calls[2].headers["x-timestamp"].to_i).to be_within(5).of(Time.now.to_i)
   end
 end
 
 RSpec.describe "request construction" do
   it "keeps a path prefix on base_url and signs over the full path" do
-    http = FakeHTTP.new([FakeHTTP.ok("balance" => { "merchant" => [] })])
-    client_with(http, base_url: "https://gw.corp/oblodai/").account.balance
+    http = FakeHTTP.new([FakeHTTP.ok_for("getBalance")])
+    client_with(http, base_url: "https://gw.corp/oblodai/").account.get_balance
     expect(http.calls[0].url).to eq("https://gw.corp/oblodai/v1/balance")
   end
 
   it "drops caller headers that collide with signed headers" do
-    http = FakeHTTP.new([FakeHTTP.ok("balance" => { "merchant" => [] })])
-    client_with(http, headers: { "x-signature" => "zz", "X-Trace" => "t1" }).account.balance
+    http = FakeHTTP.new([FakeHTTP.ok_for("getBalance")])
+    client_with(http, headers: { "x-signature" => "zz", "X-Trace" => "t1" }).account.get_balance
     expect(http.calls[0].headers["x-signature"]).to match(/\A[0-9a-f]{64}\z/)
     expect(http.calls[0].headers["x-trace"]).to eq("t1")
   end
@@ -114,20 +114,20 @@ RSpec.describe "request construction" do
   it "refuses path parameters that would rewrite the URL" do
     client = client_with(FakeHTTP.new([]))
     ["..", ".", "a/b", ""].each do |bad|
-      expect { client.payments.public_view(bad) }
+      expect { client.checkout.get(bad) }
         .to raise_error(Oblodai::ConfigError) { |e| expect(e.code).to eq("sdk.bad_path_param") }
     end
   end
 
   it "percent-encodes a path parameter instead of letting it change the request line" do
-    http = FakeHTTP.new([FakeHTTP.ok({})])
-    client_with(http).payments.public_view("a b?c=1")
+    http = FakeHTTP.new([FakeHTTP.ok_for("getCheckout")])
+    client_with(http).checkout.get("a b?c=1")
     expect(http.calls[0].url).to eq("https://api.test/v1/pay/a%20b%3Fc%3D1")
   end
 
   it "sends uuid for document reports keyed by batch/link id" do
     http = FakeHTTP.new([{ status: 200, body: "%PDF", headers: { "content-type" => "application/pdf" } }])
-    client_with(http).documents.batch_report("b-1", format: "csv")
+    client_with(http).documents.get_batch(uuid: "b-1", format_: "csv")
     expect(http.calls[0].query).to include("uuid" => "b-1", "format" => "csv")
   end
 
@@ -135,7 +135,7 @@ RSpec.describe "request construction" do
     http = FakeHTTP.new([{ status: 200, body: "%PDF-1.7",
                            headers: { "content-type" => "application/pdf",
                                       "content-disposition" => 'attachment; filename="statement.pdf"' } }])
-    file = client_with(http).documents.statement(from: "2026-01-01", to: "2026-02-01")
+    file = client_with(http).documents.get_statement(from: "2026-01-01", to: "2026-02-01")
     expect(file.content_type).to eq("application/pdf")
     expect(file.filename).to eq("statement.pdf")
     expect(file.bytes).to start_with("%PDF")
@@ -147,11 +147,11 @@ RSpec.describe "deadlines, redirects and serialization" do
     http = FakeHTTP.new([
                           FakeHTTP.api_error(503, { "code" => "db.unavailable", "retryable" => true,
                                                     "retry_after" => 2 }),
-                          FakeHTTP.ok({})
+                          FakeHTTP.ok_for("getBalance")
                         ])
     error = nil
     begin
-      client_with(http, deadline_ms: 100).account.balance
+      client_with(http, deadline: 0.1).account.get_balance
     rescue Oblodai::Error => e
       error = e
     end
@@ -164,7 +164,7 @@ RSpec.describe "deadlines, redirects and serialization" do
                            headers: { "location" => "https://www.api.test/v1/balance" } }])
     error = nil
     begin
-      client_with(http, retry_policy: { max_retries: 0 }).account.balance
+      client_with(http, retry_policy: { max_retries: 0 }).account.get_balance
     rescue Oblodai::Error => e
       error = e
     end
@@ -191,7 +191,7 @@ RSpec.describe "deadlines, redirects and serialization" do
 
   it "raises a ContractError when a 200 body is not an envelope" do
     http = FakeHTTP.new([{ status: 200, body: "<html>hi</html>", headers: { "content-type" => "text/html" } }])
-    expect { client_with(http).account.balance }
+    expect { client_with(http).account.get_balance }
       .to raise_error(Oblodai::ContractError) { |e| expect(e.code).to eq("sdk.bad_envelope") }
   end
 

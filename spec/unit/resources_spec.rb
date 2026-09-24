@@ -44,119 +44,71 @@ RSpec.describe "resource surface" do
     end
   end
 
-  describe "lookups by uuid or order_id" do
-    it "accepts the documented keyword form, the positional form and the model" do
-      %i[info cancel qr resend].each do |method|
-        http = FakeHTTP.new([FakeHTTP.ok("uuid" => "u1"), FakeHTTP.ok("uuid" => "u1"),
-                             FakeHTTP.ok("uuid" => "u1"), FakeHTTP.ok("uuid" => "u1")])
-        client = client_with(http)
-        client.payments.public_send(method, "u1")
-        client.payments.public_send(method, uuid: "u1")
-        client.payments.public_send(method, order_id: "o-1")
-        client.payments.public_send(method, Oblodai::Models::Payment.from("uuid" => "u1"))
-        expect(http.calls.map(&:json)).to eq([{ "uuid" => "u1" }, { "uuid" => "u1" },
-                                              { "order_id" => "o-1" }, { "uuid" => "u1" }])
-      end
-    end
-
-    it "does the same for payouts" do
-      http = FakeHTTP.new([FakeHTTP.ok("uuid" => "p1")] * 3)
+  describe "request parameters (spec §3 item 1)" do
+    it "takes keywords, a Hash with wire names, or a request model" do
+      http = FakeHTTP.new([FakeHTTP.ok_for("getPaymentInfo")] * 4)
       client = client_with(http)
-      client.payouts.info("p1")
-      client.payouts.info(uuid: "p1")
-      client.payouts.get(order_id: "po-1")
-      expect(http.calls.map(&:json)).to eq([{ "uuid" => "p1" }, { "uuid" => "p1" },
-                                            { "order_id" => "po-1" }])
+      client.payments.get_info(uuid: "u1")
+      client.payments.get_info({ "order_id" => "o-1" })
+      client.payments.get_info({ uuid: "u2" })
+      client.payments.get_info(Oblodai::Models::LookupRequest.new(uuid: "u3"))
+      expect(http.calls.map(&:json)).to eq([{ "uuid" => "u1" }, { "order_id" => "o-1" }, { "uuid" => "u2" },
+                                            { "uuid" => "u3" }])
     end
 
-    it "says so when neither is supplied, instead of paying a round trip to learn it" do
-      http = FakeHTTP.new([])
-      expect { client_with(http).payments.info }
-        .to raise_error(Oblodai::ConfigError, /uuid: or order_id:/)
-      expect { client_with(http).payouts.info }
-        .to raise_error(Oblodai::ConfigError, /uuid: or order_id:/)
-      expect(http.calls).to be_empty
-    end
-  end
-
-  describe "ids may be the model the SDK returned" do
-    it "reads the id out of it" do
-      http = FakeHTTP.new([FakeHTTP.ok({})] * 5)
+    it "adds keywords to a Hash, and refuses a field given both ways" do
+      http = FakeHTTP.new([FakeHTTP.ok_for("createPayment")])
       client = client_with(http)
-      client.payout_links.info(Oblodai::Models::PayoutLink.from("link_id" => "pl-1"))
-      client.payment_links.info(Oblodai::Models::PaymentLink.from("link_id" => "pml-1"))
-      client.batches.info(Oblodai::Models::BatchSubmitted.from("batch_id" => "b-1"))
-      client.splits.delete_rule(Oblodai::Models::SplitRule.from("rule_id" => "r-1"))
-      client.wallets.qr(Oblodai::Models::Wallet.from("address" => "T-addr"))
-      expect(http.calls.map(&:json)).to eq([{ "link_id" => "pl-1" }, { "link_id" => "pml-1" },
-                                            { "batch_id" => "b-1" }, { "rule_id" => "r-1" },
-                                            { "address" => "T-addr" }])
-    end
-  end
-
-  describe "batches.info paging" do
-    it "passes limit and offset so a batch bigger than one page can be walked" do
-      http = FakeHTTP.new([FakeHTTP.ok("batch_id" => "b1", "kind" => "payout", "status" => "done")])
-      client_with(http).batches.info("b1", limit: 100, offset: 200)
-      expect(http.calls.first.json).to eq("batch_id" => "b1", "limit" => 100, "offset" => 200)
+      client.payments.create({ "amount" => "1" }, currency: "USDT")
+      expect(http.calls[0].json).to eq("amount" => "1", "currency" => "USDT")
+      expect { client.payments.create({ "amount" => "1" }, amount: "2") }
+        .to raise_error(ArgumentError, /amount given twice/)
     end
 
-    it "asks once, with the API key, and lets a refusal be a refusal" do
-      # There is no second key to fall back to any more: a 403 here is the core's answer, not a
-      # key-kind mismatch to be retried with different credentials.
-      http = FakeHTTP.new([FakeHTTP.api_error(403, { "code" => "merchant.forbidden",
-                                                     "retryable" => false })])
-      expect { client_with(http).batches.info("b1", limit: 10) }
-        .to raise_error(Oblodai::PermissionError)
-      expect(http.calls.size).to eq(1)
-    end
-  end
-
-  describe "webhooks.test" do
-    it "refuses a kind the gateway does not have a route for" do
+    it "refuses a misspelled keyword before anything is sent" do
       http = FakeHTTP.new([])
-      ["invoice", "", "payment/../x", :unknown, nil].each do |kind|
-        expect { client_with(http).webhooks.test(kind, url_callback: "https://x") }
-          .to raise_error(Oblodai::ConfigError) { |e|
-                expect(e.code).to eq("sdk.bad_config")
-                expect(e.field).to eq("kind")
-              }
-      end
+      expect { client_with(http).payments.create(amout: "1") }.to raise_error(ArgumentError, /amout/)
       expect(http.calls).to be_empty
     end
 
-    it "accepts every kind the contract declares, as a string or a symbol" do
-      Oblodai::Enums::WEBHOOK_KINDS.each do |kind|
-        http = FakeHTTP.new([FakeHTTP.ok("ok" => true), FakeHTTP.ok("ok" => true)])
-        client = client_with(http)
-        client.webhooks.test(kind, url_callback: "https://x")
-        client.webhooks.test(kind.to_sym, url_callback: "https://x")
-        expect(http.calls.map(&:path)).to eq(["/v1/test-webhook/#{kind}"] * 2)
+    it "fills path parameters positionally and query parameters by keyword" do
+      http = FakeHTTP.new([FakeHTTP.ok_for("getCheckout"),
+                           { status: 200, body: "%PDF", headers: { "content-type" => "application/pdf" } }])
+      client = client_with(http)
+      client.checkout.get("inv-1")
+      client.documents.get_signed("statement", "d-1", exp: "123", sig: "abc")
+      expect(http.calls[0].path).to eq("/v1/pay/inv-1")
+      expect(http.calls[1].path).to eq("/v1/documents/statement/d-1")
+      expect(http.calls[1].query).to eq("exp" => "123", "sig" => "abc")
+    end
+  end
+
+  describe "the client" do
+    it "has one namespace per resource of the contract" do
+      client = client_with(FakeHTTP.new([]))
+      names = Oblodai::Client::RESOURCES.keys
+      expect(names.size).to eq(16)
+      names.each { |name| expect(client.public_send(name)).to be_a(Oblodai::Resources::Base) }
+      locked = File.readlines(File.expand_path("../../names.lock", __dir__), chomp: true).map { |l| l.split(".").first }
+      expect(locked.uniq.sort).to eq(names.map(&:to_s).sort)
+    end
+
+    it "serves every locked name" do
+      client = client_with(FakeHTTP.new([]))
+      File.readlines(File.expand_path("../../names.lock", __dir__), chomp: true).each do |line|
+        resource, method = line.split(".")
+        expect(client.public_send(resource)).to respond_to(method), line
       end
     end
   end
 
   describe "the generated route registry" do
     it "is frozen down to each route, so no caller can flip another's retry safety" do
-      route = Oblodai::Contract::ROUTES.fetch("POST /v1/payout")
-      expect(Oblodai::Contract::ROUTES).to be_frozen
+      route = Oblodai::Generated::ROUTES.fetch("createPayout")
+      expect(Oblodai::Generated::ROUTES).to be_frozen
       expect(route).to be_frozen
       expect { route.safe = true }.to raise_error(FrozenError)
       expect { route[:auth] = :public }.to raise_error(FrozenError)
-    end
-  end
-
-  describe "models are value objects all the way down" do
-    it "freezes the lists and hashes it decoded" do
-      payment = Oblodai::Models::Payment.from(
-        "uuid" => "u", "tx_list" => [{ "txid" => "t" }], "extra_thing" => { "a" => [1] }
-      )
-      expect(payment).to be_frozen
-      expect(payment.tx_list).to be_frozen
-      expect(payment.tx_list.first).to be_frozen
-      expect(payment[:extra_thing]).to be_frozen
-      expect { payment.tx_list << 1 }.to raise_error(FrozenError)
-      expect { payment[:extra_thing]["b"] = 2 }.to raise_error(FrozenError)
     end
   end
 end

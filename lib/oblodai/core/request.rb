@@ -1,9 +1,11 @@
 # frozen_string_literal: true
 
+require "bigdecimal"
 require "json"
 require "uri"
 require_relative "signing"
 require_relative "../errors"
+require_relative "../helpers/money"
 
 module Oblodai
   # Builds the outgoing request — URL, headers, body — as a pure function of its inputs, so the
@@ -47,6 +49,13 @@ module Oblodai
 
     # Sent on `onboard` routes only; the transport decides when to supply it.
     HEADER_ADMIN_TOKEN = "X-Admin-Token"
+    # The call's own id, the same on every attempt: `request_id:`, else a caller header, else a UUID.
+    HEADER_REQUEST_ID = "X-Request-ID"
+
+    # Request fields the contract types as a JSON `number` that are not money (a tolerance in
+    # percent). A Float anywhere else in a body is an amount losing precision; a spec keeps this set
+    # equal to the `number` properties of the contract's request schemas.
+    NON_MONEY_NUMBERS = ["accuracy_payment_percent"].freeze
 
     # Headers the SDK owns. A caller-supplied header with one of these names is dropped, matched
     # case-insensitively: `accept: text/html` next to the SDK's `Accept` would otherwise reach the
@@ -54,7 +63,7 @@ module Oblodai
     # has no business on.
     RESERVED_HEADERS = [
       Signing::HEADER_PUBLIC_ID, Signing::HEADER_SIGNATURE, Signing::HEADER_TIMESTAMP,
-      Signing::HEADER_IDEMPOTENCY_KEY, HEADER_ADMIN_TOKEN, "Accept", "User-Agent",
+      Signing::HEADER_IDEMPOTENCY_KEY, HEADER_ADMIN_TOKEN, HEADER_REQUEST_ID, "Accept", "User-Agent",
       "Content-Type", "Content-Length", "Host"
     ].map(&:downcase).freeze
 
@@ -70,9 +79,11 @@ module Oblodai
     # @param credentials [Oblodai::RequestBuilder::Credentials, nil]
     # @param idempotency_key [String, nil]
     # @param extra_headers [Hash, nil]
+    # @param request_id [String, nil] sent as `X-Request-ID`
     # @return [Oblodai::RequestBuilder::Built]
     def build(base_url:, route:, body:, ts:, user_agent:, path_params: nil, query: nil,
-              credentials: nil, idempotency_key: nil, extra_headers: nil, admin_token: nil)
+              credentials: nil, idempotency_key: nil, extra_headers: nil, admin_token: nil,
+              request_id: nil)
       path = join_path(base_url, fill_path(route.path, path_params))
       request_uri = path + query_string(query)
 
@@ -88,6 +99,10 @@ module Oblodai
       has_body = route.method != "GET"
       headers["Content-Type"] = "application/json" if has_body
       headers[Signing::HEADER_IDEMPOTENCY_KEY] = idempotency_key if idempotency_key
+      if request_id
+        assert_header_value!(HEADER_REQUEST_ID, request_id)
+        headers[HEADER_REQUEST_ID] = request_id
+      end
       if admin_token
         assert_header_value!(HEADER_ADMIN_TOKEN, admin_token)
         headers[HEADER_ADMIN_TOKEN] = admin_token.to_s
@@ -179,28 +194,70 @@ module Oblodai
       pairs.empty? ? "" : "?#{pairs.join("&")}"
     end
 
-    # Serialize a request body once; nil values vanish, a missing POST body becomes `{}`.
+    # Serialize a request body once; a missing POST body becomes `{}`, GET signs nothing. Models
+    # become their wire Hash, `BigDecimal` its decimal string; a `Float` amount is refused before
+    # anything is signed (`sdk.float_amount`), and so is any value JSON cannot carry (`sdk.bad_body`).
+    # A nil member is sent as JSON null: the generated methods leave out every keyword the caller
+    # did not pass, so a nil that reaches this point is one the caller meant.
     # @return [String]
+    # @raise [Oblodai::ConfigError]
     def serialize_body(body, method)
       return "" if method == "GET"
       return "{}" if body.nil?
 
-      JSON.generate(deep_compact(body))
+      JSON.generate(wire(body, ""))
     end
 
-    # Drop nil members so an unset keyword never reaches the wire as an explicit null. The core
-    # reads a missing field and an explicit `null` the same way (both mean "not supplied"), so the
-    # SDK never needs to send one — and a keyword left at its `nil` default therefore cannot clear a
-    # field by accident.
-    def deep_compact(value)
+    # The JSON-ready form of a request value; `path` names the field in error messages.
+    # @raise [Oblodai::ConfigError]
+    def wire(value, path)
       case value
-      when Hash
-        value.each_with_object({}) do |(k, v), out|
-          out[k] = deep_compact(v) unless v.nil?
-        end
-      when Array then value.map { |v| deep_compact(v) }
-      else value
+      when nil, true, false, String, Integer then value
+      when Float then wire_float(value, path)
+      when BigDecimal then wire_decimal(value, path)
+      when Symbol then value.to_s
+      when Hash then wire_hash(value, path)
+      when Array then value.each_with_index.map { |item, i| wire(item, "#{path}[#{i}]") }
+      else
+        return wire(value.to_h, path) if model?(value)
+
+        bad_body!("#{describe(path)} is a #{value.class}, which is not JSON; amounts are decimal strings " \
+                  "or BigDecimal, times are RFC 3339 strings")
       end
+    end
+
+    def wire_hash(value, path)
+      value.to_h do |key, item|
+        name = key.to_s
+        [name, wire(item, path.empty? ? name : "#{path}.#{name}")]
+      end
+    end
+
+    # A Float is money losing precision — except in the few `number` fields that are not money.
+    def wire_float(value, path)
+      unless NON_MONEY_NUMBERS.include?(path.split(".").last.to_s.sub(/\[\d+\]\z/, ""))
+        Money.float_amount!(value, path.empty? ? "body" : path)
+      end
+      bad_body!("#{describe(path)} is not a finite number (#{value})") unless value.finite?
+      value
+    end
+
+    def wire_decimal(value, path)
+      bad_body!("#{describe(path)} is a non-finite BigDecimal (#{value})") unless value.finite?
+
+      Money.decimal_string(value)
+    end
+
+    def model?(value)
+      defined?(Oblodai::Models::Base) && value.is_a?(Oblodai::Models::Base)
+    end
+
+    def describe(path)
+      path.empty? ? "the request body" : "field #{path}"
+    end
+
+    def bad_body!(message)
+      raise ConfigError.new("sdk.bad_body", message, "body")
     end
   end
 end

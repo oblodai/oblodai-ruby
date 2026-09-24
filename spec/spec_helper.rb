@@ -3,7 +3,9 @@
 $LOAD_PATH.unshift File.expand_path("../lib", __dir__)
 
 require "oblodai"
+require_relative "support/samples"
 require_relative "support/fake_http"
+require_relative "support/coverage"
 require_relative "support/fixtures"
 
 RSpec.configure do |config|
@@ -22,4 +24,12 @@ TEST_CREDENTIALS = {
 # @return [Oblodai::Client] a client wired to a {FakeHTTP}
 def client_with(http, **overrides)
   Oblodai::Client.new(**TEST_CREDENTIALS, http: http, **overrides)
+end
+
+# The backend's openapi.json (OBLODAI_BACKEND, else ../oblodai-backend), or nil when absent.
+# @return [Hash, nil]
+def backend_spec
+  root = ENV.fetch("OBLODAI_BACKEND") { File.expand_path("../../oblodai-backend", __dir__) }
+  path = File.join(root, "services", "core", "api", "openapi.json")
+  File.file?(path) ? JSON.parse(File.read(path)) : nil
 end

@@ -6,7 +6,7 @@ module Oblodai
   # carry secrets are redacted before they reach the logger, so a debug log never leaks a key,
   # a signature or a cheque passcode.
   module Logging
-    SENSITIVE = /secret|signature|passcode|token|authorization|password/i
+    SENSITIVE = /secret|signature|passcode|token|authorization|password|claim_url/i
 
     module_function
 

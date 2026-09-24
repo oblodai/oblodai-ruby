@@ -1,185 +1,101 @@
 # frozen_string_literal: true
 
-# Wire models versus the golden bodies the core recorded. Each row names a route, how to reach the
-# object inside its result, and the model's key set. Keys must match EXACTLY: a field the core
-# stopped sending fails here, and so does a field it started sending that the model lacks.
-MODELS = Oblodai::Models
-
-MODEL_ROWS = [
-  ["POST /v1/payment", ->(r) { r }, MODELS::Payment],
-  ["POST /v1/payment/info", ->(r) { r }, MODELS::Payment, %i[refunds refund_status]],
-  ["POST /v1/payment/cancel", ->(r) { r }, MODELS::Payment],
-  ["POST /v1/payment/history", ->(r) { r["items"][0] }, MODELS::Payment],
-  ["GET /v1/pay/{id}", ->(r) { r }, MODELS::PublicPayment],
-  ["POST /v1/pay/{id}/select", ->(r) { r }, MODELS::PublicPayment],
-  ["POST /v1/link/{id}/checkout", ->(r) { r }, MODELS::PublicPayment],
-  ["POST /v1/payment/qr", ->(r) { r }, MODELS::QrCode],
-  ["GET /v1/pay/{id}/qr", ->(r) { r }, MODELS::QrCode],
-  ["POST /v1/payment/services", ->(r) { r["items"][0] }, MODELS::ServiceMethod],
-  ["POST /v1/payout/services", ->(r) { r["items"][0] }, MODELS::ServiceMethod],
-  ["POST /v1/payment/batch", ->(r) { r }, MODELS::BatchSubmitted],
-  ["POST /v1/payout/batch", ->(r) { r }, MODELS::BatchSubmitted],
-  ["POST /v1/refund/batch", ->(r) { r }, MODELS::BatchSubmitted],
-  ["POST /v1/transfer/batch", ->(r) { r }, MODELS::BatchSubmitted],
-  ["POST /v1/batch/info", ->(r) { r }, MODELS::BatchInfo],
-  ["POST /v1/payout", ->(r) { r }, MODELS::Payout],
-  ["POST /v1/payout/info", ->(r) { r }, MODELS::Payout, %i[error error_code]],
-  ["POST /v1/payout/cancel", ->(r) { r }, MODELS::Payout],
-  ["POST /v1/payout/history", ->(r) { r["items"][0] }, MODELS::Payout],
-  ["POST /v1/payout/mass", ->(r) { r["items"][0]["result"] }, MODELS::Payout],
-  ["POST /v1/payment/refund", ->(r) { r }, MODELS::Payout],
-  ["POST /v1/payment/resolve", ->(r) { r }, MODELS::Payout, [], %i[resolution]],
-  ["POST /v1/wallet/blocked-address-refund", ->(r) { r }, MODELS::Payout, [], %i[wallet_uuid]],
-  ["POST /v1/payout/calculate", ->(r) { r }, MODELS::PayoutCalculation],
-  ["POST /v1/payout/validate", ->(r) { r }, MODELS::PayoutValidation],
-  ["POST /v1/payout/link", ->(r) { r }, MODELS::PayoutLink, %i[claim_token claim_url]],
-  ["POST /v1/payout/link/info", ->(r) { r }, MODELS::PayoutLink],
-  ["POST /v1/payout/link/list", ->(r) { r["items"][0] }, MODELS::PayoutLink],
-  ["POST /v1/payout/link/cancel", ->(r) { r }, MODELS::PayoutLink],
-  ["POST /v1/payout/link/batch", ->(r) { r["items"][0]["result"] }, MODELS::PayoutLink,
-   %i[claim_token claim_url batch_id]],
-  ["GET /v1/claim/{token}", ->(r) { r }, MODELS::ClaimPreview],
-  ["POST /v1/claim/{token}", ->(r) { r }, MODELS::ClaimResult],
-  ["POST /v1/payment/link", ->(r) { r }, MODELS::PaymentLinkCreated],
-  ["POST /v1/payment/link/info", ->(r) { r }, MODELS::PaymentLink, %i[payments]],
-  ["POST /v1/payment/link/list", ->(r) { r["items"][0] }, MODELS::PaymentLink],
-  ["GET /v1/link/{id}", ->(r) { r }, MODELS::PublicPaymentLink],
-  ["POST /v1/payment/link/toggle", ->(r) { r }, MODELS::PaymentLinkToggled],
-  ["POST /v1/balance", ->(r) { r }, MODELS::Balance],
-  ["POST /v1/referral/info", ->(r) { r }, MODELS::ReferralInfo],
-  ["POST /v1/vrcs", ->(r) { r }, MODELS::VrcsStatus],
-  ["POST /v1/auto-withdraw/list", ->(r) { r["items"][0] }, MODELS::AutoWithdrawRule],
-  ["POST /v1/auto-withdraw/set", ->(r) { r["items"][0] }, MODELS::AutoWithdrawRule],
-  ["POST /v1/auto-withdraw/delete", ->(r) { r }, nil, [], %i[items]],
-  ["POST /v1/api-allowlist/list", ->(r) { r }, MODELS::ApiAllowlist],
-  ["POST /v1/api-allowlist/add", ->(r) { r }, MODELS::ApiAllowlist],
-  ["POST /v1/api-allowlist/remove", ->(r) { r }, MODELS::ApiAllowlist],
-  ["POST /v1/api-allowlist/enable", ->(r) { r }, MODELS::ApiAllowlist],
-  ["POST /v1/payment/discount/list", ->(r) { r["items"][0] }, MODELS::DiscountRule],
-  ["POST /v1/payment/discount/set", ->(r) { r }, MODELS::DiscountRule],
-  ["POST /v1/payment/accuracy/get", ->(r) { r }, MODELS::AccuracyConfig],
-  ["POST /v1/payment/accuracy/set", ->(r) { r }, MODELS::AccuracyConfig],
-  ["POST /v1/payment/autorefund/get", ->(r) { r }, MODELS::AutoRefundConfig, %i[configured]],
-  ["POST /v1/payment/autorefund/set", ->(r) { r }, MODELS::AutoRefundConfig, %i[configured]],
-  ["POST /v1/payment/accepted/list", ->(r) { r["items"][0] }, MODELS::AcceptedMethod, %i[reason]],
-  ["POST /v1/payment/accepted/set", ->(r) { r }, MODELS::OkResult],
-  ["POST /v1/payment/fee-config/get", ->(r) { r }, MODELS::PaymentFeeConfig, %i[enabled]],
-  ["POST /v1/payment/fee-config/set", ->(r) { r }, MODELS::PaymentFeeConfig, %i[enabled]],
-  ["POST /v1/payout/fee-config/get", ->(r) { r }, MODELS::PayoutFeeConfig, %i[configured]],
-  ["POST /v1/payout/fee-config/set", ->(r) { r }, MODELS::PayoutFeeConfig, %i[configured]],
-  ["POST /v1/payout/refund-fee-config/get", ->(r) { r }, MODELS::RefundFeeConfig, %i[configured]],
-  ["POST /v1/payout/refund-fee-config/set", ->(r) { r }, MODELS::RefundFeeConfig, %i[configured]],
-  ["POST /v1/split/rule", ->(r) { r }, nil, [], %i[rule_id percent]],
-  ["POST /v1/split/rule/list", ->(r) { r["items"][0] }, MODELS::SplitRule],
-  ["POST /v1/split/rule/delete", ->(r) { r }, MODELS::OkResult],
-  ["POST /v1/split/config/get", ->(r) { r }, MODELS::SplitConfig],
-  ["POST /v1/split/config/set", ->(r) { r }, MODELS::SplitConfig],
-  ["POST /v1/split/recipient/optin", ->(r) { r }, MODELS::SplitOptIn],
-  ["POST /v1/split/recipient/optin/get", ->(r) { r }, MODELS::SplitOptIn],
-  ["GET /v1/currencies", ->(r) { r }, MODELS::Currencies],
-  ["GET /v1/currencies", ->(r) { r["currencies"][0]["networks"][0] }, MODELS::CurrencyNetwork, %i[contract]],
-  ["POST /v1/exchange-rate/list", ->(r) { r["items"][0] }, MODELS::ExchangeRate],
-  ["POST /v1/webhooks", ->(r) { r }, MODELS::WebhookEndpoint, %i[secret]],
-  ["POST /v1/webhooks/rotate-secret", ->(r) { r }, MODELS::WebhookSecretRotated],
-  ["POST /v1/webhooks/deliveries", ->(r) { r["items"][0] }, MODELS::WebhookDelivery],
-  ["GET /v1/sandbox/webhooks", ->(r) { r["items"][0] }, MODELS::WebhookDelivery, %i[payload sequence]],
-  ["POST /v1/test-webhook/payment", ->(r) { r }, MODELS::WebhookTestResult],
-  ["POST /v1/test-webhook/payout", ->(r) { r }, MODELS::WebhookTestResult],
-  ["POST /v1/test-webhook/wallet", ->(r) { r }, MODELS::WebhookTestResult],
-  ["POST /v1/payment/testing-webhook", ->(r) { r }, MODELS::WebhookTestResult, [], %i[url duration_ms]],
-  ["POST /v1/payment/send-email", ->(r) { r }, MODELS::EmailSent],
-  ["POST /v1/payment/resend", ->(r) { r }, MODELS::OkResult],
-  ["POST /v1/wallet", ->(r) { r }, MODELS::Wallet, %i[destination_tag memo address_xaddress address_muxed]],
-  ["POST /v1/wallet/block", ->(r) { r }, MODELS::WalletBlocked],
-  ["POST /v1/wallet/qr", ->(r) { r }, MODELS::WalletQr],
-  ["POST /v1/transfer/to-personal", ->(r) { r }, MODELS::TransferToPersonal],
-  ["POST /v1/transfer/to-user", ->(r) { r }, MODELS::TransferToUser],
-  ["POST /v1/documents/jobs", ->(r) { r }, MODELS::DocumentJob, %i[ready_within file error]],
-  ["POST /v1/documents/jobs/info", ->(r) { r }, MODELS::DocumentJob, %i[ready_within file error]],
-  ["POST /v1/documents/jobs/info", ->(r) { r["file"] }, MODELS::DocumentJobFile],
-  ["POST /v1/sandbox/faucet", ->(r) { r }, MODELS::FaucetResult],
-  ["POST /v1/sandbox/deposit", ->(r) { r }, MODELS::SandboxDeposit],
-  ["POST /v1/sandbox/reset", ->(r) { r }, MODELS::SandboxReset],
-  ["POST /v1/sandbox/webhooks/replay", ->(r) { r }, MODELS::SandboxReplay],
-  ["POST /v1/merchants", ->(r) { r }, MODELS::MerchantOnboarded],
-  ["POST /v1/merchants", ->(r) { r["api_key"] }, MODELS::ApiKeyPair],
-  ["POST /v1/merchants/{id}/sandbox", ->(r) { r }, MODELS::SandboxStore]
-].freeze
-
-# Routes the API guarantees to refuse for API keys (no success body exists to model).
-NOT_MODELLED = ["POST /v1/payout/approve"].freeze
-
-RSpec.describe "wire models match the golden bodies" do
-  def key_diff(actual, expected, optional)
-    actual = actual.map(&:to_s)
-    expected = expected.map(&:to_s)
-    optional = optional.map(&:to_s)
-    { missing_on_wire: expected - actual - optional, unknown_on_wire: actual - expected - optional }
+# Generated models versus the golden bodies the core recorded (contract/fixtures). Every recorded
+# 2xx answer goes through the SDK method of its route, end to end: it must parse, and no model on the
+# way may be left with fields it does not know (`extra`) — a field the core started sending that the
+# contract does not declare fails here. Webhook samples, statuses and error envelopes are checked
+# against the generated enums and models the same way.
+RSpec.describe "recorded answers" do
+  by_key = Oblodai::Generated::ROUTES.to_h { |op, route| [route.key, op] }
+  recorded = Fixtures.fixtures.select do |route, fx|
+    (200..299).cover?(fx["status"]) && fx.dig("headers", "Content-Type").to_s.include?("json") && by_key.key?(route)
   end
 
-  MODEL_ROWS.each do |route, picker, model, optional, extra|
-    keys = (model ? model.keys : []) + (extra || [])
-    it "#{route} → #{model || "raw"} (#{keys.size} keys)" do
-      fx = Fixtures.fixtures[route]
-      skip "recorded as a refusal in this environment" if fx.nil? || fx["status"] >= 300
+  # Recordings older than a required field the core added since (fixtures: 2026-08-26). The answer
+  # must fail on exactly that field; a refreshed recording drops its row here.
+  added_since_recording = {
+    "GET /v1/pay/{id}" => "fiat_purchase_available", # 2026-09-23
+    "POST /v1/link/{id}/checkout" => "method_adjustment", # 2026-09-06
+    "POST /v1/pay/{id}/select" => "method_adjustment",
+    "POST /v1/payment" => "fee_percent", # 2026-09-10
+    "POST /v1/payment/cancel" => "fee_percent",
+    "POST /v1/payment/history" => "fee_percent",
+    "POST /v1/payment/info" => "fee_percent",
+    "POST /v1/sandbox/reset" => "payout_links_cancelled", # 2026-09-24
+    "POST /v1/webhooks/deliveries" => "cancel_reason" # 2026-09-24
+  }
 
-      object = picker.call(fx.dig("response", "result"))
-      expect(object).to be_truthy, "#{route}: picker found nothing"
-      expect(key_diff(object.keys, keys, optional || []))
-        .to eq(missing_on_wire: [], unknown_on_wire: []), "#{route}: model keys drifted from the wire"
-
-      next if model.nil?
-
-      decoded = model.from(object)
-      expect(decoded).to be_a(model)
-      # Decoding is lossless: everything the core sent comes back out.
-      expect(decoded.to_h.keys.map(&:to_s)).to match_array(object.keys)
+  # Every `extra` field of every model inside `value`, with its path.
+  def unknown_fields(value, where = "result")
+    case value
+    when Oblodai::Models::Base
+      value.extra.keys.map { |name| "#{where}.#{name}" } +
+        value.class::FIELDS.flat_map { |json| unknown_fields(reader(value, json), "#{where}.#{json}") }
+    when Array then value.each_with_index.flat_map { |item, i| unknown_fields(item, "#{where}[#{i}]") }
+    when Hash then value.flat_map { |key, item| unknown_fields(item, "#{where}.#{key}") }
+    else []
     end
   end
 
-  it "covers every recorded success body with a model row" do
-    covered = MODEL_ROWS.map(&:first).uniq
-    Fixtures.fixtures.each do |route, fx|
-      next unless (200..299).cover?(fx["status"])
-      next if NOT_MODELLED.include?(route)
-      next unless fx.dig("headers", "Content-Type").to_s.include?("json")
+  # The reader of a field by its JSON name (`end` is read as `end_`).
+  def reader(model, json)
+    name = json.gsub(/([a-z0-9])([A-Z])/, '\1_\2').downcase.gsub(/[^a-z0-9_]/, "_")
+    [name, "#{name}_"].each { |n| return model.public_send(n) if model.respond_to?(n) }
+    raise "#{model.class}: no reader for #{json}"
+  end
 
-      expect(covered).to include(route), "#{route}: recorded success body has no model row"
+  it "has recorded bodies to check" do
+    expect(recorded.size).to be > 50
+  end
+
+  recorded.each do |route, fx|
+    it "#{route} parses into its model with no unknown fields" do
+      http = FakeHTTP.new([{ status: 200, body: fx["response"] }])
+      client = Oblodai::Client.new(public_id: "pk", secret: "s", admin_token: "adm",
+                                   base_url: "https://api.test", http: http, env: {})
+      run = lambda do
+        result = Coverage.call(client, by_key.fetch(route))
+        result = result.first_page.items if result.is_a?(Oblodai::Page)
+        result = result.result if result.is_a?(Oblodai::Job)
+        result
+      end
+      added = added_since_recording[route]
+      if added
+        expect { run.call }.to raise_error(KeyError) { |e| expect(e.key).to eq(added) }
+        next
+      end
+      result = run.call
+      expect(result).not_to be_nil
+      expect(unknown_fields(result)).to eq([]), "#{route}: the contract does not declare these fields"
     end
   end
 end
 
 RSpec.describe "vocabularies cover what the wire carries" do
+  enums = Oblodai::Enums
+
   it "statuses in the golden bodies are in the enums" do
     Fixtures.result_of("POST /v1/payment/history")["items"].each do |payment|
-      expect(Oblodai::Enums::PAYMENT_STATUSES).to include(payment["status"])
+      expect(enums::PaymentStatus::VALUES).to include(payment["status"])
     end
     Fixtures.result_of("POST /v1/payout/history")["items"].each do |payout|
-      expect(Oblodai::Enums::PAYOUT_STATUSES).to include(payout["status"])
+      expect(enums::PayoutStatus::VALUES).to include(payout["status"])
     end
     Fixtures.result_of("POST /v1/payout/link/list")["items"].each do |link|
-      expect(Oblodai::Enums::PAYOUT_LINK_STATUSES).to include(link["status"])
+      expect(enums::PayoutLinkStatus::VALUES).to include(link["status"])
     end
     Fixtures.result_of("POST /v1/webhooks/deliveries")["items"].each do |delivery|
-      expect(Oblodai::Enums::DELIVERY_STATUSES).to include(delivery["status"])
-    end
-    Fixtures.result_of("GET /v1/currencies")["currencies"].each do |currency|
-      currency["networks"].each { |n| expect(Oblodai::Enums::NETWORKS).to include(n["network"]) }
+      expect(enums::WebhookDeliveryStatus::VALUES).to include(delivery["status"])
     end
   end
 
-  it "webhook samples carry known event types and bodies matching the event models" do
+  it "webhook samples carry known event names and parse into their models with nothing unknown" do
+    expect(Fixtures.webhook_samples).not_to be_empty
     Fixtures.webhook_samples.each do |sample|
-      expect(Oblodai::Enums::EVENT_TYPES).to include(sample["headers"]["X-Webhook-Event"])
-      model = Oblodai::Webhooks::EVENT_MODELS.fetch(sample["body"]["type"])
-      # `test` rides along only on rehearsal deliveries, so it is optional; every other key of the
-      # model must be on the wire, and the wire may carry nothing the model does not declare.
-      actual = sample["body"].keys
-      required = model.keys.map(&:to_s)
-      optional = model.optional_keys.map(&:to_s)
-      event = sample["headers"]["X-Webhook-Event"]
-      expect(required - actual).to eq([]), "#{event}: model key missing on the wire"
-      expect(actual - required - optional).to eq([]), "#{event}: undeclared key on the wire"
+      expect(enums::WebhookEventName::VALUES).to include(sample["headers"]["X-Webhook-Event"])
+      body = sample["raw"] ? JSON.parse(sample["raw"]) : sample["body"]
+      event = Oblodai::Webhooks::EVENT_MODELS.fetch(body["type"]).from_h(body)
+      expect(event.extra).to eq({}), sample["headers"]["X-Webhook-Event"]
     end
   end
 
@@ -194,7 +110,7 @@ RSpec.describe "vocabularies cover what the wire carries" do
 
   it "every recorded error code is a known code with the documented envelope" do
     Fixtures.error_samples.each do |code, fx|
-      expect(Oblodai::Enums::ERROR_CODES).to include(code)
+      expect(enums::ErrorCode::VALUES).to include(code)
       error = fx.dig("response", "error")
       expect(error["code"]).to eq(code)
       expect([true, false]).to include(error["retryable"])
@@ -214,14 +130,46 @@ RSpec.describe "vocabularies cover what the wire carries" do
     end
   end
 
-  it "documents every field the recorded journeys sent" do
-    Fixtures.fixtures.each do |route, fx|
-      documented = Oblodai::Contract::REQUESTS[route]
-      next if documented.nil? || !fx["request"].is_a?(Hash)
+  it "every error code a method documents is in the catalogue" do
+    source = File.read(File.expand_path("../../lib/oblodai/generated/resources.rb", __dir__))
+    advertised = source.scan(/# Error codes: (.*?)\n\s*#\n/m).flat_map do |(block)|
+      block.gsub(/\n\s*#\s*/, " ").split(",").map(&:strip)
+    end
+    expect(advertised.size).to be > 500
+    expect(advertised.uniq - enums::ErrorCode::VALUES).to eq([])
+  end
+end
 
-      fx["request"].each_key do |field|
-        expect(documented).to have_key(field.to_sym),
-                              "#{route}: journey sent undocumented field \"#{field}\""
+RSpec.describe "recorded requests" do
+  by_key = Oblodai::Generated::ROUTES.to_h { |op, route| [route.key, op] }
+
+  # The fixtures are real requests the core answered 2xx to: every field of each must be
+  # expressible through the method's keywords and reach the wire unchanged.
+  Fixtures.fixtures.each do |route, fx|
+    next unless (200..299).cover?(fx["status"]) && fx["request"].is_a?(Hash) && !fx["request"].empty?
+    next unless by_key.key?(route) && Oblodai::Generated::ROUTES.fetch(by_key[route]).method == "POST"
+
+    it "#{route}: the recorded body goes out through keywords" do
+      op = by_key.fetch(route)
+      answer = Oblodai::Generated::ROUTES.fetch(op).bare ? { status: 200, body: "%PDF" } : FakeHTTP.ok_for(op)
+      http = FakeHTTP.new([answer])
+      client = Oblodai::Client.new(public_id: "pk", secret: "s", base_url: "https://api.test", http: http, env: {})
+      namespace, name = Coverage.ledger.fetch(op)
+      keywords = client.public_send(namespace).method(name).parameters.filter_map { |kind, arg| arg if kind == :key }
+      args = fx["request"].to_h do |field, value|
+        key = field.to_sym
+        key = :"#{field}_" unless keywords.include?(key)
+        expect(keywords).to include(key), "#{route}: no keyword for #{field}"
+        [key, value]
+      end
+      args.delete(:idempotency_key) # a route's own idempotency_key field comes from the option
+      result = Coverage.call(client, op, **args)
+      result.first_page if result.is_a?(Oblodai::Page)
+      sent = http.calls.first.json
+      fx["request"].each do |field, value|
+        next if field == "idempotency_key"
+
+        expect(sent[field]).to eq(value), "#{route}: #{field}"
       end
     end
   end

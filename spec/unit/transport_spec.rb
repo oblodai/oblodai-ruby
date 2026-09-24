@@ -1,9 +1,11 @@
 # frozen_string_literal: true
 
 RSpec.describe Oblodai::Transport do
+  let(:balance) { FakeHTTP.ok_for("getBalance") }
+
   it "signs path+query on GET and sends no body" do
-    http = FakeHTTP.new([FakeHTTP.page([], 0, 0, 10)])
-    client_with(http).sandbox.webhooks(limit: 10, offset: 0).first_page
+    http = FakeHTTP.new([FakeHTTP.ok_for("sandboxListWebhooks")])
+    client_with(http).sandbox.list_webhooks(limit: 10, offset: 0).first_page
     call = http.calls.first
     expect(call.url).to eq("https://api.test/v1/sandbox/webhooks?limit=10&offset=0")
     expect(call.body).to be_nil
@@ -16,7 +18,7 @@ RSpec.describe Oblodai::Transport do
     http = FakeHTTP.new([
                           FakeHTTP.api_error(503, { "code" => "db.unavailable", "message" => "down",
                                                     "retryable" => true }),
-                          FakeHTTP.ok("uuid" => "u")
+                          FakeHTTP.ok_for("createPayment")
                         ])
     client_with(http).payments.create(amount: "1", currency: "USDT")
     expect(http.calls.size).to eq(2)
@@ -28,11 +30,11 @@ RSpec.describe Oblodai::Transport do
   end
 
   it "honours a caller-supplied idempotency key and does not add one to read routes" do
-    http = FakeHTTP.new([FakeHTTP.ok("uuid" => "u"), FakeHTTP.ok("uuid" => "u")])
+    http = FakeHTTP.new([FakeHTTP.ok_for("createPayout"), FakeHTTP.ok_for("getPaymentInfo")])
     client = client_with(http)
     client.payouts.create(amount: "1", currency: "USDT", address: "T", order_id: "o",
                           idempotency_key: "my-key-1")
-    client.payments.info("u")
+    client.payments.get_info(uuid: "u")
     expect(http.calls[0].headers["idempotency-key"]).to eq("my-key-1")
     expect(http.calls[1].headers).not_to have_key("idempotency-key")
   end
@@ -47,7 +49,7 @@ RSpec.describe Oblodai::Transport do
 
   it "does not retry a non-retryable error even on a 5xx" do
     http = FakeHTTP.new([FakeHTTP.api_error(500, { "code" => "internal", "retryable" => false })])
-    expect { client_with(http).account.balance }
+    expect { client_with(http).account.get_balance }
       .to raise_error(Oblodai::InternalError) { |e|
             expect(e.code).to eq("internal")
             expect(e.http_status).to eq(500)
@@ -65,7 +67,7 @@ RSpec.describe Oblodai::Transport do
                         ])
     error = nil
     begin
-      client_with(http).account.balance
+      client_with(http).account.get_balance
     rescue Oblodai::RateLimitError => e
       error = e
     end
@@ -76,16 +78,16 @@ RSpec.describe Oblodai::Transport do
   it "retries a transport failure only when the request is safe to repeat" do
     boom = Oblodai::TransportError.new("transport.network", "network error: connection reset")
 
-    read = FakeHTTP.new([{ raises: boom }, FakeHTTP.ok("balance" => { "merchant" => [] })])
-    client_with(read).account.balance
+    read = FakeHTTP.new([{ raises: boom }, balance])
+    client_with(read).account.get_balance
     expect(read.calls.size).to eq(2)
 
-    write = FakeHTTP.new([{ raises: boom }, FakeHTTP.ok({})])
+    write = FakeHTTP.new([{ raises: boom }, FakeHTTP.ok_for("setAccuracy")])
     expect { client_with(write).settings.set_accuracy(enabled: true) }
       .to raise_error(Oblodai::TransportError) { |e| expect(e.code).to eq("transport.network") }
     expect(write.calls.size).to eq(1) # write without a key → never re-sent
 
-    keyed = FakeHTTP.new([{ raises: boom }, FakeHTTP.ok("uuid" => "u")])
+    keyed = FakeHTTP.new([{ raises: boom }, FakeHTTP.ok_for("createPayment")])
     client_with(keyed).payments.create(amount: "1", currency: "USDT")
     expect(keyed.calls.size).to eq(2) # keyed create → retried
   end
@@ -108,7 +110,7 @@ RSpec.describe Oblodai::Transport do
             expect(e.request_id).to eq("rq-1")
             expect(e.family).to eq("payment")
           }
-    expect { client.account.balance }.to raise_error(Oblodai::AuthenticationError)
+    expect { client.account.get_balance }.to raise_error(Oblodai::AuthenticationError)
     expect { client.payments.create(amount: "1", currency: "USDT") }
       .to raise_error(Oblodai::IdempotencyConflictError)
   end
@@ -118,50 +120,61 @@ RSpec.describe Oblodai::Transport do
     http = FakeHTTP.new([
                           FakeHTTP.api_error(401, { "code" => "merchant.bad_signature", "retryable" => false },
                                              "date" => Time.at(server_now).httpdate),
-                          FakeHTTP.ok("balance" => { "merchant" => [] })
+                          balance
                         ])
-    client_with(http, retry_policy: { max_retries: 0 }).account.balance
+    client_with(http, retry_policy: { max_retries: 0 }).account.get_balance
     expect(http.calls.size).to eq(2)
     expect(http.calls[1].headers["x-timestamp"].to_i).to be_within(5).of(server_now)
   end
 
   it "times out and reports transport.timeout" do
-    http = FakeHTTP.new([{ delay_ms: 200, body: { "state" => 0, "result" => {} } }])
-    expect { client_with(http, timeout_ms: 20, retry_policy: { max_retries: 0 }).account.balance }
+    http = FakeHTTP.new([{ delay: 0.2, body: { "state" => 0, "result" => {} } }])
+    expect { client_with(http, timeout: 0.02, retry_policy: { max_retries: 0 }).account.get_balance }
       .to raise_error(Oblodai::TransportError) { |e| expect(e.code).to eq("transport.timeout") }
   end
 
+  it "hands the adapter the per-attempt timeout in seconds, capped by the call deadline" do
+    http = FakeHTTP.new([balance, balance, balance])
+    client = client_with(http, timeout: 7, deadline: 60)
+    client.account.get_balance
+    client.account.get_balance(timeout: 2.5)
+    client_with(http, timeout: 30, deadline: 3).account.get_balance
+    expect(http.calls[0].timeout).to eq(7.0)
+    expect(http.calls[1].timeout).to eq(2.5)
+    expect(http.calls[2].timeout).to be <= 3.0
+  end
+
   it "signs a payout, an invoice and a batch lookup with the one API key" do
-    http = FakeHTTP.new([FakeHTTP.ok("uuid" => "p"), FakeHTTP.ok("uuid" => "i"),
-                         FakeHTTP.ok("batch_id" => "b1", "kind" => "payout", "status" => "done")])
+    http = FakeHTTP.new([FakeHTTP.ok_for("createPayout"), FakeHTTP.ok_for("createPayment"),
+                         FakeHTTP.ok_for("getBatchInfo")])
     client = client_with(http)
     client.payouts.create(amount: "1", currency: "USDT", address: "T", order_id: "o")
     client.payments.create(amount: "1", currency: "USDT")
-    client.batches.info("b1")
+    client.batches.get_info(batch_id: "b1")
     expect(http.calls.map { |call| call.headers["x-public-id"] }).to eq(["pk_test_1"] * 3)
     expect(http.calls.map { |call| call.headers["x-signature"] }).to all(match(/\A[0-9a-f]{64}\z/))
   end
 
   it "takes no per-call key preference: there is no second key to prefer" do
     http = FakeHTTP.new([])
-    expect { client_with(http).payouts.info("p1", prefer_payout_key: true) }
-      .to raise_error(Oblodai::ConfigError) { |e| expect(e.field).to eq("prefer_payout_key") }
+    expect { client_with(http).payouts.get_info(uuid: "p1", prefer_payout_key: true) }
+      .to raise_error(ArgumentError, /prefer_payout_key/)
     expect(http.calls).to be_empty
   end
 
   it "requires credentials only on the routes that need them" do
-    http = FakeHTTP.new([FakeHTTP.ok("currencies" => [], "pricing_currencies" => [])])
+    http = FakeHTTP.new([FakeHTTP.ok_for("listCurrencies", "currencies" => [])])
     client = Oblodai::Client.new(base_url: "https://api.test", http: http)
-    expect(client.catalog.currencies.currencies).to eq([])
-    expect { client.account.balance }
+    expect(client.checkout.list_currencies.currencies).to eq([])
+    expect { client.account.get_balance }
       .to raise_error(Oblodai::ConfigError) { |e| expect(e.code).to eq("sdk.missing_credentials") }
   end
 
   it "sends the admin token on onboarding routes only" do
-    http = FakeHTTP.new([FakeHTTP.ok("merchant_id" => "m1"), FakeHTTP.ok("balance" => { "merchant" => [] })])
+    http = FakeHTTP.new([FakeHTTP.ok_for("onboardSandboxStore"), balance])
     client = client_with(http, admin_token: "adm")
-    client.merchants.create(email: "a@b.c", name: "A")
-    client.account.balance
+    client.sandbox.onboard_store("m1")
+    client.account.get_balance
     expect(http.calls[0].headers["x-admin-token"]).to eq("adm")
     expect(http.calls[0].headers).not_to have_key("x-signature")
     expect(http.calls[1].headers).not_to have_key("x-admin-token")
