@@ -25,6 +25,20 @@ RSpec.describe Oblodai::Models::Base do
     expect(JSON.parse(payment.to_json)).to eq(payment.to_h)
   end
 
+  it "is frozen all the way down, and leaves the caller's data alone" do
+    body = Samples.body("PaymentView", "tx_list" => [Samples.body("PaymentTx", "txid" => +"t1")],
+                                       "brand_new" => { "nested" => [+"x"] })
+    view = Oblodai::Models::PaymentView.from_h(body)
+    expect(view.tx_list).to be_frozen
+    expect(view.tx_list.first).to be_frozen
+    expect(view.tx_list.first.txid).to be_frozen
+    expect(view.extra["brand_new"]["nested"].first).to be_frozen
+    expect { view.tx_list << 1 }.to raise_error(FrozenError)
+    expect { view.uuid << "x" }.to raise_error(FrozenError)
+    expect { view.extra["brand_new"]["more"] = 1 }.to raise_error(FrozenError)
+    expect(body["brand_new"]["nested"].first).not_to be_frozen
+  end
+
   it "fails loudly on a missing required field" do
     expect { Oblodai::Models::PaymentView.from_h("uuid" => "u") }.to raise_error(KeyError)
   end
