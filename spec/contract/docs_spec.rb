@@ -17,7 +17,7 @@ RSpec.describe "documentation" do
   end
 
   it "releases the version the gem declares" do
-    expect(Oblodai::VERSION).to eq("2.0.0")
+    expect(Oblodai::VERSION).to eq(Gem::Specification.load(File.join(root, "oblodai.gemspec")).version.to_s)
     expect(read.call("CHANGELOG.md")[/^## \[([^\]]+)\]/, 1]).to eq(Oblodai::VERSION)
     %w[README.md README.ru.md].each do |doc|
       expect(read.call(doc)).to include("gem-oblodai%20#{Oblodai::VERSION}")
