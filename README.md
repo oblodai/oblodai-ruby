@@ -11,9 +11,9 @@
 
 Payments, payouts, payment links, splits, static wallets, webhooks — one API key.
 
-<img src="https://img.shields.io/badge/gem-oblodai%201.3.0-E9573F?style=flat-square" alt="gem">
+<img src="https://img.shields.io/badge/gem-oblodai%202.0.0-E9573F?style=flat-square" alt="gem">
 <a href="https://github.com/oblodai/oblodai-ruby/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/oblodai/oblodai-ruby/ci.yml?branch=main&style=flat-square&label=CI" alt="CI"></a>
-<img src="https://img.shields.io/badge/ruby-%E2%89%A5%203.1-CC342D?style=flat-square" alt="Ruby version">
+<img src="https://img.shields.io/badge/ruby-%E2%89%A5%203.2-CC342D?style=flat-square" alt="Ruby version">
 <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-000000?style=flat-square" alt="License: MIT"></a>
 
 [Documentation](https://docs.oblodai.com) · [Dashboard](https://my.oblodai.com) · [Читать по-русски →](README.ru.md)
@@ -24,11 +24,13 @@ Payments, payouts, payment links, splits, static wallets, webhooks — one API k
 
 The official Ruby SDK for the **Oblodai** payment gateway: accepting payments, payouts, bulk
 operations (batches), payment links, payout links (crypto cheques), splits, static wallets,
-transfers, webhooks. Request signing, response parsing, typed errors, idempotency and retries — out
-of the box. Ruby ≥ 3.1 and **zero runtime dependencies** — `Net::HTTP`, `OpenSSL`, `JSON` and
-`SecureRandom` from the standard library are all it uses; every route the gateway exposes has a
-method here, generated from the gateway's own contract snapshot and verified against golden
-responses recorded from a live core.
+transfers, webhooks, documents. Request signing, typed models, typed errors, idempotency and safe
+retries — out of the box. Ruby ≥ 3.2; the one runtime dependency is `bigdecimal` (amounts are
+`BigDecimal`), everything else is the standard library.
+
+Every method, model and enumeration is **generated from the gateway's OpenAPI contract** — one per
+API operation, 120 of them — on top of a small hand-written runtime (transport, signing, retries,
+pagination, webhooks). `names.lock` pins the public names; a name can only disappear on purpose.
 
 > **Base URL.** Defaults to `https://api.oblodai.com`. Override `base_url:` and supply your own keys
 > at initialisation if needed. The scheme must be `https://`; plain `http://` is accepted only for
@@ -39,31 +41,24 @@ responses recorded from a live core.
 
 ```bash
 gem install oblodai
+# or, in a Gemfile: gem "oblodai", "~> 2.0"
 ```
 
-Or in a `Gemfile`:
-
-```ruby
-gem "oblodai", "~> 1.3"
-```
-
-Ruby ≥ 3.1. Webhook verification lives in `oblodai/webhooks` and needs no client and no API key.
-Nothing else is pulled in: the gem and its test suite use the standard library only.
+Ruby ≥ 3.2. Webhook verification lives in `oblodai/webhooks` and needs no client and no API key.
+Coming from 1.x? Read [MIGRATION-2.0.md](MIGRATION-2.0.md): every old method name and its new one.
 
 ## Where to get keys
 
 A merchant has **one API key**, issued in the [dashboard](https://my.oblodai.com) → **API keys**: a
 public id `oblodai_<hex>` and a secret `oblodai_live_<hex>`. It signs every signed route there is —
-invoices, payouts, refunds, links, splits, wallets, settings, documents, the sandbox. There is
-nothing to choose per call and no second pair to keep in sync.
-
-The sandbox pair comes from the sandbox onboarding (`merchants.create_sandbox`, or the dashboard's
-dev store): a public id `test_oblodai_<hex>` and a secret `oblodai_test_<hex>`, driving a chainless
-copy of the gateway. The **onboarding admin token** is a different thing entirely — it belongs to
-the gateway operator, and it authorises only merchant provisioning (`merchants.create`,
-`merchants.create_sandbox`), which is unsigned.
+invoices, payouts, refunds, links, splits, wallets, settings, documents, the sandbox. The sandbox
+pair (`test_oblodai_<hex>` / `oblodai_test_<hex>`) drives a chainless copy of the gateway. The
+**onboarding admin token** is a different thing — it belongs to the gateway operator and reaches only
+the unsigned provisioning route (`sandbox.onboard_store`).
 
 ```ruby
+require "oblodai"
+
 client = Oblodai::Client.new(
   public_id: ENV["OBLODAI_PUBLIC_ID"],
   secret: ENV["OBLODAI_SECRET"]
@@ -71,25 +66,16 @@ client = Oblodai::Client.new(
 ```
 
 Every option falls back to the environment, so the same two variables configure a deployment
-without touching code, and `admin_token:` (or `OBLODAI_ADMIN_TOKEN`) adds the provisioning routes
-when you run the gateway yourself.
-
-> **Legacy split keys.** Merchants onboarded before the single-key cleanup may still hold an old
-> `oblodai_pk_<hex>` (payment) / `oblodai_wk_<hex>` (payout) pair. Those two are the only reason the
-> gateway can still answer 403 `merchant.wrong_key_kind`; a current `oblodai_<hex>` key never sees
-> it. Pass whichever of the old pair fits the call, or ask support to migrate you to one key.
+without touching code.
 
 ## Quick start
 
-Request fields are keyword arguments named exactly as the API names them. Create an invoice:
+Methods are `client.<resource>.<method>`; request fields are keyword arguments named as the API
+names them. Create an invoice:
 
 ```ruby
-require "oblodai"
-
-client = Oblodai::Client.new # credentials from the environment
-
 invoice = client.payments.create(
-  amount: "25",            # amounts are decimal strings, never floats
+  amount: "25",            # a decimal String or a BigDecimal — a Float is refused
   currency: "USDT",        # what you price in — a fiat (USD, EUR, …) or a crypto asset
   network: "tron",         # omit to let the payer choose the network on the pay page
   order_id: "order-1001",  # your reference; idempotent per order_id
@@ -97,6 +83,7 @@ invoice = client.payments.create(
 )
 invoice.url      # the hosted pay page
 invoice.address  # where the customer sends the funds
+invoice.amount   # a BigDecimal
 invoice.status   # "created"
 ```
 
@@ -106,191 +93,240 @@ charge, `to_currency` the asset the payer sends. Send money out with the same ke
 ```ruby
 payout = client.payouts.create(
   address: "TQn9Y2khEsLJW1ChVWFMSMeRDow5KNbBav",
-  amount: "10",
+  amount: BigDecimal("10"),
   currency: "USDT",
   network: "tron",
-  order_id: "payout-1",              # your reference; idempotent per order_id
-  idempotency_key: "payout-1"        # your own key survives a process restart
+  order_id: "payout-1",        # your reference; idempotent per order_id
+  idempotency_key: "payout-1"  # your own key survives a process restart
 )
 payout.uuid
 payout.status    # "pending" → … → "confirmed"
 ```
 
-Runnable scripts live in [`examples/`](examples): `accept_payment.rb`, `payout.rb`,
-`webhook_receiver.rb`.
+Runnable scripts live in [`examples/`](examples): `accept_payment.rb`, `payout.rb`, `sandbox.rb`,
+`webhook_receiver.rb`. They, and every code block of this README, run in the test suite.
 
 ## Sandbox / testing
 
 A sandbox key drives a chainless copy of the gateway: fake balance from a faucet, simulated
 deposits, real webhooks. The business endpoints behave exactly as they do live — only the key
-changes, and a live key on a sandbox route is refused.
+changes.
 
 ```ruby
-sandbox = Oblodai::Client.new(public_id: test_public_id, secret: test_secret)
-sandbox.sandbox.faucet(asset: "USDT", amount: "1000")
+sandbox = Oblodai::Client.new(public_id: ENV["OBLODAI_PUBLIC_ID"], secret: ENV["OBLODAI_SECRET"])
+sandbox.sandbox.faucet(asset: "USDT", amount: "1000", idempotency_key: "topup-1")
 
-invoice = sandbox.payments.create(amount: "25", currency: "USDT", network: "tron", order_id: "sandbox-1")
-
+test_invoice = sandbox.payments.create(amount: "25", currency: "USDT", network: "tron", order_id: "sandbox-1")
 # No amount pays exactly what is due; repeating a txid adds confirmations instead of paying twice.
-deposit = sandbox.sandbox.deposit(invoice_id: invoice.uuid)
+deposit = sandbox.sandbox.simulate_deposit(invoice_id: test_invoice.uuid)
 deposit.txid
 deposit.confirmations
 ```
 
-- `sandbox.faucet` credits test money, capped at 1000000 per call. Give it an
-  `idempotency_key:` when a retry must not top up twice.
-- `sandbox.deposit` pays an invoice: no `amount:` pays exactly what is due, anything else produces
-  an under- or overpayment, and fewer `confirmations:` than required exercises the pending →
-  confirmed transition. Repeating a `txid:` adds confirmations instead of paying twice.
-- `sandbox.webhooks` lists the deliveries with their payloads — what your receiver would have been
-  sent — and `sandbox.replay(delivery_id)` re-sends a terminal one.
-- `webhooks.test(kind, **params)` rehearses a delivery against any receiver, sandbox or live: it is
-  signed exactly like a real event and carries `test: true` in the signed body (and
-  `X-Webhook-Test: true`). Check `delivery.test?` and never act on one as if money moved.
-- `sandbox.reset` cancels the store's open invoices and zeroes its balances.
+- `sandbox.faucet` credits test money. Its `idempotency_key:` goes into the request body (the route
+  deduplicates on it), so a retry never tops up twice.
+- `sandbox.simulate_deposit` pays an invoice: no `amount:` pays exactly what is due, anything else
+  produces an under- or overpayment, and fewer `confirmations:` than required exercises the pending →
+  confirmed transition.
+- `sandbox.list_webhooks` lists the deliveries with their payloads, `sandbox.replay_webhook` re-sends
+  one, `sandbox.reset` cancels the store's open invoices and zeroes its balances.
+- `webhooks.send_test_payment` / `send_test_payout` / `send_test_wallet` / `send_test_conversion`
+  rehearse a delivery against any receiver: signed like a real event, with `test: true` in the body.
 
 ## Method overview
 
-16 namespaces, 107 routes — the whole merchant surface.
+16 namespaces, 120 methods — one per operation of the contract. A method name is the operation's
+`operationId` without the resource name, in snake_case (`createPayout` → `payouts.create`,
+`getBatchInfo` → `batches.get_info`); `Oblodai::Generated::ROUTES` lists every operation by its
+`operationId`.
 
-| Namespace       | Methods                                                                                                                                                                                                  | Routes |
-| --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------ |
-| `payments`      | create · info/get · cancel · history/list · batch · qr · services · send_email · resend · public_view · select · public_qr                                                                                | 12     |
-| `refunds`       | create · resolve · batch                                                                                                                                                                                  | 3      |
-| `payouts`       | create · validate · calculate · info/get · cancel · approve · history/list · mass · batch · services · get/set_fee_config · get/set_refund_fee_config                                                     | 14     |
-| `payout_links`  | create · info/get · list · cancel · batch · cheque · claim_preview · claim                                                                                                                                | 8      |
-| `payment_links` | create · info/get · list · toggle · public_view · checkout                                                                                                                                                | 6      |
-| `transfers`     | to_personal · to_user · batch                                                                                                                                                                             | 3      |
-| `batches`       | info/get (asynchronous batch progress)                                                                                                                                                                    | 1      |
-| `wallets`       | create · qr · block · refund_blocked_deposit                                                                                                                                                              | 4      |
-| `webhooks`      | register · rotate_secret · deliveries · test · test_legacy                                                                                                                                                | 7      |
-| `documents`     | statement · ledger · balance_certificate · fee_schedule · split_report · batch_report · link_report · wallet_statement · referrals_report · create_job · job_info · job_file · download                    | 13     |
-| `splits`        | create_rule · list_rules · delete_rule · get/set_config · get/set_opt_in                                                                                                                                  | 7      |
-| `settings`      | set_discount · list_discounts · get/set_accuracy · get/set_auto_refund · list_accepted · set_accepted · get/set_payment_fee_config · list/set/delete_auto_withdraw · list/add/remove/enable_api_allowlist | 17     |
-| `account`       | balance · referral · vrcs (read and set)                                                                                                                                                                  | 3      |
-| `catalog`       | currencies · exchange_rates                                                                                                                                                                               | 2      |
-| `sandbox`       | faucet · deposit · webhooks · replay · reset                                                                                                                                                              | 5      |
-| `merchants`     | create · create_sandbox (provisioning; `admin_token:` on a self-hosted gateway)                                                                                                                           | 2      |
+| Namespace       | Methods                                                                                                   |
+| --------------- | --------------------------------------------------------------------------------------------------------- |
+| `payments`      | create · get_info · cancel · list_history · get_qr · resolve · send_email · list_services · get_aml_links · get/set_checkout_config |
+| `payment_links` | create · get · list · toggle                                                                              |
+| `refunds`       | payment · blocked_wallet                                                                                  |
+| `payouts`       | create · get_info · cancel · approve · calculate · validate · list_history · list_services · create_mass · create_transfer_batch · transfer_to_personal · transfer_to_user |
+| `payout_links`  | create · get · list · cancel · create_batch · get_payout_claim · claim_payout                             |
+| `batches`       | create_payment · create_payout · create_refund · get_info                                                 |
+| `splits`        | create_rule · list_rules · delete_rule · get/set_config · get/set_recipient_opt_in                        |
+| `wallets`       | create · get_qr · block                                                                                   |
+| `account`       | get_balance · get_summary · list_exchange_rates                                                           |
+| `webhooks`      | register · rotate_secret · set_active · list_deliveries · requeue_delivery · resend_payment · send_test_payment/payout/wallet/conversion · send_legacy_test |
+| `settings`      | get/set_accuracy · get/set_auto_convert · get/set_auto_refund · list_discounts · set_discount · list/set_accepted_currencies · get/set_payment_fee_config · get/set_payout_fee_config · get/set_refund_fee_config · list/set/delete_auto_withdraw_rule(s) · list_api_log · configure_vrcs |
+| `api_allowlist` | list · add_entry · remove_entry · set_enabled                                                             |
+| `referrals`     | get_info                                                                                                  |
+| `documents`     | get_statement · get_ledger · get_balance · get_fees · get_batch · get_payment_link · get_split · get_wallet_statement · get_referrals · get_signed · get_payout_link_cheque · create_job · get_job · download_job_file |
+| `checkout`      | get · get_qr · select_method · get_onramp · start_onramp · get_public_payment_link · payment_link · list_currencies · get/submit_source_of_funds(_form) |
+| `sandbox`       | faucet · simulate_deposit · list_webhooks · replay_webhook · reset · onboard_store                        |
 
-A keyword left at `nil` is omitted from the body rather than sent as an explicit `null` (the gateway
-reads both as "not supplied"). Alongside the request fields every method accepts `idempotency_key:`,
-`timeout_ms:` and `deadline_ms:`; a misspelled option is refused by name
-(`sdk.bad_config`) instead of failing deep inside the SDK.
+The request body of a method comes three ways — keywords, a Hash with the wire names, or a request
+model — and keywords add to a Hash or a model. Path parameters are positional (`checkout.get(id)`),
+query parameters of the `GET` routes are keywords. Every method also takes the five **call options**:
+`idempotency_key:`, `timeout:` (seconds, per attempt), `max_retries:`, `extra_headers:` and
+`request_id:` (sent as `X-Request-ID`; a UUID is generated per call otherwise).
 
-Lookups take a bare uuid, either keyword, or the model the SDK returned:
-`payments.info("uuid")`, `payments.info(uuid: "uuid")`, `payments.info(order_id: "o-1")`,
-`payments.info(invoice)`. The same holds for every id argument (`payout_links.info(link)`,
-`batches.info(batch)`, `splits.delete_rule(rule)`).
+```ruby
+client.payments.get_info(uuid: invoice.uuid)                                    # keywords
+client.payments.get_info({ "order_id" => "order-1001" })                        # a Hash, wire names
+client.payments.get_info(Oblodai::Models::LookupRequest.new(order_id: "order-1001")) # a request model
+client.payments.get_info(order_id: "order-1001", timeout: 5, max_retries: 0, request_id: "checkout-42")
+```
 
-Synchronous batches are capped by the gateway — `payouts.mass` at 100 elements and
-`payout_links.batch` at 500 — with each element reporting its own `{idx, ok, result, message}`.
-The asynchronous ones (`payments.batch`, `payouts.batch`, `refunds.batch`, `transfers.batch`) take
-up to 5000 and are polled with `batches.info(id, limit:, offset:)`. Document routes answer outside the JSON envelope
-and return an `Oblodai::FileResult`.
+A misspelled keyword is Ruby's own `ArgumentError`, raised before anything is sent. A keyword left at
+`nil` is not sent; the few fields where `null` means something (documented as "An explicit nil sends
+null") send `null` when you pass `nil` explicitly.
 
 ### Models
 
-Responses come back as frozen model objects whose attributes are the wire's own snake_case names,
-plus `to_h` for the raw shape. A field the gateway adds after this release is not lost — it stays
-readable through `model[:new_field]` and `to_h`.
+Responses are frozen `Oblodai::Models::*` objects with one reader per field. Amounts are
+`BigDecimal`; enumerations are plain Strings with their values named in `Oblodai::Enums::*`, so a
+value this release does not know yet parses like any other; fields newer than this release are kept
+in `extra`. `to_h` is the wire form, `inspect` is short and never shows a secret.
 
 ```ruby
-payment = client.payments.info(order_id: "order-1001")
-payment.status        # "paid"
-payment.paid?         # true for paid / paid_over
-payment.amount_paid   # "25.000000" — a String
-payment.tx_list.first.txid
-payment.to_h          # the exact JSON object the gateway sent, symbol-keyed
+payment = client.payments.get_info(order_id: "order-1001")
+payment.status                                  # "paid"
+payment.status == Oblodai::Enums::PaymentStatus::PAID
+Oblodai::Status.payment_paid?(payment.status)   # true for paid / paid_over
+payment.amount                                  # BigDecimal
+payment.extra                                   # fields newer than this release, as sent
+payment.to_h                                    # the wire form, amounts as decimal strings
 ```
 
 ### Lists
 
-List methods return a lazy `Oblodai::Page`. It is `Enumerable` over every item of every page, and
-`first_page` gives one page with its counters. Nothing is requested until you consume it.
+List methods return a lazy `Oblodai::Page`. `each` walks every item of every page, `each_page` (or
+`by_page`) every page, and `first_page` fetches one page with its counters. Nothing is requested
+until you consume it.
 
 ```ruby
-client.payments.history(limit: 50).each { |payment| puts payment.uuid }   # walks all pages
-page = client.payouts.history(status: "confirmed", limit: 50).first_page  # one request
+client.payments.list_history(limit: 50).each { |item| puts item.uuid }       # every item
+client.payouts.list_history(limit: 50).each_page { |page| puts page.size }  # every page
+page = client.payouts.list_history(status: "confirmed", limit: 50).first_page # one request
 page.items.size
-page.paginate.total
-page.paginate.has_pages
-client.payouts.history(kind: "refund").all(1000)   # at most 1000 items
-client.payments.history(limit: 10).first(3)        # stops after the first page
+page.total
+page.has_pages?
+client.payouts.list_history(kind: "refund").all(1000) # at most 1000 items
 ```
+
+### Long-running operations
+
+Batches and document jobs return an `Oblodai::Job`: the create answer is `job.result`, and
+`job.wait` polls until the job is finished — `completed` or `stopped` for a batch, `done`, `failed`
+or `expired` for a document job — and returns the last answer. A document job's file is
+`job.download`.
+
+```ruby
+job = client.batches.create_payout(
+  payouts: [{ address: "TQn9Y2khEsLJW1ChVWFMSMeRDow5KNbBav", amount: "5", currency: "USDT",
+              network: "tron", order_id: "batch-1-a" }]
+)
+job.id
+info = job.wait(timeout: 600, interval: 5)
+info.status # "completed"
+
+report = client.documents.create_job(kind: "ledger", from: "2026-01-01", to: "2026-02-01", format_: "csv")
+report.wait
+report.download.save("ledger.csv")
+```
+
+### Raw responses, per-client options, hooks
+
+```ruby
+raw = client.payments.with_raw_response.create(amount: "25", currency: "USDT", order_id: "order-1002")
+raw.status      # 200
+raw.request_id  # the response's X-Request-ID, else the one the SDK sent
+raw.parse       # the PaymentView the method returns otherwise
+
+patient = client.with_options(timeout: 120, max_retries: 5) # a copy; the original is unchanged
+patient.documents.get_ledger(from: "2026-01-01", to: "2026-12-31")
+
+hooks = Oblodai::Hooks.new(
+  on_request: ->(info) { puts "-> #{info.method} #{info.url} (#{info.request_id})" },
+  on_response: ->(info) { puts "<- #{info.status} in #{info.elapsed.round(3)}s" }
+)
+observed = Oblodai::Client.new(hooks: hooks)
+observed.account.get_balance
+```
+
+Hooks run once per attempt, on the calling thread; the signature and the admin token are redacted in
+the headers they see.
 
 ### Statuses
 
 - Payment: `select → created → confirm_check → paid | paid_over | wrong_amount | expired | cancelled`.
-  `payment.paid?` is true for `paid`/`paid_over`; `wrong_amount` (underpaid) waits for
-  `refunds.resolve(uuid:, action: "accept" | "refund")`; `payment.final?` covers the rest.
+  `Oblodai::Status.payment_paid?` is true for `paid`/`paid_over`; `wrong_amount` (underpaid) waits
+  for `payments.resolve(uuid:, action: "accept" | "refund")`.
 - Payout: `pending → approved → awaiting_cosign → broadcasting → sent → confirmed | failed | cancelled`.
 
-Prefer webhooks for state changes; poll `info` only as a fallback.
+Prefer webhooks for state changes; poll `get_info` only as a fallback.
 
 ### Money helpers
 
-`Oblodai::Money.add`, `.subtract`, `.compare`, `.equals?`, `.zero?`, `.negative?`, `.valid?` — exact
-decimal arithmetic on the string amounts the API uses. Never `to_f` an amount, and never order
-amounts with `<`, `sort` or `max`: `"9" < "10"` is true as strings and false as money. Anything that
-is not `-?digits[.digits]` of at most 64 characters raises `Oblodai::ConfigError` (`sdk.bad_amount`)
-rather than a `TypeError` from inside a helper.
+Amounts are `BigDecimal` in the models and a decimal String or a `BigDecimal` in requests — a
+`Float` anywhere a number is money is `sdk.float_amount`, raised before anything is sent.
+`Oblodai::Money.add`, `.subtract`, `.compare`, `.equals?`, `.zero?`, `.negative?` work on either and
+keep the widest scale:
+
+```ruby
+Oblodai::Money.add("10.000000", BigDecimal("0.5")) # => "10.500000"
+Oblodai::Money.compare("9", "10")                  # => -1 (as strings "9" > "10")
+```
 
 ## Webhooks
 
-`webhooks.register(url)` sets (or replaces) the endpoint and returns the signing secret — shown
+`webhooks.register(url:)` sets (or replaces) the endpoint and returns the signing secret — shown
 once, so store it where the receiver can read it. Verification needs no client and no API key, and
 always runs over the **raw** bytes: a re-serialized parse will not verify.
 
 ```ruby
 require "oblodai/webhooks"
 
-post "/oblodai/webhook" do
-  body = request.body.read # the RAW bytes — a re-serialized parse will not verify
-  delivery = Oblodai::Webhooks.verify_delivery(body, request.env, secret: ENV["OBLODAI_WEBHOOK_SECRET"])
-  halt 200 if delivery.test? # a rehearsal: signed like a live one, but no money moved
-  event = delivery.event
+# The raw body and the request headers in, an HTTP status out.
+def receive(body, headers, secret)
+  delivery = Oblodai::Webhooks.verify_delivery(body, headers, secret: secret)
+  return 200 if delivery.test? # a rehearsal: signed like a live one, but no money moved
 
-  case event.type
-  when "payment" then mark_order_paid(event.order_id) if event.status == "paid"
-  when "payout"  then record_payout(event.uuid, event.status)
-  when "wallet"  then credit_customer(event.address, event.payment_amount)
+  case (event = delivery.event)
+  when Oblodai::Models::PaymentWebhook then puts "order #{event.order_id}: #{event.status}"
+  when Oblodai::Models::PayoutWebhook then puts "payout #{event.uuid}: #{event.status}"
+  when Oblodai::Models::WalletWebhook then puts "wallet #{event.address}: +#{event.payment_amount}"
   end
-  status 200
+  200
+rescue Oblodai::SignatureError
+  401 # forged or stale
+rescue Oblodai::WebhookPayloadError
+  400 # authentic, but unreadable — never 401
 end
 ```
 
 The checks run in one order: headers, then the HMAC (the current secret, then `previous_secret:`),
 then freshness, then the body — the MAC before the clock, so the freshness window is not an oracle
 for an unauthenticated caller. Deliveries older or newer than ±300 s are rejected (`tolerance:`
-changes the window, `0` disables it; a negative one is a `ConfigError`, as is an empty `secret:` or
-`previous_secret:`).
+changes the window, `0` disables it).
 
 **The receiver's status-code rule.** Answer 401 **only** when verification failed — a forged or
 stale delivery raises `SignatureError`. An authentic delivery whose body this release cannot read is
-a `WebhookPayloadError` (`webhook.bad_payload`) instead, a contract error rather than a signature
-one: the event is real and the gateway will retry it, so a 401-on-signature-failure receiver does
-not reject a genuine event it merely could not parse. An event `type` a newer gateway invented does
-not raise either: it arrives as `Oblodai::Models::UnknownEvent` with its raw `type` and fields —
-narrow with `Oblodai::Webhooks.known_event?(event)` before switching on `type`.
+a `WebhookPayloadError` (`webhook.bad_payload`): the event is real and the gateway will retry it. An
+event `type` a newer gateway invented does not raise either: it arrives as the parsed body (a frozen
+Hash) — `Oblodai::Webhooks.known_event?(event)` tells the two apart.
 
-Rehearsal deliveries (`webhooks.test`, sandbox) are signed exactly like live ones and carry
-`test: true` in the body (and `X-Webhook-Test: true`): check `delivery.test?` — or
-`Oblodai::Webhooks.test_event?(event)` when you only have the parsed event — and never act on one as
-if money moved. `delivery.id` (`X-Webhook-Id`) is stable across retries — deduplicate on it;
-`event.sequence` orders events (`Oblodai::Webhooks.stale?(event, last_sequence)`, false whenever the
-sequence is missing). After `webhooks.rotate_secret` pass `previous_secret:` for at least 26 hours:
-deliveries queued before the rotation stay signed with the old secret for their whole retry life.
+Rehearsal deliveries carry `test: true` in the signed body (and `X-Webhook-Test: true`): check
+`delivery.test?` and never act on one as if money moved. `delivery.id` (`X-Webhook-Id`) is stable
+across retries — deduplicate on it; `Oblodai::Webhooks.stale?(event, last_sequence)` drops an
+out-of-order retry. After `webhooks.rotate_secret` pass `previous_secret:` for at least 26 hours.
 
 ## Errors
 
-Every failure is an `Oblodai::Error` carrying the API's error envelope. Branch on `code` — a stable
-`family.reason` string — never on the message.
+Every failure is an `Oblodai::Error` carrying the API's error envelope; its message reads
+`[code] text (request_id=…)`, ready for a log line. Branch on `code` — a stable `family.reason`
+string — never on the message.
 
-| Class                       | HTTP          | When                                                            |
-| --------------------------- | ------------- | ---------------------------------------------------------------- |
+| Class                       | HTTP          | When                                                              |
+| --------------------------- | ------------- | ----------------------------------------------------------------- |
 | `ValidationError`           | 400           | malformed request or a business rule; `field` names the culprit   |
 | `AuthenticationError`       | 401           | bad signature, unknown key, clock skew, IP not allow-listed       |
-| `PermissionError`           | 403           | valid key, not allowed here (wrong key kind, feature off)         |
+| `PermissionError`           | 403           | valid key, not allowed here (feature off, IP not allow-listed)    |
 | `NotFoundError`             | 404           | no such object for this merchant                                  |
 | `ConflictError`             | 409           | a state conflict                                                  |
 | `IdempotencyConflictError`  | 409           | `idempotency.key_reused`: same key, different body                |
@@ -299,87 +335,86 @@ Every failure is an `Oblodai::Error` carrying the API's error envelope. Branch o
 | `InternalError`             | other 5xx     | the gateway failed                                                |
 | `ApiError`                  | anything else | an error status that still carried an envelope                    |
 | `TransportError`            | —             | no response at all: DNS, TCP, TLS, timeout, deadline              |
-| `ConfigError`               | —             | refused before sending: bad options, missing credentials          |
+| `ConfigError`               | —             | refused before sending: bad options, a Float amount, no credentials |
 | `ContractError`             | —             | the answer could not be read as the documented envelope           |
 | `WebhookPayloadError`       | —             | an authentic webhook whose body cannot be read — do not answer 401 |
 | `SignatureError`            | —             | a webhook that is not authentic                                   |
 
-Fields: `code`, `message`, `http_status`, `retryable?` (authoritative — the SDK has already retried
-what it should), `retry_after` (seconds), `request_id` (quote it to support), `field` (on 400s),
-`synthetic?` (the answer came from a proxy, not the API).
+Fields: `code`, `text` (the bare description), `http_status`, `retryable?` (authoritative — the SDK
+has already retried what it should), `retry_after` (seconds), `request_id` (quote it to support),
+`field` (on 400s), `synthetic?` (the answer came from a proxy, not the API).
 
 ```ruby
 begin
-  client.payouts.create(**params)
+  client.payouts.create(address: "TQn9Y2khEsLJW1ChVWFMSMeRDow5KNbBav", amount: "10", currency: "USDT",
+                        network: "tron", order_id: "payout-2")
 rescue Oblodai::Error => e
-  case e.code
-  when "payout.insufficient_funds", "payout.funds_maturing" # retryable — the balance may still arrive
-    schedule_retry(e.retry_after || 60)
-  else
-    raise # the SDK already retried what was safe to retry
-  end
+  warn e.message # "[payout.insufficient_funds] … (request_id=…)"
+  raise unless e.retryable?
 end
 ```
 
-The catalogue is `Oblodai::Enums::ERROR_CODES` — all 469 error codes the gateway can answer with,
-shipped in the contract snapshot. Codes worth handling first: `payout.insufficient_funds` and
-`payout.funds_maturing` (both retryable), `idempotency.key_reused`, `invoice.not_payable`,
-`payment.not_found`, `merchant.bad_signature`, `request.rate_limited`.
-The SDK raises its own families on top, all before or instead of a request:
-`sdk.missing_credentials`, `sdk.bad_config`, `sdk.bad_idempotency_key`,
-`sdk.idempotency_unsupported`, `sdk.bad_path_param`, `sdk.bad_header`, `sdk.bad_amount`,
-`sdk.response_too_large`, `sdk.bad_envelope`; plus `transport.timeout`, `transport.network`,
-`transport.deadline` and the webhook family `webhook.missing_header`, `webhook.bad_signature`,
-`webhook.stale_timestamp`, `webhook.bad_payload`.
+The catalogue is `Oblodai::Enums::ErrorCode::VALUES`, and every method's documentation lists the
+codes it can answer with. Codes worth handling first: `payout.insufficient_funds` and
+`payout.funds_maturing` (both retryable), `idempotency.key_reused`, `payment.not_found`,
+`merchant.bad_signature`, `request.rate_limited`.
 
-`e.to_h` / `e.to_json` keep the message and drop the raw response body, so a structured log never
-prints an API payload; `e.raw_body` still returns it for debugging.
+The SDK raises its own families on top, all before or instead of a request: `sdk.missing_credentials`,
+`sdk.bad_config`, `sdk.float_amount`, `sdk.bad_amount`, `sdk.bad_body`, `sdk.bad_idempotency_key`,
+`sdk.idempotency_unsupported`, `sdk.bad_path_param`, `sdk.bad_header`, `sdk.response_too_large`,
+`sdk.bad_envelope`; plus `transport.timeout`, `transport.network`, `transport.deadline` and the
+webhook family `webhook.missing_header`, `webhook.bad_signature`, `webhook.stale_timestamp`,
+`webhook.bad_payload`. `e.to_h` / `e.to_json` drop the raw response body; `e.raw_body` returns it.
 
 ## Retries, idempotency and timeouts
 
-- **Safe to repeat** is not guessed: `Oblodai::Contract::ROUTES[key].safe` is the gateway's own
-  read-only classification, shipped in the contract snapshot.
+- **Safe to repeat** is not guessed: `Oblodai::Generated::ROUTES[op].safe` comes from the contract's
+  `x-retry-safe` (read-only operations).
 - An error is retried only when the API says `retryable: true`. Answers without an API envelope (a
-  proxy 502/503) and transport failures are retried only on read routes and on keyed writes.
+  proxy 502/503) and transport failures are retried only on safe routes and on keyed writes.
   `Retry-After` is honoured over the computed backoff.
-- **Idempotency keys** are attached automatically on create-type routes — one per logical call,
-  reused on every retry — so a timeout can never produce a second payout. Pass your own
+- **Idempotency keys** are attached automatically on the routes the gateway deduplicates — one per
+  call, reused on every retry — so a timeout can never produce a second payout. Pass your own
   `idempotency_key:` to make retries safe across process restarts; on routes the gateway does not
-  deduplicate (list routes included) the SDK refuses a key with `sdk.idempotency_unsupported`
-  rather than let you believe a re-send is safe, and an unusable key is `sdk.bad_idempotency_key`.
-- **Per call:** `idempotency_key:`, `timeout_ms:`, `deadline_ms:`.
-  **Per client:** `timeout_ms:` (per attempt, 30 s), `deadline_ms:` (attempts plus pauses, 90 s),
+  deduplicate the SDK refuses a key with `sdk.idempotency_unsupported`.
+- **Timeouts are seconds.** Per call: `timeout:` (per attempt). Per client: `timeout:` (per attempt,
+  30), `deadline:` (the whole call with retries and pauses, 90),
   `retry_policy: { max_retries:, base_delay_ms:, max_delay_ms:, max_retry_after_ms: }`
-  (`{ max_retries: 0 }` disables retries). A `retry_after` hint is reported up to 24 h and slept for
-  at most `max_retry_after_ms` (30 s).
+  (`{ max_retries: 0 }` disables retries); `max_retries:` per call overrides it.
 - **Clock skew.** On a 401 that reports a bad signature or timestamp the SDK reads the server `Date`,
-  re-signs once, and keeps the offset only if that attempt got past authentication. The offset is
-  shared safely between threads: a correction is reverted only while no other call has moved it.
-- **Redirects are never followed**: a signed request must not be replayed against another origin, so
-  a redirect is reported as an error — including one an injected HTTP adapter followed on its own.
-- **Body size caps**: 8 MiB on JSON routes, 64 MiB on document routes — a larger answer is
-  `sdk.response_too_large` rather than something buffered into memory.
-- **Reserved headers** win over a caller's `headers:`, compared case-insensitively: `X-Public-Id`,
-  `X-Signature`, `X-Timestamp`, `Idempotency-Key`, `X-Admin-Token`, `Accept`, `User-Agent`,
-  `Content-Type`, `Content-Length`, `Host`. A header carrying a line break or a non-ASCII byte is
-  refused with `sdk.bad_header` before anything is sent.
+  re-signs once, and keeps the offset only if that attempt got past authentication.
+- **Redirects are never followed**, **bodies are capped** (8 MiB JSON, 64 MiB documents), and the
+  SDK's own headers (`X-Public-Id`, `X-Signature`, `X-Timestamp`, `Idempotency-Key`,
+  `X-Request-ID`, `X-Admin-Token`, `Accept`, `User-Agent`, `Content-Type`, `Content-Length`, `Host`)
+  win over a caller's; a header with a line break or a non-ASCII byte is `sdk.bad_header`.
 
 ## Configuration
 
-| Option                          | What it does                                                                   |
-| ------------------------------- | -------------------------------------------------------------------------------- |
-| `public_id:` / `secret:`        | the merchant's API key; it signs every signed route                                |
-| `base_url:`                     | the API origin; a path prefix is kept                                             |
-| `allow_insecure_base_url:`      | permit plain `http://` for a non-loopback host                                    |
-| `admin_token:`                  | onboarding admin token of a self-hosted gateway (provisioning routes only)        |
-| `http:`                         | your own HTTP adapter: proxy, instrumentation, a recorded fake                    |
-| `timeout_ms:`                   | per-attempt timeout (default 30 000)                                              |
-| `deadline_ms:`                  | budget for one call including retries and pauses (default 90 000)                 |
-| `retry_policy:`                 | retry policy overrides; `{ max_retries: 0 }` disables retries                     |
-| `logger:`                       | anything with `debug/info/warn/error(message, fields)`                            |
-| `headers:`                      | extra headers on every request (reserved names are ignored)                       |
+```ruby
+configured = Oblodai::Client.new(
+  base_url: "https://api.oblodai.com",
+  timeout: 30,                          # seconds per attempt
+  deadline: 90,                         # seconds for the whole call
+  retry_policy: { max_retries: 2 },
+  headers: { "X-Team" => "checkout" }
+)
+configured.base_url
+```
 
-| Environment variable       | Meaning                                                          |
+| Option                          | What it does                                                                   |
+| ------------------------------- | ------------------------------------------------------------------------------ |
+| `public_id:` / `secret:`        | the merchant's API key; it signs every signed route                            |
+| `base_url:`                     | the API origin; a path prefix is kept                                          |
+| `allow_insecure_base_url:`      | permit plain `http://` for a non-loopback host                                 |
+| `admin_token:`                  | onboarding admin token of a self-hosted gateway (provisioning only)            |
+| `http:`                         | your own HTTP adapter: anything answering `call(request, timeout:)`            |
+| `timeout:` / `deadline:`        | seconds per attempt (30) / for the whole call (90)                             |
+| `retry_policy:`                 | retry policy overrides; `{ max_retries: 0 }` disables retries                  |
+| `logger:`                       | anything with `debug/info/warn/error(message, fields)`                         |
+| `headers:`                      | extra headers on every request (reserved names are ignored)                    |
+| `hooks:`                        | `Oblodai::Hooks.new(on_request:, on_response:)`                                |
+
+| Environment variable       | Meaning                                                            |
 | -------------------------- | ------------------------------------------------------------------ |
 | `OBLODAI_PUBLIC_ID`        | API key public id                                                  |
 | `OBLODAI_SECRET`           | API key secret                                                     |
@@ -388,63 +423,30 @@ prints an API payload; `e.raw_body` still returns it for debugging.
 | `OBLODAI_LOG`              | `debug` \| `info` \| `warn` \| `error` — enables a stderr logger    |
 | `OBLODAI_ALLOW_INSECURE`   | `1` permits a plain `http://` base URL                             |
 
-Explicit options win over the environment, and an empty variable counts as unset. Half a key pair
-(an id without its secret, or the other way round) is refused at construction with `sdk.bad_config`;
-missing credentials surface later, on the first call that needs them.
+Explicit options win over the environment, and an empty variable counts as unset. Half a key pair is
+refused at construction with `sdk.bad_config`. The client, its config, its transport and its
+credentials never print a secret, and log fields whose name looks like a secret are redacted before
+any logger sees them.
 
-**Secrets never print.** `WebhookEndpoint#secret`, `WebhookSecretRotated#secret`, `ApiKeyPair#secret`,
-`PayoutLink#claim_token` and `PayoutLink#passcode` read normally through their own accessor and
-render as `"[redacted]"` in `to_h`, `to_json` and `inspect`, so a debug log or an audit record
-cannot carry them — store them by reading the accessor, not by serialising the model. The same holds
-for the client, its config, its transport and its credentials, and log fields whose name looks like
-a secret are redacted before the value reaches any logger.
+## Generated code
 
-**Self-hosted or local gateway.** `base_url: "http://127.0.0.1:8095"` works out of the box; any
-other plain-http host needs `allow_insecure_base_url: true` (or `OBLODAI_ALLOW_INSECURE=1`). A path
-prefix in the base URL is kept, so `https://gw.corp/oblodai` reaches
-`https://gw.corp/oblodai/v1/payment` — and the signature covers the prefixed path. Need a different
-HTTP stack? Pass `http:` — anything answering `call(request, timeout_ms:)` with an
-`Oblodai::HTTP::Response`. The request carries `max_bytes` (the ceiling for that route) and the
-response may carry the `url` it was answered from; an adapter that followed a redirect is detected
-and refused.
-
-## The contract snapshot
-
-`contract/` is exported by the gateway's own test suite: the route registry (107 routes, each with
-the gateway's own `safe` flag, auth gate, idempotency behaviour and list kind), request DTO schemas
-with English field docs, every vocabulary and all 469 error codes, signing vectors, golden response
-bodies recorded from a live gateway and 43 real signed webhook deliveries. It ships with the gem and
-is readable at `Oblodai.contract_path`. `lib/oblodai/contract/` is generated from it and is never
-edited by hand; `Oblodai::Contract::CORE_COMMIT`, `EXPORTED_AT` and `CONTRACT_HASH` identify the
-snapshot in use (core commit `2cc44c16`).
-
-```bash
-rake codegen   # regenerate routes.rb, enums.rb, requests.rb after refreshing contract/
-rake drift     # CI gate: fail when the committed code is not what codegen produces
-```
-
-The machine-readable surface ships with the gem too: `Oblodai::Contract::ROUTES` (107 routes),
-`Oblodai::Contract::REQUESTS` (every documented request field with its type, vocabulary and English
-description) and `Oblodai::Enums::*` (statuses, networks, fee bearers, event types, error codes).
-The contract tier of the suite is a completeness gate, not a sample: every route must have a method
-wired to the right path, auth gate and idempotency behaviour, and every recorded response body must
-decode into a model whose fields match the wire key for key.
+`lib/oblodai/generated/` — routes, enums, models and resources — is written by `tools/sdkgen` of the
+backend repository from the gateway's `services/core/api/openapi.json`, and is never edited by hand.
+`names.lock` lists every public `resource.method`; the generator refuses to drop one unless told to.
+`make ci` regenerates into a temporary directory and fails when the committed code differs.
 
 ## Development
 
 ```bash
 git clone https://github.com/oblodai/oblodai-ruby && cd oblodai-ruby
-bundle install
-rake ci          # rubocop + contract drift + unit and contract specs
-rake yard        # the YARD reference into doc/
-OBLODAI_LIVE_URL=http://127.0.0.1:8095 rake spec:live   # the live journeys against a real gateway
-gem build oblodai.gemspec
+make ci      # drift check, rubocop, unit + contract + conformance specs, gem build (Ruby in docker if absent)
+OBLODAI_BACKEND=../oblodai-backend make ci   # the backend checkout with tools/sdkgen and the conformance suite
+OBLODAI_LIVE_URL=http://127.0.0.1:8095 bundle exec rake spec:live   # the live journeys against a real gateway
 ```
 
-Source files stay under ~400 lines, and specs live next to what they test. Read
-[AGENTS.md](AGENTS.md) for the same surface in one page, written for coding agents;
-[CHANGELOG.md](CHANGELOG.md) for what changed; [MIGRATION-1.3.md](MIGRATION-1.3.md) for the move
-from 1.2.
+Read [AGENTS.md](AGENTS.md) for the same surface in one page, written for coding agents;
+[CHANGELOG.md](CHANGELOG.md) for what changed; [MIGRATION-2.0.md](MIGRATION-2.0.md) for the move from
+1.x.
 
 ## License
 

@@ -9,14 +9,14 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        ruby-version: ['3.1', '3.2', '3.3']
+        ruby-version: ['3.2', '3.3', '3.4']
     steps:
       - uses: actions/checkout@v4
       - uses: ruby/setup-ruby@v1
         with:
           ruby-version: ${{ matrix.ruby-version }}
           bundler-cache: true
-      # rubocop + contract drift + the unit and contract specs — the same gate `rake ci` runs locally.
+      # rubocop + unit, contract and conformance specs (conformance skips without a backend checkout).
       - name: rake ci
         run: bundle exec rake ci
       # The gem must package from a clean tree on every supported runtime, not only at release time.
