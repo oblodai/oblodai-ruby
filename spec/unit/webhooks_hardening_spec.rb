@@ -6,8 +6,8 @@
 RSpec.describe "#{Oblodai::Webhooks} hardening" do
   let(:ts) { 1_755_600_000 }
   let(:body) do
-    JSON.generate(type: "payment", uuid: "u1", order_id: "o", status: "paid", is_final: true,
-                  sequence: 7, event_at: "2026-01-01T00:00:00Z")
+    JSON.generate(Samples.body("PaymentWebhook", "type" => "payment", "uuid" => "u1", "order_id" => "o",
+                                                 "status" => "paid", "is_final" => true, "sequence" => 7))
   end
 
   def sign(raw, secret = "whsec", when_sent = ts)
@@ -113,11 +113,11 @@ RSpec.describe "#{Oblodai::Webhooks} hardening" do
     it "comes back verbatim instead of raising" do
       delivery = Oblodai::Webhooks.verify_delivery(raw, headers(raw), secret: "whsec", now: ts)
       event = delivery.event
-      expect(event).to be_a(Oblodai::Models::UnknownEvent)
-      expect(event.type).to eq("settlement")
+      expect(event).to be_a(Hash)
+      expect(event["type"]).to eq("settlement")
       expect(Oblodai::Webhooks.known_event?(event)).to be(false)
-      expect(event[:amount]).to eq("5") # unknown fields are kept, not dropped
-      expect(event.to_h[:uuid]).to eq("s1")
+      expect(event["amount"]).to eq("5") # unknown fields are kept, not dropped
+      expect(event).to be_frozen
     end
 
     it "still works with the test and staleness helpers" do
@@ -130,7 +130,7 @@ RSpec.describe "#{Oblodai::Webhooks} hardening" do
 
   describe "helpers never raise on a shape they did not expect" do
     it "treats a missing or non-integer sequence as not stale" do
-      no_sequence = Oblodai::Models::PaymentEvent.from("type" => "payment", "uuid" => "u")
+      no_sequence = { "type" => "payment", "uuid" => "u" }
       expect(Oblodai::Webhooks.stale?(no_sequence, 5)).to be(false)
       expect(Oblodai::Webhooks.stale?({ "sequence" => "7" }, 5)).to be(false)
       expect(Oblodai::Webhooks.stale?({ "sequence" => 7 }, nil)).to be(false)

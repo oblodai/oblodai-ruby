@@ -55,7 +55,7 @@ RSpec.describe Oblodai::Envelope do
 
     it "falls back to HTTP <status> when the message is not a string" do
       error = described_class.decode(400, '{"error":{"code":"payment.bad_amount","message":{"a":1}}}').error
-      expect(error.message).to eq("HTTP 400 (payment.bad_amount)")
+      expect(error.message).to eq("[payment.bad_amount] HTTP 400 (payment.bad_amount)")
       expect(error.field).to be_nil
     end
 

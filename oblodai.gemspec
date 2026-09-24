@@ -11,10 +11,11 @@ Gem::Specification.new do |spec|
   spec.summary = "Official Ruby SDK for the Oblodai crypto payment gateway"
   spec.description = "Invoices, payouts, refunds, payout links, static wallets, webhooks and " \
                      "documents — the whole Oblodai merchant API, generated from the gateway's " \
-                     "own contract snapshot and verified against it. Zero runtime dependencies."
+                     "OpenAPI contract. Keyword arguments, BigDecimal amounts, frozen models, " \
+                     "safe retries, waiters for batches and document jobs."
   spec.homepage = "https://oblodai.com"
   spec.license = "MIT"
-  spec.required_ruby_version = ">= 3.1"
+  spec.required_ruby_version = ">= 3.2"
 
   spec.metadata = {
     "homepage_uri" => spec.homepage,
@@ -27,10 +28,12 @@ Gem::Specification.new do |spec|
 
   spec.files = Dir[
     "lib/**/*.rb",
-    "contract/*.json",
-    "contract/fixtures/*.json",
-    "contract/errors/*.json",
-    "README.md", "README.ru.md", "CHANGELOG.md", "MIGRATION-1.3.md", "AGENTS.md", "LICENSE"
+    "examples/*.rb",
+    "names.lock",
+    "README.md", "README.ru.md", "CHANGELOG.md", "MIGRATION-2.0.md", "MIGRATION-1.3.md", "AGENTS.md", "LICENSE"
   ]
   spec.require_paths = ["lib"]
+
+  # Amounts are BigDecimal; from Ruby 3.4 on it is a bundled gem, no longer part of the default set.
+  spec.add_dependency "bigdecimal", ">= 3.1"
 end

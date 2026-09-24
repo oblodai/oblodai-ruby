@@ -62,6 +62,14 @@ RSpec.describe Oblodai::Config do
       .to eq(secret: "[redacted]", nested: { signature: "[redacted]", route: "r" })
   end
 
+  it "takes timeouts in seconds" do
+    config = described_class.new(timeout: 2.5, deadline: 20, env: {})
+    expect([config.timeout, config.deadline]).to eq([2.5, 20])
+    expect(described_class.new(env: {}).timeout).to eq(30)
+    expect { described_class.new(deadline: 0, env: {}) }
+      .to raise_error(Oblodai::ConfigError) { |e| expect(e.field).to eq("deadline") }
+  end
+
   it "accepts retry overrides" do
     config = described_class.new(retry_policy: { max_retries: 0 }, env: {})
     expect(config.retry_policy.max_retries).to eq(0)
@@ -85,7 +93,7 @@ RSpec.describe Oblodai::Money do
         .to raise_error(Oblodai::ConfigError) { |e| expect(e.code).to eq("sdk.bad_amount") }
       expect(described_class.valid?(bad)).to be(false)
     end
-    expect { described_class.compare(25, "25") }.to raise_error(Oblodai::ConfigError, /expected a string/)
+    expect { described_class.compare(25, "25") }.to raise_error(Oblodai::ConfigError, /expected a String/)
   end
 end
 
@@ -98,28 +106,5 @@ RSpec.describe Oblodai::Status do
     expect(described_class).not_to be_payout_final("sent")
     expect(described_class).to be_payout_final("confirmed")
     expect(described_class).to be_payout_succeeded("confirmed")
-  end
-end
-
-RSpec.describe Oblodai::Models::Model do
-  let(:payment) do
-    Oblodai::Models::Payment.from("uuid" => "u", "status" => "paid", "amount" => "25",
-                                  "tx_list" => [{ "txid" => "t", "amount" => "25" }],
-                                  "brand_new_field" => 7)
-  end
-
-  it "exposes wire names as attributes and keeps unknown fields" do
-    expect(payment.uuid).to eq("u")
-    expect(payment.tx_list.first).to be_a(Oblodai::Models::PaymentTx)
-    expect(payment.tx_list.first.txid).to eq("t")
-    expect(payment[:brand_new_field]).to eq(7)
-    expect(payment.extra).to eq(brand_new_field: 7)
-  end
-
-  it "round-trips to the wire shape and is frozen" do
-    expect(payment.to_h).to eq(uuid: "u", status: "paid", amount: "25",
-                               tx_list: [{ txid: "t", amount: "25" }], brand_new_field: 7)
-    expect(payment).to be_frozen
-    expect(payment).to eq(Oblodai::Models::Payment.from(JSON.parse(payment.to_json)))
   end
 end

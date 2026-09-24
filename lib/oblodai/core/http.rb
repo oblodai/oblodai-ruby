@@ -6,7 +6,7 @@ require_relative "../errors"
 
 module Oblodai
   # The HTTP seam. Everything above it deals in {Oblodai::HTTP::Response}; everything below it is
-  # replaceable — pass any object with `#call(request, timeout_ms:)` as `http:` to the client
+  # replaceable — pass any object with `#call(request, timeout:)` as `http:` to the client
   # (a proxy-aware Net::HTTP, an instrumented wrapper, a fake in tests).
   module HTTP
     # What an adapter is handed.
@@ -48,22 +48,22 @@ module Oblodai
     # redirects never followed (a redirect is a configuration error, not a hop), the response body
     # streamed with a hard ceiling so a mistargeted base URL cannot be buffered into an OOM.
     class NetHTTPAdapter
-      # @param open_timeout_ms [Integer, nil] connect timeout; defaults to the per-attempt timeout
-      def initialize(open_timeout_ms: nil)
-        @open_timeout_ms = open_timeout_ms
+      # @param open_timeout [Numeric, nil] connect timeout, seconds; defaults to the per-attempt timeout
+      def initialize(open_timeout: nil)
+        @open_timeout = open_timeout
       end
 
       # @param request [Oblodai::HTTP::Request]
-      # @param timeout_ms [Integer]
+      # @param timeout [Numeric] seconds for the whole attempt
       # @return [Oblodai::HTTP::Response]
       # @raise [Oblodai::TransportError]
       # @raise [Oblodai::ContractError] when the answer exceeds `request.max_bytes`
-      def call(request, timeout_ms:)
+      def call(request, timeout:)
         uri = URI.parse(request.url)
-        timeout = [timeout_ms, 1].max / 1000.0
+        timeout = [timeout.to_f, 0.001].max
         http = Net::HTTP.new(uri.host, uri.port)
         http.use_ssl = uri.scheme == "https"
-        http.open_timeout = (@open_timeout_ms ? @open_timeout_ms / 1000.0 : timeout)
+        http.open_timeout = @open_timeout || timeout
         http.read_timeout = timeout
         http.write_timeout = timeout
         # Net::HTTP retries an idempotent request once by itself when the connection is dropped
@@ -77,7 +77,7 @@ module Oblodai
         deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + timeout
         http.start { |session| read_response(session, req, request.max_bytes, deadline) }
       rescue Net::OpenTimeout, Net::ReadTimeout, Net::WriteTimeout => e
-        raise TransportError.new("transport.timeout", "request timed out after #{timeout_ms} ms", cause_error: e)
+        raise TransportError.new("transport.timeout", "request timed out after #{timeout.round(3)} s", cause_error: e)
       rescue SystemCallError, SocketError, OpenSSL::SSL::SSLError, IOError, Net::ProtocolError => e
         raise TransportError.new("transport.network", "network error: #{e.message}", cause_error: e)
       end

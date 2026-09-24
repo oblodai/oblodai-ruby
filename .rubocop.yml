@@ -1,12 +1,10 @@
 AllCops:
-  TargetRubyVersion: 3.1
+  TargetRubyVersion: 3.2
   NewCops: enable
   SuggestExtensions: false
   Exclude:
     - "vendor/**/*"
-    - "lib/oblodai/contract/routes.rb"    # generated
-    - "lib/oblodai/contract/enums.rb"     # generated
-    - "lib/oblodai/contract/requests.rb"  # generated
+    - "tmp/**/*"
 
 Layout/LineLength:
   Max: 120
@@ -20,16 +18,23 @@ Metrics/BlockLength:
 Metrics/ClassLength:
   Enabled: false
 # The transport's retry/skew state machine and the envelope decoder branch once per documented
-# protocol case; splitting them would hide the state machine rather than simplify it.
+# protocol case; splitting them would hide the state machine rather than simplify it. Generated
+# models grow initialize/from_h/to_h with the number of fields of their schema, not with the
+# complexity of the code, so lib/oblodai/generated is outside these metrics.
 Metrics/CyclomaticComplexity:
   Max: 14
+  Exclude: ["lib/oblodai/generated/**/*"]
 Metrics/PerceivedComplexity:
   Max: 15
+  Exclude: ["lib/oblodai/generated/**/*"]
 Metrics/MethodLength:
   Max: 40
+  Exclude: ["lib/oblodai/generated/**/*"]
 Metrics/ModuleLength:
   Enabled: false
 Metrics/ParameterLists:
+  Enabled: false
+Metrics/CollectionLiteralLength:
   Enabled: false
 
 Style/StringLiterals:
@@ -38,29 +43,23 @@ Style/StringLiteralsInInterpolation:
   EnforcedStyle: double_quotes
 Style/Documentation:
   Enabled: true
+Style/ClassAndModuleChildren:
+  Enabled: false
 Naming/PredicatePrefix:
   Enabled: false
 Naming/AccessorMethodName:
   Enabled: false
 
-Style/OptionalBooleanParameter:
-  Exclude:
-    - "lib/oblodai/resources/**/*.rb"
-
+# Argument names are the API's own field names (q, ip).
 Naming/MethodParameterName:
-  AllowedNames: [a, b, io, id, to, ts, ok]
+  AllowedNames: [a, b, io, id, to, ts, ok, q, ip]
 
 # The wire vocabulary calls it `method` ("METHOD /path"), and these are plain value objects the
 # SDK never reflects on — shadowing Struct#method keeps the code reading like the contract.
 Lint/StructNewOverride:
   Exclude:
-    - "lib/oblodai/contract/route.rb"
+    - "lib/oblodai/core/route.rb"
     - "lib/oblodai/core/http.rb"
     - "lib/oblodai/core/request.rb"
+    - "lib/oblodai/core/hooks.rb"
     - "spec/support/fake_http.rb"
-
-Style/ClassAndModuleChildren:
-  Enabled: false
-
-Metrics/CollectionLiteralLength:
-  Enabled: false

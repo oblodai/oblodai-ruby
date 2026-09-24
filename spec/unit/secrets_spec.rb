@@ -20,41 +20,44 @@ RSpec.describe "secrets never print" do
     expect(client.config.credentials.secret).to eq("super-secret-key")
   end
 
-  it "redacts secret-bearing models in to_h, to_json and inspect while keeping the accessor" do
+  it "redacts secret-bearing models in inspect while keeping the accessor and the wire form" do
     cases = [
-      [Oblodai::Models::WebhookEndpoint.from("endpoint_id" => "e", "url" => "https://x",
-                                             "secret" => "whsec_live"), :secret, "whsec_live"],
-      [Oblodai::Models::WebhookSecretRotated.from("endpoint_id" => "e", "url" => "https://x",
-                                                  "secret" => "whsec_new",
-                                                  "previous_secret_valid_until" => "t"), :secret, "whsec_new"],
-      [Oblodai::Models::ApiKeyPair.from("public_id" => "pk", "secret" => "sk_live"),
-       :secret, "sk_live"],
-      [Oblodai::Models::PayoutLink.from("link_id" => "l", "claim_token" => "tok_live"),
+      [Oblodai::Models::RegisterWebhookResult.from_h(Samples.body("RegisterWebhookResult", "secret" => "whsec_live")),
+       :secret, "whsec_live"],
+      [Oblodai::Models::RotateWebhookSecretResult.from_h(
+        Samples.body("RotateWebhookSecretResult", "secret" => "whsec_new")
+      ), :secret, "whsec_new"],
+      [Oblodai::Models::OnboardKey.from_h(Samples.body("OnboardKey", "secret" => "sk_live")), :secret, "sk_live"],
+      [Oblodai::Models::PayoutLinkCreated.from_h(Samples.body("PayoutLinkCreated", "claim_token" => "tok_live")),
        :claim_token, "tok_live"],
-      [Oblodai::Models::PayoutLink.from("link_id" => "l", "claim_url" => "https://pay.example/claim/tok_live"),
-       :claim_url, "https://pay.example/claim/tok_live"],
-      [Oblodai::Models::PayoutLink.from("link_id" => "l", "passcode" => "1234"), :passcode, "1234"]
+      [Oblodai::Models::PayoutLinkCreated.from_h(
+        Samples.body("PayoutLinkCreated", "claim_url" => "https://pay.example/claim/tok_live")
+      ), :claim_url, "https://pay.example/claim/tok_live"],
+      [Oblodai::Models::PayoutLinkCreated.from_h(Samples.body("PayoutLinkCreated", "passcode" => "1234")),
+       :passcode, "1234"]
     ]
     cases.each do |model, field, value|
       expect(model.public_send(field)).to eq(value)
-      expect(model.to_h[field]).to eq("[redacted]")
-      expect(model.to_json).not_to include(value)
       expect(model.inspect).not_to include(value)
+      expect(model.to_s).not_to include(value)
+      expect(model.to_h[field.to_s]).to eq(value) # the wire form, for sending it back
     end
   end
 
   it "leaves an absent optional secret absent rather than inventing a placeholder" do
-    endpoint = Oblodai::Models::WebhookEndpoint.from("endpoint_id" => "e", "url" => "https://x")
-    expect(endpoint.to_h).not_to have_key(:secret)
+    endpoint = Oblodai::Models::RegisterWebhookResult.from_h("endpoint_id" => "e", "url" => "https://x")
+    expect(endpoint.to_h).not_to have_key("secret")
     expect(endpoint.secret).to be_nil
+    expect(endpoint.inspect).not_to include("secret")
   end
 
   it "compares models on their values, not on their redacted rendering" do
-    one = Oblodai::Models::WebhookEndpoint.from("endpoint_id" => "e", "url" => "u", "secret" => "a")
-    two = Oblodai::Models::WebhookEndpoint.from("endpoint_id" => "e", "url" => "u", "secret" => "b")
-    same = Oblodai::Models::WebhookEndpoint.from("endpoint_id" => "e", "url" => "u", "secret" => "a")
+    one = Oblodai::Models::RegisterWebhookResult.from_h("endpoint_id" => "e", "url" => "u", "secret" => "a")
+    two = Oblodai::Models::RegisterWebhookResult.from_h("endpoint_id" => "e", "url" => "u", "secret" => "b")
+    same = Oblodai::Models::RegisterWebhookResult.from_h("endpoint_id" => "e", "url" => "u", "secret" => "a")
     expect(one).not_to eq(two)
     expect(one).to eq(same)
+    expect(one.inspect).to eq(two.inspect)
   end
 
   it "redacts fields before a caller-injected logger sees them" do

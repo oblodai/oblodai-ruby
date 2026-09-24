@@ -20,7 +20,7 @@ class SkewedGateway
     @rejected = 0
   end
 
-  def call(request, timeout_ms:) # rubocop:disable Lint/UnusedMethodArgument
+  def call(request, timeout:) # rubocop:disable Lint/UnusedMethodArgument
     await_siblings
     signed = request.headers["X-Timestamp"].to_i
     server_now = Time.now.to_i + SKEW
@@ -58,10 +58,10 @@ RSpec.describe "clock skew under concurrency" do
     gateway = SkewedGateway.new(hold: 10)
     client = client_with(gateway, retry_policy: { max_retries: 0 })
 
-    results = 10.times.map { Thread.new { client.account.balance } }.map(&:value)
+    results = 10.times.map { Thread.new { client.account.get_balance } }.map(&:value)
 
     expect(results.size).to eq(10)
-    expect(results).to all(be_a(Oblodai::Models::Balance))
+    expect(results).to all(be_a(Oblodai::Models::BalanceResult))
     # All ten signed with the stale offset and were rejected together; each then re-signs its own
     # request, rather than concluding "a sibling already fixed the clock" and failing hard.
     expect(gateway.rejected).to eq(10)
@@ -90,7 +90,7 @@ RSpec.describe "clock skew under concurrency" do
                                              bad_date)
                         ])
     client = client_with(http, retry_policy: { max_retries: 0 })
-    expect { client.account.balance }.to raise_error(Oblodai::AuthenticationError)
+    expect { client.account.get_balance }.to raise_error(Oblodai::AuthenticationError)
     expect(http.calls.size).to eq(2) # one re-sign, no more
     expect(client.transport.instance_variable_get(:@clock).offset).to eq(0)
   end

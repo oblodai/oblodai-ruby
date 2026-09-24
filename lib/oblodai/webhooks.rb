@@ -4,7 +4,7 @@ require "json"
 require_relative "core/signing"
 require_relative "core/util"
 require_relative "errors"
-require_relative "models/webhooks"
+require_relative "generated/models"
 
 module Oblodai
   # Webhook verification — usable on its own (`require "oblodai/webhooks"`), no client and no API
@@ -48,8 +48,8 @@ module Oblodai
     # A verified delivery: the event plus the advisory headers worth keeping.
     #
     # @!attribute [r] event
-    #   @return [Oblodai::Models::PaymentEvent, Oblodai::Models::PayoutEvent,
-    #     Oblodai::Models::WalletEvent, Oblodai::Models::UnknownEvent]
+    #   @return [Oblodai::Models::PaymentWebhook, Oblodai::Models::PayoutWebhook,
+    #     Oblodai::Models::WalletWebhook, Oblodai::Models::ConversionWebhook, Hash]
     # @!attribute [r] id
     #   @return [String, nil] `X-Webhook-Id` — stable across retries; use it as your idempotency key
     # @!attribute [r] event_type
@@ -75,11 +75,12 @@ module Oblodai
       end
     end
 
-    # Event models by the `type` discriminator of the body.
+    # Event models by the `type` discriminator of the body (generated from the contract's webhooks).
     EVENT_MODELS = {
-      "payment" => Models::PaymentEvent,
-      "payout" => Models::PayoutEvent,
-      "wallet" => Models::WalletEvent
+      "payment" => Models::PaymentWebhook,
+      "payout" => Models::PayoutWebhook,
+      "wallet" => Models::WalletWebhook,
+      "conversion" => Models::ConversionWebhook
     }.freeze
 
     # A hex signature: no `0x`, either case, whitespace around it tolerated.
@@ -99,8 +100,9 @@ module Oblodai
     #   not "no previous secret" — omit it instead.
     # @param tolerance [Integer] seconds; 0 disables the freshness check, negative is a ConfigError
     # @param now [Integer, nil] injectable clock (unix seconds) for tests
-    # @return [Oblodai::Models::PaymentEvent, Oblodai::Models::PayoutEvent,
-    #   Oblodai::Models::WalletEvent, Oblodai::Models::UnknownEvent]
+    # @return [Oblodai::Models::PaymentWebhook, Oblodai::Models::PayoutWebhook,
+    #   Oblodai::Models::WalletWebhook, Oblodai::Models::ConversionWebhook, Hash] the event model for
+    #   the body's `type`; a kind this release does not know is the parsed body (a frozen Hash)
     # @raise [Oblodai::ConfigError] the secret or the tolerance is unusable
     # @raise [Oblodai::SignatureError] the delivery is not authentic or not fresh
     # @raise [Oblodai::WebhookPayloadError] the delivery is authentic but its body is not an event
@@ -212,12 +214,13 @@ module Oblodai
     # deliberately NOT a signature error, so a receiver that answers 401 to forged deliveries does
     # not answer 401 to an authentic one it simply could not read.
     #
-    # An event kind from a newer core is handed back verbatim as {Oblodai::Models::UnknownEvent}
+    # An event kind from a newer core is handed back verbatim as the parsed body (a frozen Hash)
     # rather than rejected: a receiver that throws on a type it has not heard of turns a new gateway
-    # feature into an outage.
+    # feature into an outage. A known kind whose body lacks a field every such event carries is
+    # `webhook.bad_payload`.
     #
     # @param raw_body [String]
-    # @return [Oblodai::Models::Model]
+    # @return [Oblodai::Models::Base, Hash]
     # @raise [Oblodai::WebhookPayloadError]
     def parse(raw_body)
       body = begin
@@ -231,20 +234,32 @@ module Oblodai
       end
 
       model = EVENT_MODELS[body["type"]]
-      return Models::UnknownEvent.from(body) if model.nil?
+      return deep_freeze(body) if model.nil?
       unless body["uuid"].is_a?(String)
         raise WebhookPayloadError.new("#{body["type"]} event has no `uuid` string", body)
       end
 
-      model.from(body)
+      begin
+        model.from_h(body)
+      rescue KeyError, ArgumentError, TypeError => e
+        raise WebhookPayloadError.new("#{body["type"]} event is not usable: #{e.message}", body)
+      end
     end
 
-    # Whether this release models the event field by field. Narrow with it before switching on
-    # `type`; an unknown kind is an {Oblodai::Models::UnknownEvent} whose raw fields are still
-    # readable with `event[:name]`.
+    # @return [Object] the value, frozen all the way down
+    def deep_freeze(value)
+      case value
+      when Hash then value.each_value { |item| deep_freeze(item) }
+      when Array then value.each { |item| deep_freeze(item) }
+      end
+      value.freeze
+    end
+
+    # Whether this release models the event field by field. An unknown kind is the parsed body, a
+    # Hash whose fields are still readable with `event["name"]`.
     # @return [Boolean]
     def known_event?(event)
-      EVENT_MODELS.key?(event.respond_to?(:type) ? event.type : event_field(event, :type))
+      event.is_a?(Models::Base) && EVENT_MODELS.value?(event.class)
     end
 
     # A rehearsal delivery (`webhooks.test`, sandbox) carries `test: true` in the signed body. It is
@@ -253,7 +268,7 @@ module Oblodai
     # @param event [#test, Hash] an event model or a decoded body, string- or symbol-keyed
     # @return [Boolean]
     def test_event?(event)
-      value = event.respond_to?(:test) ? event.test : event_field(event, :test)
+      value = event.is_a?(Models::Base) && event.respond_to?(:test) ? event.test : event_field(event, :test)
       value == true
     end
 
@@ -267,7 +282,11 @@ module Oblodai
     def stale?(event, last_processed_sequence)
       return false unless last_processed_sequence.is_a?(Integer)
 
-      sequence = event.respond_to?(:sequence) ? event.sequence : event_field(event, :sequence)
+      sequence = if event.is_a?(Models::Base) && event.respond_to?(:sequence)
+                   event.sequence
+                 else
+                   event_field(event, :sequence)
+                 end
       return false unless sequence.is_a?(Integer)
 
       sequence <= last_processed_sequence

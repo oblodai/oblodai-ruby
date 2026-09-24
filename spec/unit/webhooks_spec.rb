@@ -19,7 +19,9 @@ RSpec.describe Oblodai::Webhooks do
         expect(delivery.sent_at).to eq(ts)
         expect(delivery.event.sequence).to be_a(Integer)
         expect(sample["headers"]["X-Webhook-Event"]).to match(/\A(invoice|payout|wallet)\./)
-        expect(delivery.event.to_h.keys.map(&:to_s)).to match_array(sample["body"].keys)
+        # Every field the core sent is one the generated model knows; nil optional fields stay absent.
+        expect(delivery.event.extra).to eq({})
+        expect(delivery.event.to_h.keys).to match_array(sample["body"].compact.keys)
         rehearsal = sample["body"]["test"] == true || sample["headers"]["X-Webhook-Test"] == "true"
         expect(delivery.test?).to be(rehearsal)
         expect(described_class.test_event?(delivery.event)).to be(sample["body"]["test"] == true)
@@ -34,8 +36,8 @@ RSpec.describe Oblodai::Webhooks do
 
   describe "verification rules" do
     let(:body) do
-      JSON.generate(type: "payment", uuid: "u1", order_id: "o", status: "paid", is_final: true,
-                    sequence: 7, event_at: "2026-01-01T00:00:00Z")
+      JSON.generate(Samples.body("PaymentWebhook", "type" => "payment", "uuid" => "u1", "order_id" => "o",
+                                                   "status" => "paid", "is_final" => true, "sequence" => 7))
     end
     let(:ts) { 1_755_600_000 }
 
@@ -82,13 +84,13 @@ RSpec.describe Oblodai::Webhooks do
 
     it "parses into the model for the event type and detects stale sequences" do
       event = described_class.parse(body)
-      expect(event).to be_a(Oblodai::Models::PaymentEvent)
+      expect(event).to be_a(Oblodai::Models::PaymentWebhook)
       expect(described_class.stale?(event, 7)).to be(true)
       expect(described_class.stale?(event, 6)).to be(false)
       expect(described_class.stale?(event, nil)).to be(false)
       unknown = described_class.parse('{"type":"alien","uuid":"x","sequence":3}')
-      expect(unknown).to be_a(Oblodai::Models::UnknownEvent)
-      expect(unknown.type).to eq("alien")
+      expect(unknown).to eq("type" => "alien", "uuid" => "x", "sequence" => 3)
+      expect(unknown).to be_frozen
       expect(described_class.known_event?(unknown)).to be(false)
       expect(described_class.known_event?(event)).to be(true)
       expect(described_class.stale?(unknown, 3)).to be(true)
@@ -96,6 +98,8 @@ RSpec.describe Oblodai::Webhooks do
         .to raise_error(Oblodai::WebhookPayloadError, /not JSON/)
       expect { described_class.parse('{"type":"payment"}') }
         .to raise_error(Oblodai::WebhookPayloadError, /uuid/)
+      expect { described_class.parse('{"type":"payment","uuid":"u"}') }
+        .to raise_error(Oblodai::WebhookPayloadError, /not usable/)
     end
 
     it "marks a rehearsal delivery from either the body flag or the header" do
@@ -109,8 +113,8 @@ RSpec.describe Oblodai::Webhooks do
       # The header alone does not make the parsed event a test event — only the signed body does.
       expect(described_class.test_event?(from_header.event)).to be(false)
 
-      rehearsal = JSON.generate(type: "payment", uuid: "u1", status: "paid", is_final: true,
-                                sequence: 7, event_at: "2026-01-01T00:00:00Z", test: true)
+      rehearsal = JSON.generate(Samples.body("PaymentWebhook", "type" => "payment", "uuid" => "u1",
+                                                               "status" => "paid", "sequence" => 7, "test" => true))
       from_body = described_class.verify_delivery(rehearsal, headers_for(rehearsal), secret: "whsec", now: ts)
       expect(from_body.test?).to be(true)
       expect(from_body.event.test).to be(true)

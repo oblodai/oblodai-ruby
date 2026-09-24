@@ -24,6 +24,9 @@ module Oblodai
     attr_reader :field
     # @return [Object, nil] the wrapped lower-level exception, when there was one
     attr_reader :cause_error
+    # @return [String] the bare description, without the `[code]` prefix and the request id that
+    #   {#message} carries
+    attr_reader :text
 
     # @param code [String]
     # @param message [String]
@@ -37,7 +40,9 @@ module Oblodai
     # @param cause_error [Exception, nil]
     def initialize(code:, message:, http_status: 0, retryable: false, retry_after: nil,
                    request_id: nil, field: nil, synthetic: false, raw: nil, cause_error: nil)
-      super(message)
+      # `to_s`/`message` is what a log line shows: the code and the request id travel with the text.
+      super(request_id ? "[#{code}] #{message} (request_id=#{request_id})" : "[#{code}] #{message}")
+      @text = message
       @code = code
       @http_status = http_status
       @retryable = retryable
@@ -79,21 +84,21 @@ module Oblodai
     # @return [Hash{Symbol => Object}]
     def to_h
       {
-        error: self.class.name, code: @code, message: message, http_status: @http_status,
+        error: self.class.name, code: @code, message: @text, http_status: @http_status,
         retryable: @retryable, retry_after: @retry_after, request_id: @request_id, field: @field,
         synthetic: @synthetic
       }
     end
 
     # @return [String] JSON without the raw body
-    def to_json(*args)
+    def to_json(*)
       require "json"
-      to_h.to_json(*args)
+      to_h.to_json(*)
     end
 
     def inspect
       "#<#{self.class.name} code=#{@code.inspect} http_status=#{@http_status} " \
-        "retryable=#{@retryable} message=#{message.inspect}>"
+        "retryable=#{@retryable} message=#{@text.inspect}>"
     end
   end
 
