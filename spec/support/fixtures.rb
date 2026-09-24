@@ -2,9 +2,9 @@
 
 require "json"
 
-# Loads the contract snapshot shipped in contract/: the route registry and vectors, the golden
-# response bodies recorded from a live core, the error samples and the real signed webhook
-# deliveries. Nothing here is generated — the files are the core's own export.
+# Loads the recordings kept in contract/ as test data (the gem no longer ships them): the signing
+# vectors of the older export, the golden response bodies recorded from a live core, the error
+# samples and the real signed webhook deliveries.
 module Fixtures
   DIR = File.expand_path("../../contract", __dir__)
 
@@ -48,12 +48,5 @@ module Fixtures
     @error_samples ||= Dir[File.join(DIR, "errors", "*.json")].to_h do |path|
       [File.basename(path, ".json"), JSON.parse(File.read(path))]
     end
-  end
-
-  # @return [Array<String>] "METHOD /path" of every merchant-facing route the core declares
-  def declared_routes
-    contract["routes"]
-      .reject { |r| %r{^/(healthz|readyz|docs|openapi\.json|internal)}.match?(r["path"]) }
-      .map { |r| "#{r["method"]} #{r["path"]}" }
   end
 end
