@@ -3,7 +3,8 @@
 2.0 is generated from the gateway's OpenAPI contract (`services/core/api/openapi.json`) instead of the
 older contract export, and every public method name follows one rule: `client.<resource>.<method>`,
 where the resource comes from the operation's tag and the method is its `operationId` without the
-resource name, in snake_case. `names.lock` pins the result; the table below is built from it. The
+resource name, in snake_case. `names.2.0.txt` freezes the names of 2.0.0; the table below is built from it (`names.lock` also
+gets the methods added after 2.0.0). The
 wire does not change — only the Ruby surface does.
 
 ## At a glance

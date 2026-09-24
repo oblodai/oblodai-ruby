@@ -4,7 +4,7 @@ require "json"
 require_relative "core/signing"
 require_relative "core/util"
 require_relative "errors"
-require_relative "generated/models"
+require_relative "generated/facts"
 
 module Oblodai
   # Webhook verification — usable on its own (`require "oblodai/webhooks"`), no client and no API
@@ -13,7 +13,7 @@ module Oblodai
   #     X-Webhook-Timestamp: <unix seconds>
   #     X-Webhook-Signature: hex(HMAC-SHA256(secret, "<ts>." + rawBody))
   #     X-Webhook-Signature-Prev: same, with the previous secret — only during a rotation overlap
-  #     X-Webhook-Event: invoice.<status> | payout.<status> | wallet.paid
+  #     X-Webhook-Event: an event of Oblodai::Generated::WEBHOOK_EVENTS (a newer core may add more)
   #     X-Webhook-Id: stable per delivery (identical across retries) — use it to deduplicate
   #     X-Webhook-Event-Time: unix seconds when the state change committed (order events by it)
   #     X-Webhook-Test: "true" on a rehearsal delivery (`webhooks.test`, sandbox) — see below
@@ -48,8 +48,8 @@ module Oblodai
     # A verified delivery: the event plus the advisory headers worth keeping.
     #
     # @!attribute [r] event
-    #   @return [Oblodai::Models::PaymentWebhook, Oblodai::Models::PayoutWebhook,
-    #     Oblodai::Models::WalletWebhook, Oblodai::Models::ConversionWebhook, Hash]
+    #   @return [Oblodai::Models::Base, Hash] the model of the event's kind ({EVENT_MODELS}), or the
+    #     parsed body of a kind this release does not know
     # @!attribute [r] id
     #   @return [String, nil] `X-Webhook-Id` — stable across retries; use it as your idempotency key
     # @!attribute [r] event_type
@@ -75,13 +75,9 @@ module Oblodai
       end
     end
 
-    # Event models by the `type` discriminator of the body (generated from the contract's webhooks).
-    EVENT_MODELS = {
-      "payment" => Models::PaymentWebhook,
-      "payout" => Models::PayoutWebhook,
-      "wallet" => Models::WalletWebhook,
-      "conversion" => Models::ConversionWebhook
-    }.freeze
+    # Event models by the `type` discriminator of the body — {Oblodai::Generated::WEBHOOK_MODELS},
+    # generated from the contract's webhooks.
+    EVENT_MODELS = Generated::WEBHOOK_MODELS
 
     # A hex signature: no `0x`, either case, whitespace around it tolerated.
     HEX = /\A[0-9a-fA-F]+\z/
@@ -100,9 +96,8 @@ module Oblodai
     #   not "no previous secret" — omit it instead.
     # @param tolerance [Integer] seconds; 0 disables the freshness check, negative is a ConfigError
     # @param now [Integer, nil] injectable clock (unix seconds) for tests
-    # @return [Oblodai::Models::PaymentWebhook, Oblodai::Models::PayoutWebhook,
-    #   Oblodai::Models::WalletWebhook, Oblodai::Models::ConversionWebhook, Hash] the event model for
-    #   the body's `type`; a kind this release does not know is the parsed body (a frozen Hash)
+    # @return [Oblodai::Models::Base, Hash] the event model for the body's `type` ({EVENT_MODELS}); a
+    #   kind this release does not know is the parsed body (a frozen Hash)
     # @raise [Oblodai::ConfigError] the secret or the tolerance is unusable
     # @raise [Oblodai::SignatureError] the delivery is not authentic or not fresh
     # @raise [Oblodai::WebhookPayloadError] the delivery is authentic but its body is not an event

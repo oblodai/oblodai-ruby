@@ -11,8 +11,9 @@ and the minimum Ruby change — every old name and its new one is in [MIGRATION-
 
 ### Changed
 
-- every method is `client.<resource>.<method>`, one per operation (120), named after its
-  `operationId`; `names.lock` pins the public names and the generator refuses to drop one silently.
+- every method is `client.<resource>.<method>`, one per operation, named after its
+  `operationId`; `names.lock` pins the public names: the generator adds new ones itself and refuses
+  to drop one silently.
   16 namespaces: `payments`, `payment_links`, `refunds`, `payouts`, `payout_links`, `batches`,
   `splits`, `wallets`, `account`, `webhooks`, `settings`, `api_allowlist`, `referrals`,
   `documents`, `checkout`, `sandbox`.
@@ -24,8 +25,8 @@ and the minimum Ruby change — every old name and its new one is in [MIGRATION-
   `extra_headers:`, `request_id:`; client timeouts `timeout:` / `deadline:` in seconds; the HTTP
   adapter seam is `call(request, timeout:)`.
 - `e.message` is `[code] text (request_id=…)`; the bare text is `e.text`.
-- webhooks parse into the generated `PaymentWebhook`, `PayoutWebhook`, `WalletWebhook` and
-  `ConversionWebhook`; an unknown kind is the frozen parsed body.
+- webhooks parse into the generated model of their kind (`PaymentWebhook`, `PayoutWebhook`,
+  `WalletWebhook`, `ConversionWebhook`); an unknown kind is the frozen parsed body.
 - `Oblodai::Generated::ROUTES` (keyed by `operationId`) replaces `Oblodai::Contract::ROUTES`; the
   retry-safe flag comes from the contract's `x-retry-safe`.
 - Ruby ≥ 3.2; runtime dependency `bigdecimal`.
@@ -38,7 +39,11 @@ and the minimum Ruby change — every old name and its new one is in [MIGRATION-
 - `resource.with_raw_response.<method>` (status, headers, request id, `parse`),
   `client.with_options(...)`, `Oblodai::Hooks` on request and response.
 - `Page#each_page` / `#by_page`, `PageResult#total` / `#has_pages?`.
-- `Oblodai::Job` for batches and document jobs: `wait`, `download` (table: `Oblodai::LRO`).
+- `Oblodai::Job` for batches and document jobs: `wait`, `download`; which operations are long
+  and how to poll them comes from the contract (`x-sdk-poll`, `Oblodai::Generated::LRO`).
+- facts of the API generated from the contract rather than kept by hand: status classes
+  (`Oblodai::Enums::PaymentStatus.final?` / `.success?`, behind `Oblodai::Status`), webhook kinds
+  and their models (`Oblodai::Generated::WEBHOOK_MODELS`), non-money numbers of requests.
 - the shared conformance suite of the backend (`spec/conformance`), README and example snippets run
   in the specs, and a drift check of the generated code in `make ci`.
 

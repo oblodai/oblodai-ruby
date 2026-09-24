@@ -52,11 +52,6 @@ module Oblodai
     # The call's own id, the same on every attempt: `request_id:`, else a caller header, else a UUID.
     HEADER_REQUEST_ID = "X-Request-ID"
 
-    # Request fields the contract types as a JSON `number` that are not money (a tolerance in
-    # percent). A Float anywhere else in a body is an amount losing precision; a spec keeps this set
-    # equal to the `number` properties of the contract's request schemas.
-    NON_MONEY_NUMBERS = ["accuracy_payment_percent"].freeze
-
     # Headers the SDK owns. A caller-supplied header with one of these names is dropped, matched
     # case-insensitively: `accept: text/html` next to the SDK's `Accept` would otherwise reach the
     # wire as a second value, and a caller `X-Admin-Token` would travel on signed merchant routes it
@@ -233,9 +228,10 @@ module Oblodai
       end
     end
 
-    # A Float is money losing precision — except in the few `number` fields that are not money.
+    # A Float is money losing precision — except in the few `number` fields that are not money
+    # ({Oblodai::Generated::NON_MONEY_NUMBERS}, generated from the contract's request schemas).
     def wire_float(value, path)
-      unless NON_MONEY_NUMBERS.include?(path.split(".").last.to_s.sub(/\[\d+\]\z/, ""))
+      unless Generated::NON_MONEY_NUMBERS.include?(path.split(".").last.to_s.sub(/\[\d+\]\z/, ""))
         Money.float_amount!(value, path.empty? ? "body" : path)
       end
       bad_body!("#{describe(path)} is not a finite number (#{value})") unless value.finite?

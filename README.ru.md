@@ -134,28 +134,33 @@ deposit.confirmations
 
 ## Обзор методов
 
-16 пространств имён, 120 методов — по одному на операцию контракта. Имя метода — `operationId`
-операции без имени ресурса, в snake_case (`createPayout` → `payouts.create`, `getBatchInfo` →
-`batches.get_info`); `Oblodai::Generated::ROUTES` перечисляет все операции по `operationId`.
+По одному методу на операцию контракта. Имя метода — `operationId` операции без имени ресурса, в
+snake_case (`createPayout` → `payouts.create`, `getBatchInfo` → `batches.get_info`);
+`Oblodai::Generated::ROUTES` перечисляет все операции по `operationId`. Таблицу ниже пишет генератор
+из контракта.
 
-| Пространство    | Методы                                                                                                    |
-| --------------- | --------------------------------------------------------------------------------------------------------- |
-| `payments`      | create · get_info · cancel · list_history · get_qr · resolve · send_email · list_services · get_aml_links · get/set_checkout_config |
-| `payment_links` | create · get · list · toggle                                                                              |
-| `refunds`       | payment · blocked_wallet                                                                                  |
-| `payouts`       | create · get_info · cancel · approve · calculate · validate · list_history · list_services · create_mass · create_transfer_batch · transfer_to_personal · transfer_to_user |
-| `payout_links`  | create · get · list · cancel · create_batch · get_payout_claim · claim_payout                             |
-| `batches`       | create_payment · create_payout · create_refund · get_info                                                 |
-| `splits`        | create_rule · list_rules · delete_rule · get/set_config · get/set_recipient_opt_in                        |
-| `wallets`       | create · get_qr · block                                                                                   |
-| `account`       | get_balance · get_summary · list_exchange_rates                                                           |
-| `webhooks`      | register · rotate_secret · set_active · list_deliveries · requeue_delivery · resend_payment · send_test_payment/payout/wallet/conversion · send_legacy_test |
-| `settings`      | get/set_accuracy · get/set_auto_convert · get/set_auto_refund · list_discounts · set_discount · list/set_accepted_currencies · get/set_payment_fee_config · get/set_payout_fee_config · get/set_refund_fee_config · list/set/delete_auto_withdraw_rule(s) · list_api_log · configure_vrcs |
-| `api_allowlist` | list · add_entry · remove_entry · set_enabled                                                             |
-| `referrals`     | get_info                                                                                                  |
-| `documents`     | get_statement · get_ledger · get_balance · get_fees · get_batch · get_payment_link · get_split · get_wallet_statement · get_referrals · get_signed · get_payout_link_cheque · create_job · get_job · download_job_file |
-| `checkout`      | get · get_qr · select_method · get_onramp · start_onramp · get_public_payment_link · payment_link · list_currencies · get/submit_source_of_funds(_form) |
-| `sandbox`       | faucet · simulate_deposit · list_webhooks · replay_webhook · reset · onboard_store                        |
+<!-- sdkgen:methods -->
+16 ресурсов, 120 методов.
+
+| Ресурс | Методы |
+| --- | --- |
+| `payments` | `create` · `get_info` · `get_qr` · `list_history` · `list_services` · `cancel` · `send_email` · `set_checkout_config` · `get_checkout_config` · `get_aml_links` · `resolve` |
+| `payment_links` | `create` · `list` · `get` · `toggle` |
+| `refunds` | `payment` · `blocked_wallet` |
+| `payouts` | `create` · `create_mass` · `get_info` · `list_history` · `calculate` · `validate` · `cancel` · `approve` · `list_services` · `transfer_to_personal` · `transfer_to_user` · `create_transfer_batch` |
+| `payout_links` | `create` · `create_batch` · `list` · `get` · `cancel` · `get_payout_claim` · `claim_payout` |
+| `batches` | `create_payment` · `create_refund` · `create_payout` · `get_info` |
+| `splits` | `create_rule` · `list_rules` · `delete_rule` · `set_config` · `get_config` · `set_recipient_opt_in` · `get_recipient_opt_in` |
+| `wallets` | `create` · `block` · `get_qr` |
+| `account` | `get_balance` · `get_summary` · `list_exchange_rates` |
+| `webhooks` | `resend_payment` · `register` · `list_deliveries` · `requeue_delivery` · `send_legacy_test` · `send_test_payment` · `send_test_wallet` · `send_test_payout` · `send_test_conversion` · `rotate_secret` · `set_active` |
+| `settings` | `set_accuracy` · `get_accuracy` · `set_auto_refund` · `get_auto_refund` · `set_discount` · `list_discounts` · `list_api_log` · `get_auto_convert` · `set_auto_convert` · `set_accepted_currencies` · `list_accepted_currencies` · `set_payout_fee_config` · `get_payout_fee_config` · `set_refund_fee_config` · `get_refund_fee_config` · `set_payment_fee_config` · `get_payment_fee_config` · `set_auto_withdraw_rule` · `list_auto_withdraw_rules` · `delete_auto_withdraw_rule` · `configure_vrcs` |
+| `api_allowlist` | `list` · `add_entry` · `remove_entry` · `set_enabled` |
+| `referrals` | `get_info` |
+| `documents` | `get_signed` · `get_balance` · `get_fees` · `get_ledger` · `get_split` · `get_payout_link_cheque` · `get_statement` · `get_batch` · `get_payment_link` · `get_wallet_statement` · `get_referrals` · `create_job` · `get_job` · `download_job_file` |
+| `checkout` | `get_source_of_funds_form` · `submit_source_of_funds` · `get_public_payment_link` · `payment_link` · `list_currencies` · `get` · `select_method` · `start_onramp` · `get_onramp` · `get_qr` |
+| `sandbox` | `onboard_store` · `faucet` · `simulate_deposit` · `reset` · `list_webhooks` · `replay_webhook` |
+<!-- /sdkgen:methods -->
 
 Тело запроса передаётся тремя способами — именованными аргументами, Hash с именами как на проводе
 или моделью запроса; аргументы дополняют Hash или модель. Параметры пути — позиционные
@@ -255,6 +260,8 @@ observed.account.get_balance
   `Oblodai::Status.payment_paid?` истинно для `paid`/`paid_over`; `wrong_amount` (недоплата) ждёт
   `payments.resolve(uuid:, action: "accept" | "refund")`.
 - Выплата: `pending → approved → awaiting_cosign → broadcasting → sent → confirmed | failed | cancelled`.
+- Какие статусы финальные и какие из них успех — из контракта: `Oblodai::Enums::PaymentStatus.final?`
+  / `.success?` и `FINAL` / `SUCCESS` (так же у `PayoutStatus`); ими пользуется `Oblodai::Status`.
 
 Об изменениях состояния лучше узнавать из вебхуков; `get_info` — только как запасной опрос.
 
@@ -428,9 +435,11 @@ configured.base_url
 
 ## Сгенерированный код
 
-`lib/oblodai/generated/` — маршруты, перечисления, модели и ресурсы — пишет `tools/sdkgen`
-репозитория бэкенда из `services/core/api/openapi.json` шлюза; руками этот код не правится.
-`names.lock` перечисляет все публичные `ресурс.метод`; генератор не удалит имя без явного указания.
+`lib/oblodai/generated/` — маршруты, перечисления с классами статусов, модели, ресурсы и факты API
+(долгие операции, виды вебхуков, числа-не-деньги) — пишет `tools/sdkgen` репозитория бэкенда из
+`services/core/api/openapi.json` шлюза; руками этот код не правится. Так же генератор пишет таблицу
+методов этого README и `names.lock` — все публичные `ресурс.метод` (новые имена он дописывает сам,
+а удалить имя без явного указания отказывается).
 `make ci` перегенерирует код во временный каталог и падает, если закоммиченный отличается.
 
 ## Разработка

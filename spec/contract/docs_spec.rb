@@ -5,11 +5,15 @@ RSpec.describe "documentation" do
   root = File.expand_path("../..", __dir__)
   read = ->(name) { File.read(File.join(root, name)) }
   locked = File.readlines(File.join(root, "names.lock"), chomp: true)
+  # The public names of 2.0.0, frozen once: MIGRATION-2.0.md maps 1.x to these, and later methods
+  # (added to names.lock by the generator) are not part of that migration.
+  names20 = File.readlines(File.join(root, "names.2.0.txt"), chomp: true)
 
-  it "MIGRATION-2.0.md maps every locked name" do
+  it "MIGRATION-2.0.md maps every name of 2.0" do
     migration = read.call("MIGRATION-2.0.md")
-    locked.each { |name| expect(migration).to include("| `#{name}` |"), name }
-    expect(migration).to include("## Method names (#{locked.size} methods)")
+    names20.each { |name| expect(migration).to include("| `#{name}` |"), name }
+    expect(migration).to include("## Method names (#{names20.size} methods)")
+    expect(names20 - locked).to be_empty, "a 2.0 name left names.lock: that is a breaking change"
   end
 
   it "releases the version the gem declares" do
@@ -44,9 +48,25 @@ RSpec.describe "documentation" do
     end
   end
 
-  it "counts the methods the SDK has" do
+  it "locks and documents every method the SDK has (both written by the generator)" do
+    names = Oblodai::Resources.constants.filter_map do |const|
+      cls = Oblodai::Resources.const_get(const)
+      next unless cls.is_a?(Class) && cls < Oblodai::Resources::Base
+
+      resource = const.to_s.gsub(/([a-z\d])([A-Z])/, "\\1_\\2").downcase
+      cls.public_instance_methods(false).map { |m| "#{resource}.#{m}" }
+    end.flatten
+    expect(locked.sort).to eq(names.sort)
     expect(locked.size).to eq(Oblodai::Generated::ROUTES.size)
-    expect(read.call("README.md")).to include("#{locked.size} methods")
-    expect(read.call("README.ru.md")).to include("#{locked.size} методов")
+    %w[README.md README.ru.md].each do |doc|
+      section = read.call(doc)[%r{<!-- sdkgen:methods -->(.*)<!-- /sdkgen:methods -->}m, 1]
+      expect(section).not_to be_nil, doc
+      expect(section).to match(/, #{locked.size} (methods|метод)/), doc
+      locked.group_by { |n| n.split(".").first }.each do |resource, methods|
+        row = section[/^\| `#{resource}` \|.*$/]
+        expect(row).not_to be_nil, "#{doc}: #{resource}"
+        methods.each { |n| expect(row).to include("`#{n.split(".").last}`"), "#{doc}: #{n}" }
+      end
+    end
   end
 end
