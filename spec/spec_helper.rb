@@ -6,6 +6,7 @@ require "oblodai"
 require_relative "support/samples"
 require_relative "support/fake_http"
 require_relative "support/coverage"
+require_relative "support/gateway"
 require_relative "support/fixtures"
 
 RSpec.configure do |config|

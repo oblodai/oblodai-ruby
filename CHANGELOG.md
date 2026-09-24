@@ -3,6 +3,51 @@
 All notable changes to this gem. The format follows [Keep a Changelog](https://keepachangelog.com/),
 versions follow [SemVer](https://semver.org/).
 
+## [2.0.0] — 2026-09-25
+
+The SDK is generated from the gateway's OpenAPI contract (`services/core/api/openapi.json`) by the
+backend's `tools/sdkgen`, on top of a hand-written runtime. Breaking: method names, options, models
+and the minimum Ruby change — every old name and its new one is in [MIGRATION-2.0.md](MIGRATION-2.0.md).
+
+### Changed
+
+- every method is `client.<resource>.<method>`, one per operation (120), named after its
+  `operationId`; `names.lock` pins the public names and the generator refuses to drop one silently.
+  16 namespaces: `payments`, `payment_links`, `refunds`, `payouts`, `payout_links`, `batches`,
+  `splits`, `wallets`, `account`, `webhooks`, `settings`, `api_allowlist`, `referrals`,
+  `documents`, `checkout`, `sandbox`.
+- request bodies: keyword arguments, a Hash with the wire names, or a request model; path
+  parameters positional, query parameters keywords.
+- responses are generated frozen models with `BigDecimal` amounts, unknown fields in `extra` and
+  unknown enum values kept as strings; enumerations are `Oblodai::Enums::<Name>` constants.
+- call options are explicit: `idempotency_key:`, `timeout:` (seconds), `max_retries:`,
+  `extra_headers:`, `request_id:`; client timeouts `timeout:` / `deadline:` in seconds; the HTTP
+  adapter seam is `call(request, timeout:)`.
+- `e.message` is `[code] text (request_id=…)`; the bare text is `e.text`.
+- webhooks parse into the generated `PaymentWebhook`, `PayoutWebhook`, `WalletWebhook` and
+  `ConversionWebhook`; an unknown kind is the frozen parsed body.
+- `Oblodai::Generated::ROUTES` (keyed by `operationId`) replaces `Oblodai::Contract::ROUTES`; the
+  retry-safe flag comes from the contract's `x-retry-safe`.
+- Ruby ≥ 3.2; runtime dependency `bigdecimal`.
+
+### Added
+
+- a `Float` amount is `sdk.float_amount` before anything is sent; `BigDecimal` goes to the wire as
+  its decimal string; `Oblodai::Money` takes `BigDecimal`.
+- `X-Request-ID` on every call (yours via `request_id:`, else a UUID), the same on every attempt.
+- `resource.with_raw_response.<method>` (status, headers, request id, `parse`),
+  `client.with_options(...)`, `Oblodai::Hooks` on request and response.
+- `Page#each_page` / `#by_page`, `PageResult#total` / `#has_pages?`.
+- `Oblodai::Job` for batches and document jobs: `wait`, `download` (table: `Oblodai::LRO`).
+- the shared conformance suite of the backend (`spec/conformance`), README and example snippets run
+  in the specs, and a drift check of the generated code in `make ci`.
+
+### Removed
+
+- the contract snapshot as a runtime artefact (`Oblodai.contract_path`, `Contract::REQUESTS`,
+  `Enums::ERROR_CODES`; the catalogue is `Oblodai::Enums::ErrorCode::VALUES`), the Ruby code
+  generator `script/codegen.rb`, `merchants.create`, the 1.x method aliases.
+
 ## [1.3.0] — 2026-08-26
 
 First release of the Ruby SDK, generated from the gateway's contract snapshot (core `2cc44c1`) and
