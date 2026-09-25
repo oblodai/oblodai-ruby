@@ -80,7 +80,7 @@ module Oblodai
     # Every kind of webhook event this release knows.
     WEBHOOK_KINDS = %w[conversion payment payout wallet].freeze
 
-    # Webhook events (the `X-Webhook-Event` header) => the kind of their body.
+    # Webhook events (the value of {SigningProtocol::HEADER_WEBHOOK_EVENT}) => the kind of their body.
     # @return [Hash{String => String}]
     WEBHOOK_EVENTS = {
       "conversion.completed" => "conversion",

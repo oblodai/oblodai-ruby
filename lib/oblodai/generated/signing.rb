@@ -29,8 +29,9 @@ module Oblodai
       # Request header of the role `idempotency_key`.
       HEADER_IDEMPOTENCY_KEY = "Idempotency-Key"
 
-      # Parts of the canonical request string, in order: unix seconds (`ts`), the upper-case method,
-      # path + raw query, the idempotency key (empty without one), the body bytes.
+      # Parts of the canonical request string, in order. `ts`: unix seconds; `METHOD`: the upper-case
+      # method; `request_uri`: path + raw query; `idempotency_key`: the idempotency key (empty
+      # without one); `body`: the body bytes.
       REQUEST_CANONICAL_ORDER = %w[ts METHOD request_uri idempotency_key body].freeze
       REQUEST_CANONICAL_SEPARATOR = "\n"
 
@@ -60,7 +61,7 @@ module Oblodai
       # Rehearsal header (role `test`): `"true"` on a test delivery, absent from a live one.
       HEADER_WEBHOOK_TEST = "X-Webhook-Test"
 
-      # Parts of the signed webhook string, in order: unix seconds (`ts`), the raw body.
+      # Parts of the signed webhook string, in order. `ts`: unix seconds; `payload`: the raw body.
       WEBHOOK_CANONICAL_ORDER = %w[ts payload].freeze
       WEBHOOK_CANONICAL_SEPARATOR = "."
 
