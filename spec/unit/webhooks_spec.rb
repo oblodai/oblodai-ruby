@@ -53,8 +53,9 @@ RSpec.describe Oblodai::Webhooks do
 
     it "accepts a valid signature with case-insensitive and Rack-spelled headers" do
       expect(described_class.verify(body, headers, secret: "whsec", now: ts).type).to eq("payment")
-      rack = { "HTTP_X_WEBHOOK_TIMESTAMP" => ts.to_s,
-               "HTTP_X_WEBHOOK_SIGNATURE" => Oblodai::Signing.sign_webhook("whsec", ts, body) }
+      rack_name = ->(name) { "HTTP_#{name.upcase.tr("-", "_")}" }
+      rack = { rack_name.call(SIGNING::HEADER_WEBHOOK_TIMESTAMP) => ts.to_s,
+               rack_name.call(SIGNING::HEADER_WEBHOOK_SIGNATURE) => Oblodai::Signing.sign_webhook("whsec", ts, body) }
       expect(described_class.verify(body, rack, secret: "whsec", now: ts).uuid).to eq("u1")
     end
 
@@ -68,9 +69,10 @@ RSpec.describe Oblodai::Webhooks do
     end
 
     it "rejects stale deliveries unless the tolerance is disabled" do
-      expect { described_class.verify(body, headers, secret: "whsec", now: ts + 600) }
+      late = ts + (2 * SIGNING::SKEW_SECONDS)
+      expect { described_class.verify(body, headers, secret: "whsec", now: late) }
         .to raise_error(/outside/)
-      expect(described_class.verify(body, headers, secret: "whsec", now: ts + 600, tolerance: 0).uuid)
+      expect(described_class.verify(body, headers, secret: "whsec", now: late, tolerance: 0).uuid)
         .to eq("u1")
     end
 
