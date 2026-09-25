@@ -16,6 +16,10 @@ RSpec.configure do |config|
   config.filter_run_excluding(live: true) unless ENV["OBLODAI_LIVE_URL"]
 end
 
+# The generated signing protocol: specs name headers by it, never by literal, so a header the core
+# renames reaches them by regeneration alone.
+SIGNING = Oblodai::Generated::SigningProtocol
+
 # Credentials every unit spec builds its client with.
 TEST_CREDENTIALS = {
   public_id: "pk_test_1", secret: "secret-1", base_url: "https://api.test",

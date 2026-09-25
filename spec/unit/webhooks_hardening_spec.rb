@@ -15,7 +15,8 @@ RSpec.describe "#{Oblodai::Webhooks} hardening" do
   end
 
   def headers(raw = body, overrides = {})
-    { "x-webhook-timestamp" => ts.to_s, "x-webhook-signature" => sign(raw) }.merge(overrides)
+    { SIGNING::HEADER_WEBHOOK_TIMESTAMP.downcase => ts.to_s,
+      SIGNING::HEADER_WEBHOOK_SIGNATURE.downcase => sign(raw) }.merge(overrides)
   end
 
   describe "configuration is checked before any hashing" do
@@ -37,7 +38,7 @@ RSpec.describe "#{Oblodai::Webhooks} hardening" do
     end
 
     it "cannot be talked into verifying with the empty key" do
-      forged = headers(body, "x-webhook-signature" => Oblodai::Signing.sign_webhook("", ts, body))
+      forged = headers(body, SIGNING::HEADER_WEBHOOK_SIGNATURE.downcase => Oblodai::Signing.sign_webhook("", ts, body))
       expect { Oblodai::Webhooks.verify(body, forged, secret: "", now: ts) }
         .to raise_error(Oblodai::ConfigError)
     end
@@ -57,15 +58,15 @@ RSpec.describe "#{Oblodai::Webhooks} hardening" do
     it "answers a forged delivery with bad_signature whatever its timestamp says" do
       # If freshness were checked first, an unauthenticated caller could learn the receiver's clock
       # by watching which of the two errors comes back.
-      stale = { "x-webhook-timestamp" => (ts - 100_000).to_s,
-                "x-webhook-signature" => "0" * 64 }
+      stale = { SIGNING::HEADER_WEBHOOK_TIMESTAMP.downcase => (ts - 100_000).to_s,
+                SIGNING::HEADER_WEBHOOK_SIGNATURE.downcase => "0" * 64 }
       expect { Oblodai::Webhooks.verify(body, stale, secret: "whsec", now: ts) }
         .to raise_error(Oblodai::SignatureError) { |e| expect(e.code).to eq("webhook.bad_signature") }
     end
 
     it "reports stale only for a delivery that is genuinely signed" do
       old = ts - 100_000
-      signed = { "x-webhook-timestamp" => old.to_s, "x-webhook-signature" => sign(body, "whsec", old) }
+      signed = { SIGNING::HEADER_WEBHOOK_TIMESTAMP.downcase => old.to_s, SIGNING::HEADER_WEBHOOK_SIGNATURE.downcase => sign(body, "whsec", old) }
       expect { Oblodai::Webhooks.verify(body, signed, secret: "whsec", now: ts) }
         .to raise_error(Oblodai::SignatureError) { |e| expect(e.code).to eq("webhook.stale_timestamp") }
     end
@@ -73,20 +74,20 @@ RSpec.describe "#{Oblodai::Webhooks} hardening" do
 
   describe "signature header shapes" do
     it "tolerates whitespace and upper-case hex, and refuses a 0x prefix or an empty value" do
-      padded = headers(body, "x-webhook-signature" => "  #{sign(body).upcase}\n")
+      padded = headers(body, SIGNING::HEADER_WEBHOOK_SIGNATURE.downcase => "  #{sign(body).upcase}\n")
       expect(Oblodai::Webhooks.verify(body, padded, secret: "whsec", now: ts).uuid).to eq("u1")
 
-      prefixed = headers(body, "x-webhook-signature" => "0x#{sign(body)}")
+      prefixed = headers(body, SIGNING::HEADER_WEBHOOK_SIGNATURE.downcase => "0x#{sign(body)}")
       expect { Oblodai::Webhooks.verify(body, prefixed, secret: "whsec", now: ts) }
         .to raise_error(Oblodai::SignatureError, /hexadecimal/)
 
-      empty = headers(body, "x-webhook-signature" => "   ")
+      empty = headers(body, SIGNING::HEADER_WEBHOOK_SIGNATURE.downcase => "   ")
       expect { Oblodai::Webhooks.verify(body, empty, secret: "whsec", now: ts) }
         .to raise_error(Oblodai::SignatureError) { |e| expect(e.code).to eq("webhook.bad_signature") }
     end
 
-    it "recognises X-Webhook-Test whatever its case" do
-      flagged = headers(body, "X-Webhook-Test" => "TRUE")
+    it "recognises the rehearsal header whatever its case" do
+      flagged = headers(body, SIGNING::HEADER_WEBHOOK_TEST => "TRUE")
       expect(Oblodai::Webhooks.verify_delivery(body, flagged, secret: "whsec", now: ts).test?).to be(true)
     end
   end

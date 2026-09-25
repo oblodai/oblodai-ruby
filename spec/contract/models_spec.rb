@@ -92,10 +92,10 @@ RSpec.describe "vocabularies cover what the wire carries" do
   it "webhook samples carry known event names and parse into their models with nothing unknown" do
     expect(Fixtures.webhook_samples).not_to be_empty
     Fixtures.webhook_samples.each do |sample|
-      expect(enums::WebhookEventName::VALUES).to include(sample["headers"]["X-Webhook-Event"])
+      expect(enums::WebhookEventName::VALUES).to include(sample["headers"][SIGNING::HEADER_WEBHOOK_EVENT])
       body = sample["raw"] ? JSON.parse(sample["raw"]) : sample["body"]
       event = Oblodai::Webhooks::EVENT_MODELS.fetch(body["type"]).from_h(body)
-      expect(event.extra).to eq({}), sample["headers"]["X-Webhook-Event"]
+      expect(event.extra).to eq({}), sample["headers"][SIGNING::HEADER_WEBHOOK_EVENT]
     end
   end
 

@@ -22,7 +22,7 @@ RSpec.describe Oblodai::Job do
     expect(info.status).to eq("completed")
     expect(http.calls.map(&:path)).to eq(%w[/v1/payout/batch /v1/batch/info /v1/batch/info])
     expect(http.calls[1].json).to eq("batch_id" => "b-1")
-    expect(http.calls[1].headers).not_to have_key("idempotency-key")
+    expect(http.calls[1].headers).not_to have_key(SIGNING::HEADER_IDEMPOTENCY_KEY.downcase)
     expect(job).to have_received(:pause).once
   end
 

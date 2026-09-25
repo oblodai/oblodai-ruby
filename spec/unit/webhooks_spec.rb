@@ -7,23 +7,23 @@ RSpec.describe Oblodai::Webhooks do
 
   describe "against real deliveries" do
     Fixtures.webhook_samples.each do |sample|
-      it "verifies #{sample["headers"]["X-Webhook-Event"]}" do
+      it "verifies #{sample["headers"][SIGNING::HEADER_WEBHOOK_EVENT]}" do
         raw = sample["raw"] || JSON.generate(sample["body"])
-        ts = sample["headers"]["X-Webhook-Timestamp"].to_i
+        ts = sample["headers"][SIGNING::HEADER_WEBHOOK_TIMESTAMP].to_i
         delivery = described_class.verify_delivery(raw, sample["headers"], secret: secret, now: ts)
 
         expect(delivery.event.uuid).to eq(sample["body"]["uuid"])
         expect(delivery.event.type).to eq(sample["body"]["type"])
-        expect(delivery.id).to eq(sample["headers"]["X-Webhook-Id"])
-        expect(delivery.event_id).to eq(sample["headers"]["X-Webhook-Event-Id"])
-        expect(delivery.event_type).to eq(sample["headers"]["X-Webhook-Event"])
+        expect(delivery.id).to eq(sample["headers"][SIGNING::HEADER_WEBHOOK_ID])
+        expect(delivery.event_id).to eq(sample["headers"][SIGNING::HEADER_WEBHOOK_EVENT_ID])
+        expect(delivery.event_type).to eq(sample["headers"][SIGNING::HEADER_WEBHOOK_EVENT])
         expect(delivery.sent_at).to eq(ts)
         expect(delivery.event.sequence).to be_a(Integer)
-        expect(sample["headers"]["X-Webhook-Event"]).to match(/\A(invoice|payout|wallet)\./)
+        expect(sample["headers"][SIGNING::HEADER_WEBHOOK_EVENT]).to match(/\A(invoice|payout|wallet)\./)
         # Every field the core sent is one the generated model knows; nil optional fields stay absent.
         expect(delivery.event.extra).to eq({})
         expect(delivery.event.to_h.keys).to match_array(sample["body"].compact.keys)
-        rehearsal = sample["body"]["test"] == true || sample["headers"]["X-Webhook-Test"] == "true"
+        rehearsal = sample["body"]["test"] == true || sample["headers"][SIGNING::HEADER_WEBHOOK_TEST] == "true"
         expect(delivery.test?).to be(rehearsal)
         expect(described_class.test_event?(delivery.event)).to be(sample["body"]["test"] == true)
 
@@ -43,8 +43,8 @@ RSpec.describe Oblodai::Webhooks do
     let(:ts) { 1_755_600_000 }
 
     def headers_for(raw, overrides = {})
-      { "x-webhook-timestamp" => ts.to_s,
-        "x-webhook-signature" => Oblodai::Signing.sign_webhook("whsec", ts, raw) }.merge(overrides)
+      { SIGNING::HEADER_WEBHOOK_TIMESTAMP.downcase => ts.to_s,
+        SIGNING::HEADER_WEBHOOK_SIGNATURE.downcase => Oblodai::Signing.sign_webhook("whsec", ts, raw) }.merge(overrides)
     end
 
     def headers(overrides = {})
@@ -63,7 +63,7 @@ RSpec.describe Oblodai::Webhooks do
         .to raise_error(Oblodai::SignatureError)
       expect { described_class.verify(body.sub("paid", "paid_over"), headers, secret: "whsec", now: ts) }
         .to raise_error(/does not match/)
-      expect { described_class.verify(body, { "x-webhook-signature" => "aa" }, secret: "whsec") }
+      expect { described_class.verify(body, { SIGNING::HEADER_WEBHOOK_SIGNATURE.downcase => "aa" }, secret: "whsec") }
         .to raise_error(/missing/)
     end
 
@@ -75,8 +75,9 @@ RSpec.describe Oblodai::Webhooks do
     end
 
     it "verifies during a secret rotation via the Prev header or the previous_secret option" do
-      rotated = headers("x-webhook-signature" => Oblodai::Signing.sign_webhook("new", ts, body),
-                        "x-webhook-signature-prev" => Oblodai::Signing.sign_webhook("old", ts, body))
+      rotated = headers(SIGNING::HEADER_WEBHOOK_SIGNATURE.downcase => Oblodai::Signing.sign_webhook("new", ts, body),
+                        SIGNING::HEADER_WEBHOOK_SIGNATURE_PREV.downcase => Oblodai::Signing.sign_webhook("old", ts,
+                                                                                                         body))
       expect(described_class.verify(body, rotated, secret: "old", now: ts).uuid).to eq("u1") # not swapped yet
       expect(described_class.verify(body, rotated, secret: "new", now: ts).uuid).to eq("u1") # swapped
       expect(described_class.verify(body, rotated, secret: "unrelated", previous_secret: "old",
@@ -129,7 +130,8 @@ RSpec.describe Oblodai::Webhooks do
 
     it "reads the event id apart from the delivery id" do
       delivery = described_class.verify_delivery(
-        body, headers("X-Webhook-Id" => "d-1", "X-Webhook-Event-Id" => "e-1"), secret: "whsec", now: ts
+        body, headers(SIGNING::HEADER_WEBHOOK_ID => "d-1",
+                      SIGNING::HEADER_WEBHOOK_EVENT_ID => "e-1"), secret: "whsec", now: ts
       )
       expect([delivery.id, delivery.event_id]).to eq(%w[d-1 e-1])
       expect(described_class.verify_delivery(body, headers, secret: "whsec", now: ts).event_id).to be_nil
@@ -140,7 +142,7 @@ RSpec.describe Oblodai::Webhooks do
       expect(described_class.test_event?(described_class.parse(body))).to be(false)
 
       from_header = described_class.verify_delivery(
-        body, headers("x-webhook-test" => "true"), secret: "whsec", now: ts
+        body, headers(SIGNING::HEADER_WEBHOOK_TEST.downcase => "true"), secret: "whsec", now: ts
       )
       expect(from_header.test?).to be(true)
       # The header alone does not make the parsed event a test event — only the signed body does.
@@ -156,8 +158,9 @@ RSpec.describe Oblodai::Webhooks do
 
     it "returns the delivery headers worth keeping" do
       delivery = described_class.verify_delivery(
-        body, headers("x-webhook-id" => "d-1", "x-webhook-event" => "invoice.paid",
-                      "x-webhook-event-time" => "1755599999"),
+        body, headers(SIGNING::HEADER_WEBHOOK_ID.downcase => "d-1",
+                      SIGNING::HEADER_WEBHOOK_EVENT.downcase => "invoice.paid",
+                      SIGNING::HEADER_WEBHOOK_EVENT_TIME.downcase => "1755599999"),
         secret: "whsec", now: ts
       )
       expect(delivery.id).to eq("d-1")

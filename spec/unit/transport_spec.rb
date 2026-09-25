@@ -9,9 +9,9 @@ RSpec.describe Oblodai::Transport do
     call = http.calls.first
     expect(call.url).to eq("https://api.test/v1/sandbox/webhooks?limit=10&offset=0")
     expect(call.body).to be_nil
-    expect(call.headers["x-public-id"]).to eq("pk_test_1")
-    expect(call.headers["x-signature"]).to match(/\A[0-9a-f]{64}\z/)
-    expect(call.headers["x-timestamp"].to_i).to be_within(5).of(Time.now.to_i)
+    expect(call.headers[SIGNING::HEADER_PUBLIC_ID.downcase]).to eq("pk_test_1")
+    expect(call.headers[SIGNING::HEADER_SIGNATURE.downcase]).to match(/\A[0-9a-f]{64}\z/)
+    expect(call.headers[SIGNING::HEADER_TIMESTAMP.downcase].to_i).to be_within(5).of(Time.now.to_i)
   end
 
   it "generates one Idempotency-Key per create call and reuses it across retries" do
@@ -22,11 +22,11 @@ RSpec.describe Oblodai::Transport do
                         ])
     client_with(http).payments.create(amount: "1", currency: "USDT")
     expect(http.calls.size).to eq(2)
-    key = http.calls[0].headers["idempotency-key"]
+    key = http.calls[0].headers[SIGNING::HEADER_IDEMPOTENCY_KEY.downcase]
     expect(key).to match(/\A[0-9a-f-]{36}\z/)
-    expect(http.calls[1].headers["idempotency-key"]).to eq(key)
+    expect(http.calls[1].headers[SIGNING::HEADER_IDEMPOTENCY_KEY.downcase]).to eq(key)
     # Re-signed per attempt: same key, timestamp may differ but a signature is always present.
-    expect(http.calls[1].headers["x-signature"]).to match(/\A[0-9a-f]{64}\z/)
+    expect(http.calls[1].headers[SIGNING::HEADER_SIGNATURE.downcase]).to match(/\A[0-9a-f]{64}\z/)
   end
 
   it "honours a caller-supplied idempotency key and does not add one to read routes" do
@@ -35,8 +35,8 @@ RSpec.describe Oblodai::Transport do
     client.payouts.create(amount: "1", currency: "USDT", address: "T", order_id: "o",
                           idempotency_key: "my-key-1")
     client.payments.get_info(uuid: "u")
-    expect(http.calls[0].headers["idempotency-key"]).to eq("my-key-1")
-    expect(http.calls[1].headers).not_to have_key("idempotency-key")
+    expect(http.calls[0].headers[SIGNING::HEADER_IDEMPOTENCY_KEY.downcase]).to eq("my-key-1")
+    expect(http.calls[1].headers).not_to have_key(SIGNING::HEADER_IDEMPOTENCY_KEY.downcase)
   end
 
   it "refuses an unusable caller key before anything is sent" do
@@ -124,7 +124,7 @@ RSpec.describe Oblodai::Transport do
                         ])
     client_with(http, retry_policy: { max_retries: 0 }).account.get_balance
     expect(http.calls.size).to eq(2)
-    expect(http.calls[1].headers["x-timestamp"].to_i).to be_within(5).of(server_now)
+    expect(http.calls[1].headers[SIGNING::HEADER_TIMESTAMP.downcase].to_i).to be_within(5).of(server_now)
   end
 
   it "times out and reports transport.timeout" do
@@ -151,8 +151,8 @@ RSpec.describe Oblodai::Transport do
     client.payouts.create(amount: "1", currency: "USDT", address: "T", order_id: "o")
     client.payments.create(amount: "1", currency: "USDT")
     client.batches.get_info(batch_id: "b1")
-    expect(http.calls.map { |call| call.headers["x-public-id"] }).to eq(["pk_test_1"] * 3)
-    expect(http.calls.map { |call| call.headers["x-signature"] }).to all(match(/\A[0-9a-f]{64}\z/))
+    expect(http.calls.map { |call| call.headers[SIGNING::HEADER_PUBLIC_ID.downcase] }).to eq(["pk_test_1"] * 3)
+    expect(http.calls.map { |call| call.headers[SIGNING::HEADER_SIGNATURE.downcase] }).to all(match(/\A[0-9a-f]{64}\z/))
   end
 
   it "takes no per-call key preference: there is no second key to prefer" do
@@ -176,7 +176,7 @@ RSpec.describe Oblodai::Transport do
     client.sandbox.onboard_store("m1")
     client.account.get_balance
     expect(http.calls[0].headers["x-admin-token"]).to eq("adm")
-    expect(http.calls[0].headers).not_to have_key("x-signature")
+    expect(http.calls[0].headers).not_to have_key(SIGNING::HEADER_SIGNATURE.downcase)
     expect(http.calls[1].headers).not_to have_key("x-admin-token")
   end
 end

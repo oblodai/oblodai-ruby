@@ -22,7 +22,7 @@ class SkewedGateway
 
   def call(request, timeout:) # rubocop:disable Lint/UnusedMethodArgument
     await_siblings
-    signed = request.headers["X-Timestamp"].to_i
+    signed = request.headers[SIGNING::HEADER_TIMESTAMP].to_i
     server_now = Time.now.to_i + SKEW
     @lock.synchronize { @calls += 1 }
     if (server_now - signed).abs > Oblodai::Signing::SKEW_SECONDS

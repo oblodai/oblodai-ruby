@@ -59,7 +59,8 @@ module Conformance
 
   # Send a request vector through the signing transport the client's methods use — keys `public_id`
   # + the vector's secret, clock at the vector's `ts` — and return the one request that reached the
-  # HTTP adapter.
+  # HTTP adapter. That request is the vector's own — method, path + raw query and body bytes — so a
+  # matching signature proves the SDK signed what it sent.
   def send_vector(vector, public_id)
     script = Script.new([{ "status" => 200, "json" => { "state" => 0, "result" => {} } }])
     path, raw_query = vector.fetch("request_uri").split("?", 2)
@@ -80,6 +81,11 @@ module Conformance
     raise "sent #{script.requests.size} requests, want 1" unless script.requests.size == 1
 
     request = script.requests.first
+    raise "method #{request.method}, want #{vector["method"]}" unless request.method.to_s == vector.fetch("method")
+
+    uri = URI(request.url)
+    sent_uri = uri.query ? "#{uri.path}?#{uri.query}" : uri.path
+    raise "request_uri #{sent_uri}, want #{vector["request_uri"]}" unless sent_uri == vector.fetch("request_uri")
     unless request.body.to_s == vector.fetch("body")
       raise "body #{request.body.inspect}, want #{vector["body"].inspect}"
     end

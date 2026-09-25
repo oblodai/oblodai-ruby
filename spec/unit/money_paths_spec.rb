@@ -93,7 +93,7 @@ RSpec.describe "clock skew" do
     client = client_with(http, retry_policy: { max_retries: 0 })
     expect { client.account.get_balance }.to raise_error(Oblodai::AuthenticationError)
     client.account.get_balance
-    expect(http.calls[2].headers["x-timestamp"].to_i).to be_within(5).of(Time.now.to_i)
+    expect(http.calls[2].headers[SIGNING::HEADER_TIMESTAMP.downcase].to_i).to be_within(5).of(Time.now.to_i)
   end
 end
 
@@ -106,8 +106,8 @@ RSpec.describe "request construction" do
 
   it "drops caller headers that collide with signed headers" do
     http = FakeHTTP.new([FakeHTTP.ok_for("getBalance")])
-    client_with(http, headers: { "x-signature" => "zz", "X-Trace" => "t1" }).account.get_balance
-    expect(http.calls[0].headers["x-signature"]).to match(/\A[0-9a-f]{64}\z/)
+    client_with(http, headers: { SIGNING::HEADER_SIGNATURE.downcase => "zz", "X-Trace" => "t1" }).account.get_balance
+    expect(http.calls[0].headers[SIGNING::HEADER_SIGNATURE.downcase]).to match(/\A[0-9a-f]{64}\z/)
     expect(http.calls[0].headers["x-trace"]).to eq("t1")
   end
 

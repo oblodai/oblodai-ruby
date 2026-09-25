@@ -42,7 +42,7 @@ RSpec.describe "examples" do
   it "payout.rb sends its own idempotency key and waits for the batch" do
     gateway, out = run_script(File.join(dir, "payout.rb"))
     create = gateway.calls.find { |r| r.url.end_with?("/v1/payout") }
-    expect(create.headers["Idempotency-Key"]).to start_with("payout-")
+    expect(create.headers[SIGNING::HEADER_IDEMPOTENCY_KEY]).to start_with("payout-")
     expect(out).to include("batch ", "completed")
   end
 
@@ -55,9 +55,9 @@ RSpec.describe "examples" do
 
     def delivery(body, id: "d-1", event_id: nil, secret: "whsec-example")
       raw = JSON.generate(body)
-      headers = { "X-Webhook-Timestamp" => ts.to_s, "X-Webhook-Id" => id,
-                  "X-Webhook-Signature" => Oblodai::Signing.sign_webhook(secret, ts, raw) }
-      headers["X-Webhook-Event-Id"] = event_id if event_id
+      headers = { SIGNING::HEADER_WEBHOOK_TIMESTAMP => ts.to_s, SIGNING::HEADER_WEBHOOK_ID => id,
+                  SIGNING::HEADER_WEBHOOK_SIGNATURE => Oblodai::Signing.sign_webhook(secret, ts, raw) }
+      headers[SIGNING::HEADER_WEBHOOK_EVENT_ID] = event_id if event_id
       [raw, headers]
     end
 
