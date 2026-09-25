@@ -2,8 +2,8 @@
 # frozen_string_literal: true
 
 # A webhook receiver on Ruby's own HTTP server — no framework, no client, no API key. The two rules
-# that matter: verify over the RAW bytes, and deduplicate on the event id (`X-Webhook-Event-Id`) — not
-# on the delivery id, which a resend changes.
+# that matter: verify over the RAW bytes, and deduplicate on the event id (`Delivery#event_id`, the
+# `Oblodai::Webhooks::HEADER_EVENT_ID` header) — not on the delivery id, which a resend changes.
 #
 # WEBrick left the standard library in Ruby 3.0 — `gem install webrick` (it is in this repository's
 # development bundle) before running the example. Nothing in the gem itself needs it.
@@ -64,9 +64,9 @@ class WebhookReceiver
     end
   end
 
-  # X-Webhook-Event-Id names the STATE: the same for every retry and every resend of it. X-Webhook-Id
-  # names one delivery — a resend (payments resend, sandbox replay) gets a new one. A core that does
-  # not send the event id yet leaves the delivery id as the next best key.
+  # The event id (HEADER_EVENT_ID) names the STATE: the same for every retry and every resend of it.
+  # The delivery id (HEADER_ID) names one delivery — a resend (payments resend, sandbox replay) gets a
+  # new one. A core that does not send the event id yet leaves the delivery id as the next best key.
   def dedup_key(delivery)
     delivery.event_id || delivery.id
   end

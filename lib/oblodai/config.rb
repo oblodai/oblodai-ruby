@@ -36,7 +36,7 @@ module Oblodai
     # @return [Oblodai::Hooks, nil]
     attr_reader :hooks
 
-    # @param public_id [String, nil] public id of the merchant's one API key (`X-Public-Id`);
+    # @param public_id [String, nil] public id of the merchant's one API key ({Oblodai::Signing::HEADER_PUBLIC_ID});
     #   env OBLODAI_PUBLIC_ID
     # @param secret [String, nil] secret of that key — it signs every signed route; env OBLODAI_SECRET
     # @param base_url [String, nil] API origin; env OBLODAI_BASE_URL, then https://api.oblodai.com

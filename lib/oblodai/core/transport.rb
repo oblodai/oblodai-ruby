@@ -151,7 +151,7 @@ module Oblodai
       execute(route, options)
     end
 
-    # The `result` of a success envelope. The core replays a cached response by Idempotency-Key;
+    # The `result` of a success envelope. The core replays a cached response by idempotency key;
     # when the original was too large to cache it answers `{ok, idempotent_replay: true, detail}`
     # instead of the object — that is surfaced as an error, not handed over as the result.
     # @param route [Oblodai::RouteSpec]
@@ -298,7 +298,7 @@ module Oblodai
     # @return [Integer, nil] the offset that was installed, or nil when no correction was made
     def correct_skew(route, raw, signed_offset)
       offset = @clock.observe_server_date(raw.header("date"))
-      return nil if offset.nil? || (offset - signed_offset).abs <= Signing::SKEW_SECONDS / 2
+      return nil if offset.nil? || (offset - signed_offset).abs <= Generated::SigningProtocol::SKEW_SECONDS / 2
 
       @logger.warn("clock skew detected; re-signing with server time",
                    { route: route.key, offset_sec: offset })
@@ -317,7 +317,8 @@ module Oblodai
         # deduplicated when it is not — the one belief that turns a lost response into a double spend.
         raise ConfigError.new(
           "sdk.idempotency_unsupported",
-          "#{route.key} does not deduplicate by Idempotency-Key; remove idempotency_key from this call",
+          "#{route.key} does not deduplicate by #{Signing::HEADER_IDEMPOTENCY_KEY}; " \
+          "remove idempotency_key from this call",
           "idempotency_key"
         )
       end
@@ -368,7 +369,7 @@ module Oblodai
     end
 
     # The SDK never follows a redirect: the signature is bound to the path it signed, and a 3xx to
-    # another origin would replay the request (and its Idempotency-Key) somewhere else. An injected
+    # another origin would replay the request (and its idempotency key) somewhere else. An injected
     # adapter may follow one anyway, so the answer's own URL is checked against the one asked for.
     def assert_not_redirected!(requested, raw)
       landed = raw.url.to_s

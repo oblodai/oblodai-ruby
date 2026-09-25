@@ -5,20 +5,23 @@ require_relative "core/signing"
 require_relative "core/util"
 require_relative "errors"
 require_relative "generated/facts"
+require_relative "generated/signing"
 
 module Oblodai
   # Webhook verification — usable on its own (`require "oblodai/webhooks"`), no client and no API
-  # key required. Deliveries are signed as:
+  # key required. Deliveries are signed as the contract declares (`x-oblodai-signing.webhook`,
+  # {Oblodai::Generated::SigningProtocol}); the headers, by the constants that name them:
   #
-  #     X-Webhook-Timestamp: <unix seconds>
-  #     X-Webhook-Signature: hex(HMAC-SHA256(secret, "<ts>." + rawBody))
-  #     X-Webhook-Signature-Prev: same, with the previous secret — only during a rotation overlap
-  #     X-Webhook-Event: an event of Oblodai::Generated::WEBHOOK_EVENTS (a newer core may add more)
-  #     X-Webhook-Id: the delivery — identical across its retries, but a resend is a new delivery
-  #     X-Webhook-Event-Id: the state — identical across retries AND resends of the same state; the
+  #     HEADER_TIMESTAMP: <unix seconds>
+  #     HEADER_SIGNATURE: hex(HMAC-SHA256(secret, WEBHOOK_CANONICAL_ORDER joined by
+  #       WEBHOOK_CANONICAL_SEPARATOR)) — the timestamp and the raw body
+  #     HEADER_SIGNATURE_PREV: same, with the previous secret — only during a rotation overlap
+  #     HEADER_EVENT: an event of Oblodai::Generated::WEBHOOK_EVENTS (a newer core may add more)
+  #     HEADER_ID: the delivery — identical across its retries, but a resend is a new delivery
+  #     HEADER_EVENT_ID: the state — identical across retries AND resends of the same state; the
   #       key to deduplicate on ({Delivery#event_id})
-  #     X-Webhook-Event-Time: unix seconds when the state change committed (order events by it)
-  #     X-Webhook-Test: "true" on a rehearsal delivery (`webhooks.test`, sandbox) — see below
+  #     HEADER_EVENT_TIME: unix seconds when the state change committed (order events by it)
+  #     HEADER_TEST: "true" on a rehearsal delivery (`webhooks.test`, sandbox) — see below
   #
   # Always verify over the RAW request bytes; a re-serialized parse will not match.
   #
@@ -27,7 +30,7 @@ module Oblodai
   # as an oracle, and the body is parsed only after it is known to be authentic.
   #
   # Rehearsal deliveries are signed exactly like live ones and carry `test: true` in the body (and
-  # `X-Webhook-Test: true`). A handler MUST check {Delivery#test?} / {test_event?} and never act on
+  # {HEADER_TEST}: true). A handler MUST check {Delivery#test?} / {test_event?} and never act on
   # a test event as if money moved.
   #
   #     event = Oblodai::Webhooks.verify(request.body.read, request.headers, secret: ENV["SECRET"])
@@ -36,17 +39,21 @@ module Oblodai
   #     when "payment" then mark_order_paid(event.order_id) if event.status == "paid"
   #     end
   module Webhooks
-    HEADER_TIMESTAMP = "X-Webhook-Timestamp"
-    HEADER_SIGNATURE = "X-Webhook-Signature"
-    HEADER_SIGNATURE_PREV = "X-Webhook-Signature-Prev"
-    HEADER_EVENT = "X-Webhook-Event"
-    HEADER_ID = "X-Webhook-Id"
-    HEADER_EVENT_ID = "X-Webhook-Event-Id"
-    HEADER_EVENT_TIME = "X-Webhook-Event-Time"
+    # Delivery headers — the contract's names.
+    HEADER_TIMESTAMP = Generated::SigningProtocol::WEBHOOK_HEADER_TIMESTAMP
+    HEADER_SIGNATURE = Generated::SigningProtocol::WEBHOOK_HEADER_SIGNATURE
+    HEADER_SIGNATURE_PREV = Generated::SigningProtocol::WEBHOOK_HEADER_SIGNATURE_PREV
+    HEADER_EVENT = Generated::SigningProtocol::WEBHOOK_HEADER_EVENT
+    HEADER_ID = Generated::SigningProtocol::WEBHOOK_HEADER_ID
+    HEADER_EVENT_ID = Generated::SigningProtocol::WEBHOOK_HEADER_EVENT_ID
+    HEADER_EVENT_TIME = Generated::SigningProtocol::WEBHOOK_HEADER_EVENT_TIME
+    # A rehearsal marker, advisory: not part of the signing protocol (the body's `test: true` is what
+    # is signed), so the contract does not declare it.
     HEADER_TEST = "X-Webhook-Test"
 
-    # Reject deliveries whose timestamp is further from now than this, seconds. 0 disables the check.
-    DEFAULT_TOLERANCE = 300
+    # Reject deliveries whose timestamp is further from now than this, seconds — the contract's
+    # skew window. 0 disables the check.
+    DEFAULT_TOLERANCE = Generated::SigningProtocol::SKEW_SECONDS
 
     # A verified delivery: the event plus the advisory headers worth keeping.
     #
@@ -54,17 +61,17 @@ module Oblodai
     #   @return [Oblodai::Models::Base, Hash] the model of the event's kind ({EVENT_MODELS}), or the
     #     parsed body of a kind this release does not know
     # @!attribute [r] id
-    #   @return [String, nil] `X-Webhook-Id` — the delivery: identical across its retries, but a
+    #   @return [String, nil] {HEADER_ID} — the delivery: identical across its retries, but a
     #     resend (`POST /v1/payment/resend`, a sandbox replay) is a new delivery with a new id
     # @!attribute [r] event_id
-    #   @return [String, nil] `X-Webhook-Event-Id` — the state the delivery carries: identical across
+    #   @return [String, nil] {HEADER_EVENT_ID} — the state the delivery carries: identical across
     #     retries and resends of the same state, different once the state changes. Deduplicate on it.
     # @!attribute [r] event_type
-    #   @return [String, nil] `X-Webhook-Event`
+    #   @return [String, nil] {HEADER_EVENT}
     # @!attribute [r] event_time
-    #   @return [Integer, nil] `X-Webhook-Event-Time` — when the state change committed
+    #   @return [Integer, nil] {HEADER_EVENT_TIME} — when the state change committed
     # @!attribute [r] sent_at
-    #   @return [Integer] `X-Webhook-Timestamp` — when this attempt was sent
+    #   @return [Integer] {HEADER_TIMESTAMP} — when this attempt was sent
     # @!attribute [r] test
     #   @return [Boolean] a rehearsal delivery — see {Delivery#test?}
     Delivery = Struct.new(:event, :id, :event_id, :event_type, :event_time, :sent_at, :test, keyword_init: true) do
@@ -73,7 +80,7 @@ module Oblodai
         freeze
       end
 
-      # A rehearsal delivery (`X-Webhook-Test: true`, or `test: true` in the signed body): produced
+      # A rehearsal delivery ({HEADER_TEST}: true, or `test: true` in the signed body): produced
       # by `webhooks.test` and by the sandbox, signed exactly like a live one, but NO money moved.
       # Never credit an order, release goods or pay anyone out on one.
       # @return [Boolean]

@@ -3,10 +3,11 @@
 require "time"
 
 module Oblodai
-  # Injectable clock for signing. The core rejects timestamps more than ±300 s from its own time;
-  # a host with a drifting clock would get `merchant.bad_signature` on every call. The transport
-  # learns the server's time from the `Date` header of a signature-failure response, re-signs once,
-  # and keeps the offset only if that re-signed attempt got past authentication.
+  # Injectable clock for signing. The core rejects timestamps more than ±{Signing::SKEW_SECONDS} (the
+  # contract's `x-oblodai-signing.skew_seconds`) from its own time; a host with a drifting clock
+  # would get `merchant.bad_signature` on every call. The transport learns the server's time from the
+  # `Date` header of a signature-failure response, re-signs once, and keeps the offset only if that
+  # re-signed attempt got past authentication.
   class Clock
     # Offsets beyond this are implausible clock drift and are ignored (a broken proxy `Date`).
     MAX_PLAUSIBLE_OFFSET_SECONDS = 24 * 3600

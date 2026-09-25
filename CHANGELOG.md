@@ -25,6 +25,11 @@ and the minimum Ruby change — every old name and its new one is in [MIGRATION-
 - `Delivery#event_id` (`X-Webhook-Event-Id`): the id of the state a delivery carries, the same
   across retries and resends — the key to deduplicate on (`Delivery#id` changes on a resend);
   `Oblodai::Webhooks.subject_id(event)` — the object's id by kind (`Generated::WEBHOOK_ID_FIELDS`).
+- the signing protocol from the contract (`x-oblodai-signing`, `Oblodai::Generated::SigningProtocol`):
+  request and webhook header names, the order and separators of the canonical strings, the skew
+  window and the idempotency key limit. `Oblodai::Signing::HEADER_*`, `SKEW_SECONDS`,
+  `Oblodai::Webhooks::HEADER_*`, `DEFAULT_TOLERANCE` and `Oblodai::Idempotency::MAX_KEY_LENGTH` stay,
+  now as the generated values.
 - the shared conformance suite of the backend (`spec/conformance`), README and example snippets run
   in the specs, and a drift check of the generated code in `make ci`.
 

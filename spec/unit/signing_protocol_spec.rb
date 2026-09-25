@@ -1,0 +1,78 @@
+# frozen_string_literal: true
+
+# The runtime signs and verifies by the generated protocol (`Oblodai::Generated::SigningProtocol`,
+# from the contract's `x-oblodai-signing`), not by literals of its own: a header the core renames, a
+# reordered canonical string or a new skew reaches the SDK by regeneration alone.
+RSpec.describe "signing protocol from the contract" do
+  protocol = Oblodai::Generated::SigningProtocol
+
+  it "is the backend spec's x-oblodai-signing" do
+    skip "backend openapi.json not found (set OBLODAI_BACKEND)" if backend_spec.nil?
+    signing = backend_spec.fetch("x-oblodai-signing")
+    expect([protocol::HEADER_PUBLIC_ID, protocol::HEADER_SIGNATURE, protocol::HEADER_TIMESTAMP,
+            protocol::HEADER_IDEMPOTENCY_KEY]).to eq(signing.fetch("headers"))
+    expect([protocol::WEBHOOK_HEADER_TIMESTAMP, protocol::WEBHOOK_HEADER_SIGNATURE,
+            protocol::WEBHOOK_HEADER_SIGNATURE_PREV, protocol::WEBHOOK_HEADER_EVENT, protocol::WEBHOOK_HEADER_ID,
+            protocol::WEBHOOK_HEADER_EVENT_ID, protocol::WEBHOOK_HEADER_EVENT_TIME])
+      .to eq(signing.dig("webhook", "headers"))
+    expect(protocol::SKEW_SECONDS).to eq(signing.fetch("skew_seconds"))
+    expect(protocol::MAX_BODY).to eq(signing.fetch("max_body"))
+    expect(protocol::MAX_IDEMPOTENCY_KEY_LENGTH).to eq(signing.fetch("max_idempotency_key_length"))
+  end
+
+  it "keeps the public names of 1.x as the generated values" do
+    expect(Oblodai::Signing::HEADER_PUBLIC_ID).to equal(protocol::HEADER_PUBLIC_ID)
+    expect(Oblodai::Signing::HEADER_SIGNATURE).to equal(protocol::HEADER_SIGNATURE)
+    expect(Oblodai::Signing::HEADER_TIMESTAMP).to equal(protocol::HEADER_TIMESTAMP)
+    expect(Oblodai::Signing::HEADER_IDEMPOTENCY_KEY).to equal(protocol::HEADER_IDEMPOTENCY_KEY)
+    expect(Oblodai::Signing::SKEW_SECONDS).to equal(protocol::SKEW_SECONDS)
+    expect(Oblodai::Idempotency::MAX_KEY_LENGTH).to equal(protocol::MAX_IDEMPOTENCY_KEY_LENGTH)
+    expect(Oblodai::Webhooks::HEADER_TIMESTAMP).to equal(protocol::WEBHOOK_HEADER_TIMESTAMP)
+    expect(Oblodai::Webhooks::HEADER_SIGNATURE).to equal(protocol::WEBHOOK_HEADER_SIGNATURE)
+    expect(Oblodai::Webhooks::HEADER_SIGNATURE_PREV).to equal(protocol::WEBHOOK_HEADER_SIGNATURE_PREV)
+    expect(Oblodai::Webhooks::HEADER_EVENT).to equal(protocol::WEBHOOK_HEADER_EVENT)
+    expect(Oblodai::Webhooks::HEADER_ID).to equal(protocol::WEBHOOK_HEADER_ID)
+    expect(Oblodai::Webhooks::HEADER_EVENT_ID).to equal(protocol::WEBHOOK_HEADER_EVENT_ID)
+    expect(Oblodai::Webhooks::HEADER_EVENT_TIME).to equal(protocol::WEBHOOK_HEADER_EVENT_TIME)
+    expect(Oblodai::Webhooks::DEFAULT_TOLERANCE).to equal(protocol::SKEW_SECONDS)
+  end
+
+  it "builds the request canonical string in the generated order with the generated separator" do
+    stub_const("Oblodai::Generated::SigningProtocol::REQUEST_CANONICAL_ORDER",
+               %w[METHOD body ts idempotency_key request_uri].freeze)
+    stub_const("Oblodai::Generated::SigningProtocol::REQUEST_CANONICAL_SEPARATOR", "|")
+    canonical = Oblodai::Signing.canonical_string(ts: 7, method: "post", request_uri: "/v1/x", body: "{}",
+                                                  idempotency_key: "k")
+    expect(canonical).to eq("POST|{}|7|k|/v1/x")
+    expect(Oblodai::Signing.sign_request("s", ts: 7, method: "post", request_uri: "/v1/x", body: "{}",
+                                              idempotency_key: "k"))
+      .to eq(OpenSSL::HMAC.hexdigest("SHA256", "s", canonical))
+  end
+
+  it "signs a webhook in the generated order with the generated separator" do
+    stub_const("Oblodai::Generated::SigningProtocol::WEBHOOK_CANONICAL_ORDER", %w[payload ts].freeze)
+    stub_const("Oblodai::Generated::SigningProtocol::WEBHOOK_CANONICAL_SEPARATOR", "~")
+    expect(Oblodai::Signing.sign_webhook("s", 9, "{}")).to eq(OpenSSL::HMAC.hexdigest("SHA256", "s", "{}~9"))
+  end
+
+  it "refuses an idempotency key longer than the contract allows" do
+    stub_const("Oblodai::Generated::SigningProtocol::MAX_IDEMPOTENCY_KEY_LENGTH", 4)
+    expect { Oblodai::Idempotency.assert_key!("abcde") }.to raise_error(Oblodai::ConfigError, /max 4/)
+    expect { Oblodai::Idempotency.assert_key!("abcd") }.not_to raise_error
+  end
+
+  it "re-signs for skew by the contract's window" do
+    stub_const("Oblodai::Generated::SigningProtocol::SKEW_SECONDS", 10)
+    # 60 s of drift: far inside half of 300 s, but past half of the stubbed 10 s window.
+    server_now = Time.now.to_i + 60
+    http = FakeHTTP.new([
+                          FakeHTTP.api_error(401, { "code" => "merchant.bad_signature", "retryable" => false },
+                                             "date" => Time.at(server_now).httpdate),
+                          FakeHTTP.ok_for("getBalance")
+                        ])
+    client_with(http, retry_policy: { max_retries: 0 }).account.get_balance
+    expect(http.calls.size).to eq(2)
+    stamp = http.calls[1].headers[protocol::HEADER_TIMESTAMP.downcase].to_i
+    expect(stamp).to be_within(5).of(server_now)
+  end
+end
