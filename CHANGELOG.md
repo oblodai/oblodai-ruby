@@ -3,7 +3,7 @@
 All notable changes to this gem. The format follows [Keep a Changelog](https://keepachangelog.com/),
 versions follow [SemVer](https://semver.org/).
 
-## [2.0.0] — Unreleased
+## [2.0.0] — 2026-09-25
 
 The SDK is generated from the gateway's OpenAPI contract (`services/core/api/openapi.json`) by the
 backend's `tools/sdkgen`, on top of a hand-written runtime. Breaking: method names, options, models
