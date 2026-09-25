@@ -57,6 +57,16 @@ module Conformance
     roles.zip(list).to_h
   end
 
+  # The rehearsal header name the spec gives (`header_names.test_pointer`) — again the spec's name,
+  # not the SDK's constant.
+  def test_header(suite)
+    spec = JSON.parse(File.read(File.expand_path(suite.dig("source", "spec"), dir)))
+    name = pointer(spec, suite.fetch("header_names").fetch("test_pointer"))
+    raise "header_names.test_pointer: empty name" if name.to_s.empty?
+
+    name
+  end
+
   # Send a request vector through the signing transport the client's methods use — keys `public_id`
   # + the vector's secret, clock at the vector's `ts` — and return the one request that reached the
   # HTTP adapter. That request is the vector's own — method, path + raw query and body bytes — so a
@@ -211,6 +221,7 @@ RSpec.describe "conformance" do
     suite = Conformance.suite("webhook_delivery")
     _, deliveries = Conformance.source(suite)
     names = Conformance.header_names(suite)
+    test_header = Conformance.test_header(suite)
 
     it "has a delivery of every event this release knows" do
       expect(deliveries.map { |d| d["event"] }).to match_array(Oblodai::Generated::WEBHOOK_EVENTS.keys)
@@ -222,8 +233,10 @@ RSpec.describe "conformance" do
       deliveries.each do |vector|
         it "#{check["name"]} — #{vector["event"]} (#{check["key"]})" do
           secret = vector.fetch({ "current" => "secret", "previous" => "previous_secret" }.fetch(check["key"]))
-          delivery = Oblodai::Webhooks.verify_delivery(vector["payload"], vector["headers"],
-                                                       secret: secret, now: vector["ts"])
+          headers = vector["headers"].dup
+          headers[test_header] = "true" if check["test"]
+          delivery = Oblodai::Webhooks.verify_delivery(vector["payload"], headers, secret: secret, now: vector["ts"])
+          expect(delivery.test?).to be(check.fetch("test", false)), "test? (rehearsal header #{test_header})"
           expect(delivery.event).to be_a(Oblodai::Generated::WEBHOOK_MODELS.fetch(vector["kind"]))
           expect(Oblodai::Webhooks.known_event?(delivery.event)).to be(true)
           suite.fetch("fields").each do |role, field|
