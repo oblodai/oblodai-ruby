@@ -53,6 +53,28 @@ RSpec.describe "signing protocol from the contract" do
     expect(offenders).to eq([])
   end
 
+  # The body and idempotency-key limits as source literals: decimal, and `1 << n` for a power of two
+  # (digit separators — 1_048_576 — do not hide one). The skew is not scanned for: its value is also an
+  # HTTP status class (`< 300`); the alias expectations above hold it.
+  it "spells no literal of the body or idempotency-key limit outside lib/oblodai/generated" do
+    pats = [protocol::MAX_BODY, protocol::MAX_IDEMPOTENCY_KEY_LENGTH].map { |l| /(?<![\w.])#{l}(?![\w.])/ }
+    pats << /\b1\s*<<\s*#{protocol::MAX_BODY.bit_length - 1}\b/ if protocol::MAX_BODY.nobits?(protocol::MAX_BODY - 1)
+    # Lines that carry the same number for another limit: the `request_id:` option (X-Request-ID) is
+    # not part of x-oblodai-signing.
+    other_limit = { "oblodai/core/options.rb" => /request_id/ }
+    lib = File.expand_path("../../lib", __dir__)
+    offenders = Dir.glob(File.join(lib, "**", "*.rb")).reject { |p| p.include?("/generated/") }.flat_map do |path|
+      rel = path.delete_prefix("#{lib}/")
+      File.readlines(path).each_with_index.flat_map do |line, i|
+        next [] if other_limit[rel]&.match?(line)
+
+        text = line.gsub(/(?<=\d)_(?=\d)/, "")
+        pats.filter_map { |re| "#{rel}:#{i + 1}: #{re.source}" if re.match?(text) }
+      end
+    end
+    expect(offenders).to eq([])
+  end
+
   it "builds the request canonical string in the generated order with the generated separator" do
     stub_const("Oblodai::Generated::SigningProtocol::REQUEST_CANONICAL_ORDER",
                %w[METHOD body ts idempotency_key request_uri].freeze)
