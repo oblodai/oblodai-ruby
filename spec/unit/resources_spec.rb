@@ -62,7 +62,7 @@ RSpec.describe "resource surface" do
       client.payments.create({ "amount" => "1" }, currency: "USDT")
       expect(http.calls[0].json).to eq("amount" => "1", "currency" => "USDT")
       expect { client.payments.create({ "amount" => "1" }, amount: "2") }
-        .to raise_error(ArgumentError, /amount given twice/)
+        .to raise_error(Oblodai::ConfigError, /amount is given twice/)
     end
 
     it "refuses a misspelled keyword before anything is sent" do

@@ -273,8 +273,8 @@ module Oblodai
     end
 
     # The id of the object the event is about — the body field {Oblodai::Generated::WEBHOOK_ID_FIELDS}
-    # names for its kind (`uuid` for payments, payouts and wallets, `id` for conversions). Key your
-    # per-object state (the last `sequence`) by it together with the kind. Never raises.
+    # names for its kind, as the contract declares it. Key your per-object state (the last
+    # `sequence`) by it together with the kind. Never raises.
     #
     # @param event [Oblodai::Models::Base, Hash] an event model or a decoded body
     # @return [String, nil] nil for a kind without an id field, or a body without a string there
