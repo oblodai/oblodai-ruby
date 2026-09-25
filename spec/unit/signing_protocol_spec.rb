@@ -5,6 +5,15 @@
 # reordered canonical string or a new skew reaches the SDK by regeneration alone.
 RSpec.describe "signing protocol from the contract" do
   protocol = Oblodai::Generated::SigningProtocol
+  root = File.expand_path("../..", __dir__)
+  # Every hand-written Ruby file that ships or is run: lib/ outside lib/oblodai/generated, and the
+  # examples (the gem carries them and the README specs run them) — as paths relative to the root.
+  hand_written = lambda do
+    files = Dir.glob(File.join(root, "{lib,examples}", "**", "*.rb")).reject { |p| p.include?("/generated/") }
+    raise "no examples scanned" unless files.any? { |p| p.start_with?(File.join(root, "examples/")) }
+
+    files.sort.map { |p| [p, p.delete_prefix("#{root}/")] }
+  end
 
   it "is the backend spec's x-oblodai-signing" do
     skip "backend openapi.json not found (set OBLODAI_BACKEND)" if backend_spec.nil?
@@ -40,15 +49,14 @@ RSpec.describe "signing protocol from the contract" do
     expect(Oblodai::Webhooks::DEFAULT_TOLERANCE).to equal(protocol::SKEW_SECONDS)
   end
 
-  it "spells no signing or webhook header outside lib/oblodai/generated" do
+  it "spells no signing or webhook header outside lib/oblodai/generated (library and examples)" do
     skip "backend openapi.json not found (set OBLODAI_BACKEND)" if backend_spec.nil?
     signing = backend_spec.fetch("x-oblodai-signing")
     names = [*signing.fetch("headers"), *signing.dig("webhook", "headers"), signing.dig("webhook", "test_header")]
             .map(&:downcase)
-    lib = File.expand_path("../../lib", __dir__)
-    offenders = Dir.glob(File.join(lib, "**", "*.rb")).reject { |p| p.include?("/generated/") }.flat_map do |path|
+    offenders = hand_written.call.flat_map do |path, rel|
       text = File.read(path).downcase
-      names.select { |n| text.include?(n) }.map { |n| "#{path.delete_prefix("#{lib}/")}: #{n}" }
+      names.select { |n| text.include?(n) }.map { |n| "#{rel}: #{n}" }
     end
     expect(offenders).to eq([])
   end
@@ -56,15 +64,13 @@ RSpec.describe "signing protocol from the contract" do
   # The body and idempotency-key limits as source literals: decimal, and `1 << n` for a power of two
   # (digit separators — 1_048_576 — do not hide one). The skew is not scanned for: its value is also an
   # HTTP status class (`< 300`); the alias expectations above hold it.
-  it "spells no literal of the body or idempotency-key limit outside lib/oblodai/generated" do
+  it "spells no literal of the body or idempotency-key limit outside lib/oblodai/generated (library and examples)" do
     pats = [protocol::MAX_BODY, protocol::MAX_IDEMPOTENCY_KEY_LENGTH].map { |l| /(?<![\w.])#{l}(?![\w.])/ }
     pats << /\b1\s*<<\s*#{protocol::MAX_BODY.bit_length - 1}\b/ if protocol::MAX_BODY.nobits?(protocol::MAX_BODY - 1)
     # Lines that carry the same number for another limit: the `request_id:` option (X-Request-ID) is
     # not part of x-oblodai-signing.
-    other_limit = { "oblodai/core/options.rb" => /request_id/ }
-    lib = File.expand_path("../../lib", __dir__)
-    offenders = Dir.glob(File.join(lib, "**", "*.rb")).reject { |p| p.include?("/generated/") }.flat_map do |path|
-      rel = path.delete_prefix("#{lib}/")
+    other_limit = { "lib/oblodai/core/options.rb" => /request_id/ }
+    offenders = hand_written.call.flat_map do |path, rel|
       File.readlines(path).each_with_index.flat_map do |line, i|
         next [] if other_limit[rel]&.match?(line)
 
