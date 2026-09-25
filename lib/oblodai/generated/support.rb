@@ -124,7 +124,9 @@ module Oblodai
 
       # A request body (or query) from the positional `params` — a model or a Hash — plus the
       # keywords. An UNSET keyword is left out, and so is nil unless the field is `nullable`
-      # (then it is an explicit null). A field given both ways is an ArgumentError.
+      # (then it is an explicit null). A field given both ways (a params value that is not nil or "")
+      # is an Oblodai::ConfigError sdk.bad_config before anything is sent, as in every SDK: which
+      # of the two was meant is a guess.
       # @return [Hash{String => Object}]
       def merge(params, fields, nullable = [].freeze)
         out = case params
@@ -135,11 +137,19 @@ module Oblodai
               end
         fields.each do |key, value|
           next if value.equal?(UNSET) || (value.nil? && !nullable.include?(key))
-          raise ArgumentError, "#{key} given twice: in params and as a keyword" if out.key?(key)
+
+          if given?(out[key])
+            message = "#{key} is given twice: in params and as a keyword; keep one"
+            raise Oblodai::ConfigError.new("sdk.bad_config", message, key)
+          end
 
           out[key] = value
         end
         out
+      end
+
+      def given?(value)
+        !value.nil? && value != ""
       end
     end
   end

@@ -67,8 +67,8 @@ module Oblodai
       "wallet" => Models::WalletWebhook
     }.freeze
 
-    # The body field holding the id of the object the event is about, by kind (`uuid` for most kinds,
-    # `id` for conversions). A kind without such a field is not listed.
+    # The body field holding the id of the object the event is about, by kind, as the contract
+    # declares it. A kind without such a field is not listed.
     # @return [Hash{String => String}]
     WEBHOOK_ID_FIELDS = {
       "conversion" => "id",

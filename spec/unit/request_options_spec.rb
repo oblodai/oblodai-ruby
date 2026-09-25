@@ -83,9 +83,18 @@ RSpec.describe "call options" do
     ]
     own.each do |params|
       expect { sandbox.faucet(params, idempotency_key: "faucet-2") }
-        .to raise_error(ArgumentError, /idempotency_key/)
+        .to raise_error(Oblodai::ConfigError) { |e|
+          expect([e.code, e.field]).to eq(["sdk.bad_config", "idempotency_key"])
+        }
     end
     expect(http.calls).to be_empty
+  end
+
+  it "fills a nil faucet key in params from the keyword" do
+    http = FakeHTTP.new([FakeHTTP.ok_for("sandboxFaucet")])
+    client_with(http).sandbox.faucet({ "asset" => "USDT", "amount" => "5", "idempotency_key" => nil },
+                                     idempotency_key: "faucet-3")
+    expect(http.calls[0].json).to include("idempotency_key" => "faucet-3")
   end
 end
 

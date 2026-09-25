@@ -179,6 +179,22 @@ RSpec.describe "conformance" do
     end
   end
 
+  # forward_compat webhooks: the body parses, keeps its raw type, and is known exactly as said.
+  describe "webhook bodies" do
+    bodies = Conformance.suite("forward_compat").fetch("webhooks")
+
+    it("has webhook bodies") { expect(bodies).not_to be_empty }
+
+    bodies.each do |body|
+      it body["name"] do
+        event = Oblodai::Webhooks.parse(JSON.generate(body.fetch("body")))
+        type = event.is_a?(Oblodai::Models::Base) ? event.type : event["type"]
+        expect(type).to eq(body.dig("expect", "type"))
+        expect(Oblodai::Webhooks.known_event?(event)).to be(body.dig("expect", "known"))
+      end
+    end
+  end
+
   describe "calls" do
     # A value of the answer as the scenario spells it: amounts compare as numbers.
     def plain_equal?(got, want)

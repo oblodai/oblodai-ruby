@@ -37,7 +37,9 @@ and the minimum Ruby change — every old name and its new one is in [MIGRATION-
   `splits`, `wallets`, `account`, `webhooks`, `settings`, `api_allowlist`, `referrals`,
   `documents`, `checkout`, `sandbox`.
 - request bodies: keyword arguments, a Hash with the wire names, or a request model; path
-  parameters positional, query parameters keywords.
+  parameters positional, query parameters keywords. A field given both in the Hash (or model) and
+  as a keyword — the sandbox faucet's `idempotency_key` too — is `Oblodai::ConfigError`
+  `sdk.bad_config` before anything is sent, as in every Oblodai SDK.
 - responses are generated frozen models with `BigDecimal` amounts, unknown fields in `extra` and
   unknown enum values kept as strings; enumerations are `Oblodai::Enums::<Name>` constants.
 - call options are explicit: `idempotency_key:`, `timeout:` (seconds), `max_retries:`,
