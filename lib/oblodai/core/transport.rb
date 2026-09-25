@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 
+require_relative "../generated/enums"
 require_relative "clock"
 require_relative "envelope"
 require_relative "hooks"
@@ -18,8 +19,11 @@ module Oblodai
   # serialize → sign → send (with timeout) → decode envelope → classify error → retry per policy.
   # {#call_raw} returns the 2xx answer itself (documents, raw responses).
   class Transport
-    # Error codes that mean the core rejected the signature because of the timestamp or MAC.
-    SIGNATURE_FAILURE_CODES = ["merchant.bad_signature", "auth.bad_timestamp"].freeze
+    # Error codes that mean the core rejected the signature because of the timestamp or MAC: the
+    # generated {Enums::ErrorCode} constants, so a code renamed in the contract fails on load.
+    SIGNATURE_FAILURE_CODES = [
+      Enums::ErrorCode::MERCHANT_BAD_SIGNATURE, Enums::ErrorCode::AUTH_BAD_TIMESTAMP
+    ].freeze
 
     # Response body caps. The SDK buffers the whole body, so an endless or mistargeted stream would
     # otherwise grow until the process dies. JSON envelopes are small; `bare` routes are PDFs and CSV

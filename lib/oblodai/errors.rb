@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require_relative "generated/enums"
+
 # Every failure the SDK can raise, and the mapping from the core's error envelope onto them.
 module Oblodai
   # Error model. One family, {Oblodai::Error}, mirrors the core's error envelope:
@@ -278,7 +280,7 @@ module Oblodai
   # separating: a reused idempotency key is not the same failure as a state conflict.
   # @return [Class]
   def self.error_class(http_status, code)
-    return IdempotencyConflictError if code == "idempotency.key_reused"
+    return IdempotencyConflictError if code == Enums::ErrorCode::IDEMPOTENCY_KEY_REUSED
 
     STATUS_ERRORS.fetch(http_status) { http_status >= 500 ? InternalError : ApiError }
   end
