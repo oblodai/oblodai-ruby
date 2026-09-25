@@ -67,7 +67,7 @@ module Oblodai
     # @param base_url [String]
     # @param route [Oblodai::Contract::Route]
     # @param body [String] already-serialized body; "" for GET
-    # @param ts [Integer] unix seconds; signed into X-Timestamp
+    # @param ts [Integer] unix seconds; sent as {Signing::HEADER_TIMESTAMP} and signed
     # @param user_agent [String]
     # @param path_params [Hash, nil]
     # @param query [Hash, nil]

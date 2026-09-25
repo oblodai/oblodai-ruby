@@ -2,6 +2,7 @@
 
 require "bigdecimal"
 require "json"
+require "uri"
 
 # The shared conformance suite every Oblodai SDK runs (backend `tools/sdkgen/conformance`).
 #
@@ -44,6 +45,48 @@ module Conformance
     [spec.fetch("x-oblodai-signing"), pointer(spec, src.fetch("pointer"))]
   end
 
+  # Header names by role (`header_names`), read from the spec and never from the SDK's own constants:
+  # a header the core renamed that did not reach the SDK fails here.
+  def header_names(suite)
+    names = suite.fetch("header_names")
+    spec = JSON.parse(File.read(File.expand_path(suite.dig("source", "spec"), dir)))
+    list = pointer(spec, names.fetch("pointer"))
+    roles = names.fetch("roles")
+    raise "header_names: #{list.size} names for #{roles.size} roles" unless list.size == roles.size
+
+    roles.zip(list).to_h
+  end
+
+  # Send a request vector through the signing transport the client's methods use — keys `public_id`
+  # + the vector's secret, clock at the vector's `ts` — and return the one request that reached the
+  # HTTP adapter.
+  def send_vector(vector, public_id)
+    script = Script.new([{ "status" => 200, "json" => { "state" => 0, "result" => {} } }])
+    path, raw_query = vector.fetch("request_uri").split("?", 2)
+    key = vector.fetch("idempotency_key")
+    route = Oblodai::RouteSpec.new(operation_id: "conformanceRequestHeaders", method: vector.fetch("method"),
+                                   path: path, auth: :key, idempotent: !key.empty?, safe: false, bare: false,
+                                   list_kind: nil)
+    transport = Oblodai::Transport.new(
+      base_url: "https://api.test", user_agent: "conformance", http: script,
+      credentials: Oblodai::RequestBuilder::Credentials.new(public_id: public_id, secret: vector.fetch("secret")),
+      clock: Oblodai::Clock.new(-> { vector.fetch("ts") })
+    )
+    body = vector.fetch("method") == "GET" ? nil : JSON.parse(vector.fetch("body"))
+    transport.call(route, Oblodai::Transport::CallOptions.new(
+                            body: body, query: URI.decode_www_form(raw_query.to_s).to_h,
+                            idempotency_key: key.empty? ? nil : key
+                          ))
+    raise "sent #{script.requests.size} requests, want 1" unless script.requests.size == 1
+
+    request = script.requests.first
+    unless request.body.to_s == vector.fetch("body")
+      raise "body #{request.body.inspect}, want #{vector["body"].inspect}"
+    end
+
+    request
+  end
+
   # Replays the scenario's responses and records what the SDK sent.
   class Script
     attr_reader :requests
@@ -83,6 +126,7 @@ RSpec.describe "conformance" do
   describe "request signing" do
     suite = Conformance.suite("signing")
     _, vectors = Conformance.source(suite)
+    names = Conformance.header_names(suite)
 
     it "has vectors" do
       expect(vectors).not_to be_empty
@@ -99,6 +143,13 @@ RSpec.describe "conformance" do
             expect(Oblodai::Signing.canonical_string(**args)).to eq(vector["canonical"])
           when "request_signature"
             expect(Oblodai::Signing.sign_request(vector["secret"], **args)).to eq(vector["signature"])
+          when "request_headers"
+            sent = Conformance.send_vector(vector, check.fetch("public_id")).headers.to_h { |k, v| [k.downcase, v] }
+            header = ->(role) { sent[names.fetch(role).downcase] }
+            expect(header.call("public_id")).to eq(check["public_id"]), names["public_id"]
+            expect(header.call("signature")).to eq(vector["signature"]), names["signature"]
+            expect(header.call("timestamp")).to eq(vector["ts"].to_s), names["timestamp"]
+            expect(header.call("idempotency_key")).to eq(key.empty? ? nil : key), names["idempotency_key"]
           else raise "unknown check kind #{check["kind"]}"
           end
         end
@@ -109,6 +160,7 @@ RSpec.describe "conformance" do
   describe "webhooks" do
     suite = Conformance.suite("webhook")
     signing, vectors = Conformance.source(suite)
+    names = Conformance.header_names(suite)
 
     suite.fetch("checks").each do |check|
       vectors.each_with_index do |vector, i|
@@ -129,7 +181,7 @@ RSpec.describe "conformance" do
           when "payload" then payload += " "
           when "signature" then signature = (signature[0] == "0" ? "1" : "0") + signature[1..]
           end
-          headers = { "X-Webhook-Timestamp" => ts.to_s, "X-Webhook-Signature" => signature }
+          headers = { names.fetch("timestamp") => ts.to_s, names.fetch("signature") => signature }
           verify = -> { Oblodai::Webhooks.verify(payload, headers, secret: secret, tolerance: skew, now: ts + Integer(offset)) }
           if check["expect"] == "ok"
             # The vectors sign bare payloads, not whole events: verify gets past the MAC and the
@@ -152,6 +204,7 @@ RSpec.describe "conformance" do
   describe "webhook deliveries" do
     suite = Conformance.suite("webhook_delivery")
     _, deliveries = Conformance.source(suite)
+    names = Conformance.header_names(suite)
 
     it "has a delivery of every event this release knows" do
       expect(deliveries.map { |d| d["event"] }).to match_array(Oblodai::Generated::WEBHOOK_EVENTS.keys)
@@ -167,9 +220,10 @@ RSpec.describe "conformance" do
                                                        secret: secret, now: vector["ts"])
           expect(delivery.event).to be_a(Oblodai::Generated::WEBHOOK_MODELS.fetch(vector["kind"]))
           expect(Oblodai::Webhooks.known_event?(delivery.event)).to be(true)
-          suite.fetch("headers").each do |header, field|
+          suite.fetch("fields").each do |role, field|
             next if field.empty?
 
+            header = names.fetch(role)
             value = delivery.public_send(field)
             want = vector.dig("headers", header)
             expect(value).to eq(value.is_a?(Integer) ? Integer(want) : want), "#{field} ≠ #{header}"
@@ -203,6 +257,9 @@ RSpec.describe "conformance" do
       got == want
     end
 
+    # The idempotency key header as the spec names it.
+    idempotency_header = Conformance.header_names(Conformance.suite("signing")).fetch("idempotency_key")
+
     %w[retry money forward_compat].each do |name|
       Conformance.suite(name).fetch("scenarios").each do |scenario|
         it "#{name}/#{scenario["name"]}" do
@@ -223,7 +280,7 @@ RSpec.describe "conformance" do
 
           expect_ = scenario.fetch("expect")
           expect(script.requests.size).to eq(expect_.fetch("requests")), script.requests.map(&:url).inspect
-          keys = script.requests.map { |r| r.headers["Idempotency-Key"] }
+          keys = script.requests.map { |r| r.headers.find { |k, _| k.casecmp?(idempotency_header) }&.last }
           case expect_["idempotency_key"]
           when "absent" then expect(keys).to all(be_nil)
           when "present" then expect(keys).to all(be_a(String))

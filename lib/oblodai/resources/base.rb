@@ -245,7 +245,8 @@ module Oblodai
         # One key reused across pages would replay page 1 forever.
         raise ConfigError.new(
           "sdk.idempotency_unsupported",
-          "#{route.key} does not deduplicate by Idempotency-Key; remove idempotency_key from this call",
+          "#{route.key} does not deduplicate by #{Signing::HEADER_IDEMPOTENCY_KEY}; " \
+          "remove idempotency_key from this call",
           "idempotency_key"
         )
       end
