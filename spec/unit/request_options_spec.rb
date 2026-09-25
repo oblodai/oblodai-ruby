@@ -71,7 +71,7 @@ RSpec.describe "call options" do
     http = FakeHTTP.new([FakeHTTP.ok_for("sandboxFaucet")])
     client_with(http).sandbox.faucet(asset: "USDT", amount: "5", idempotency_key: "faucet-1")
     expect(http.calls[0].json).to include("idempotency_key" => "faucet-1")
-    expect(http.calls[0].headers).not_to have_key("idempotency-key")
+    expect(http.calls[0].headers).not_to have_key(SIGNING::HEADER_IDEMPOTENCY_KEY.downcase)
   end
 
   it "refuses the faucet key given twice — in params and as the keyword — before the network" do

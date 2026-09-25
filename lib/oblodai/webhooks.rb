@@ -40,16 +40,16 @@ module Oblodai
   #     end
   module Webhooks
     # Delivery headers — the contract's names.
-    HEADER_TIMESTAMP = Generated::SigningProtocol::WEBHOOK_HEADER_TIMESTAMP
-    HEADER_SIGNATURE = Generated::SigningProtocol::WEBHOOK_HEADER_SIGNATURE
-    HEADER_SIGNATURE_PREV = Generated::SigningProtocol::WEBHOOK_HEADER_SIGNATURE_PREV
-    HEADER_EVENT = Generated::SigningProtocol::WEBHOOK_HEADER_EVENT
-    HEADER_ID = Generated::SigningProtocol::WEBHOOK_HEADER_ID
-    HEADER_EVENT_ID = Generated::SigningProtocol::WEBHOOK_HEADER_EVENT_ID
-    HEADER_EVENT_TIME = Generated::SigningProtocol::WEBHOOK_HEADER_EVENT_TIME
-    # A rehearsal marker, advisory: not part of the signing protocol (the body's `test: true` is what
-    # is signed), so the contract does not declare it.
-    HEADER_TEST = "X-Webhook-Test"
+    HEADER_TIMESTAMP = Generated::SigningProtocol::HEADER_WEBHOOK_TIMESTAMP
+    HEADER_SIGNATURE = Generated::SigningProtocol::HEADER_WEBHOOK_SIGNATURE
+    HEADER_SIGNATURE_PREV = Generated::SigningProtocol::HEADER_WEBHOOK_SIGNATURE_PREV
+    HEADER_EVENT = Generated::SigningProtocol::HEADER_WEBHOOK_EVENT
+    HEADER_ID = Generated::SigningProtocol::HEADER_WEBHOOK_ID
+    HEADER_EVENT_ID = Generated::SigningProtocol::HEADER_WEBHOOK_EVENT_ID
+    HEADER_EVENT_TIME = Generated::SigningProtocol::HEADER_WEBHOOK_EVENT_TIME
+    # The rehearsal header (`x-oblodai-signing.webhook.test_header`): "true" on a test delivery, next
+    # to the body's signed `test: true`.
+    HEADER_TEST = Generated::SigningProtocol::HEADER_WEBHOOK_TEST
 
     # Reject deliveries whose timestamp is further from now than this, seconds — the contract's
     # skew window. 0 disables the check.

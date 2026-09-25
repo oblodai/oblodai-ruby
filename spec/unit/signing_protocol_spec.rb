@@ -11,10 +11,12 @@ RSpec.describe "signing protocol from the contract" do
     signing = backend_spec.fetch("x-oblodai-signing")
     expect([protocol::HEADER_PUBLIC_ID, protocol::HEADER_SIGNATURE, protocol::HEADER_TIMESTAMP,
             protocol::HEADER_IDEMPOTENCY_KEY]).to eq(signing.fetch("headers"))
-    expect([protocol::WEBHOOK_HEADER_TIMESTAMP, protocol::WEBHOOK_HEADER_SIGNATURE,
-            protocol::WEBHOOK_HEADER_SIGNATURE_PREV, protocol::WEBHOOK_HEADER_EVENT, protocol::WEBHOOK_HEADER_ID,
-            protocol::WEBHOOK_HEADER_EVENT_ID, protocol::WEBHOOK_HEADER_EVENT_TIME])
+    expect([protocol::HEADER_WEBHOOK_TIMESTAMP, protocol::HEADER_WEBHOOK_SIGNATURE,
+            protocol::HEADER_WEBHOOK_SIGNATURE_PREV, protocol::HEADER_WEBHOOK_EVENT, protocol::HEADER_WEBHOOK_ID,
+            protocol::HEADER_WEBHOOK_EVENT_ID, protocol::HEADER_WEBHOOK_EVENT_TIME])
       .to eq(signing.dig("webhook", "headers"))
+    expect(protocol::HEADER_WEBHOOK_TEST).to eq(signing.dig("webhook", "test_header"))
+    expect(protocol::SIGNATURE_ALGORITHM).to eq(signing.fetch("algorithm"))
     expect(protocol::SKEW_SECONDS).to eq(signing.fetch("skew_seconds"))
     expect(protocol::MAX_BODY).to eq(signing.fetch("max_body"))
     expect(protocol::MAX_IDEMPOTENCY_KEY_LENGTH).to eq(signing.fetch("max_idempotency_key_length"))
@@ -27,14 +29,28 @@ RSpec.describe "signing protocol from the contract" do
     expect(Oblodai::Signing::HEADER_IDEMPOTENCY_KEY).to equal(protocol::HEADER_IDEMPOTENCY_KEY)
     expect(Oblodai::Signing::SKEW_SECONDS).to equal(protocol::SKEW_SECONDS)
     expect(Oblodai::Idempotency::MAX_KEY_LENGTH).to equal(protocol::MAX_IDEMPOTENCY_KEY_LENGTH)
-    expect(Oblodai::Webhooks::HEADER_TIMESTAMP).to equal(protocol::WEBHOOK_HEADER_TIMESTAMP)
-    expect(Oblodai::Webhooks::HEADER_SIGNATURE).to equal(protocol::WEBHOOK_HEADER_SIGNATURE)
-    expect(Oblodai::Webhooks::HEADER_SIGNATURE_PREV).to equal(protocol::WEBHOOK_HEADER_SIGNATURE_PREV)
-    expect(Oblodai::Webhooks::HEADER_EVENT).to equal(protocol::WEBHOOK_HEADER_EVENT)
-    expect(Oblodai::Webhooks::HEADER_ID).to equal(protocol::WEBHOOK_HEADER_ID)
-    expect(Oblodai::Webhooks::HEADER_EVENT_ID).to equal(protocol::WEBHOOK_HEADER_EVENT_ID)
-    expect(Oblodai::Webhooks::HEADER_EVENT_TIME).to equal(protocol::WEBHOOK_HEADER_EVENT_TIME)
+    expect(Oblodai::Webhooks::HEADER_TIMESTAMP).to equal(protocol::HEADER_WEBHOOK_TIMESTAMP)
+    expect(Oblodai::Webhooks::HEADER_SIGNATURE).to equal(protocol::HEADER_WEBHOOK_SIGNATURE)
+    expect(Oblodai::Webhooks::HEADER_SIGNATURE_PREV).to equal(protocol::HEADER_WEBHOOK_SIGNATURE_PREV)
+    expect(Oblodai::Webhooks::HEADER_EVENT).to equal(protocol::HEADER_WEBHOOK_EVENT)
+    expect(Oblodai::Webhooks::HEADER_ID).to equal(protocol::HEADER_WEBHOOK_ID)
+    expect(Oblodai::Webhooks::HEADER_EVENT_ID).to equal(protocol::HEADER_WEBHOOK_EVENT_ID)
+    expect(Oblodai::Webhooks::HEADER_EVENT_TIME).to equal(protocol::HEADER_WEBHOOK_EVENT_TIME)
+    expect(Oblodai::Webhooks::HEADER_TEST).to equal(protocol::HEADER_WEBHOOK_TEST)
     expect(Oblodai::Webhooks::DEFAULT_TOLERANCE).to equal(protocol::SKEW_SECONDS)
+  end
+
+  it "spells no signing or webhook header outside lib/oblodai/generated" do
+    skip "backend openapi.json not found (set OBLODAI_BACKEND)" if backend_spec.nil?
+    signing = backend_spec.fetch("x-oblodai-signing")
+    names = [*signing.fetch("headers"), *signing.dig("webhook", "headers"), signing.dig("webhook", "test_header")]
+            .map(&:downcase)
+    lib = File.expand_path("../../lib", __dir__)
+    offenders = Dir.glob(File.join(lib, "**", "*.rb")).reject { |p| p.include?("/generated/") }.flat_map do |path|
+      text = File.read(path).downcase
+      names.select { |n| text.include?(n) }.map { |n| "#{path.delete_prefix("#{lib}/")}: #{n}" }
+    end
+    expect(offenders).to eq([])
   end
 
   it "builds the request canonical string in the generated order with the generated separator" do

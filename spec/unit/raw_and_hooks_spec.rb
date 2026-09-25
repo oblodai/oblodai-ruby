@@ -62,7 +62,7 @@ RSpec.describe Oblodai::Hooks do
     expect(first.operation_id).to eq("getBalance")
     expect(first.request_id).to eq("rq")
     expect(first.url).to eq("https://api.test/v1/balance")
-    expect(first.headers["X-Signature"]).to eq("[redacted]")
+    expect(first.headers[SIGNING::HEADER_SIGNATURE]).to eq("[redacted]")
     expect(seen[2][1].attempt).to eq(2)
     expect(seen[1][1].status).to eq(503)
     expect(seen[1][1].error).to be_a(Oblodai::UnavailableError)

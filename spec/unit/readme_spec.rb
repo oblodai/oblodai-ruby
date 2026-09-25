@@ -54,8 +54,8 @@ RSpec.describe "README" do
       # The webhook block defines a receiver; drive it with one signed delivery and one forgery.
       body = JSON.generate(Samples.body("PaymentWebhook", "type" => "payment", "uuid" => "u", "status" => "paid"))
       ts = Time.now.to_i
-      headers = { "X-Webhook-Timestamp" => ts.to_s,
-                  "X-Webhook-Signature" => Oblodai::Signing.sign_webhook("whsec-readme", ts, body) }
+      headers = { SIGNING::HEADER_WEBHOOK_TIMESTAMP => ts.to_s,
+                  SIGNING::HEADER_WEBHOOK_SIGNATURE => Oblodai::Signing.sign_webhook("whsec-readme", ts, body) }
       $stdout = out
       expect(scope.send(:receive, body, headers, "whsec-readme")).to eq(200)
       expect(scope.send(:receive, "#{body} ", headers, "whsec-readme")).to eq(401)

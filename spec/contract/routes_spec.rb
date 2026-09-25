@@ -75,23 +75,23 @@ RSpec.describe "route coverage" do
       # nowhere else; a public route carries no credential at all.
       case route.auth
       when :public
-        expect(call.headers).not_to have_key("x-signature")
-        expect(call.headers).not_to have_key("x-public-id")
+        expect(call.headers).not_to have_key(SIGNING::HEADER_SIGNATURE.downcase)
+        expect(call.headers).not_to have_key(SIGNING::HEADER_PUBLIC_ID.downcase)
         expect(call.headers).not_to have_key("x-admin-token")
       when :onboard
-        expect(call.headers).not_to have_key("x-signature")
+        expect(call.headers).not_to have_key(SIGNING::HEADER_SIGNATURE.downcase)
         expect(call.headers["x-admin-token"]).to eq("adm")
       else
         expect(route.auth).to eq(:key)
-        expect(call.headers["x-public-id"]).to eq("pk")
-        expect(call.headers["x-signature"]).to match(/\A[0-9a-f]{64}\z/)
+        expect(call.headers[SIGNING::HEADER_PUBLIC_ID.downcase]).to eq("pk")
+        expect(call.headers[SIGNING::HEADER_SIGNATURE.downcase]).to match(/\A[0-9a-f]{64}\z/)
         expect(call.headers).not_to have_key("x-admin-token")
       end
 
       if route.idempotent
-        expect(call.headers["idempotency-key"]).to match(/\A[0-9a-f-]{36}\z/)
+        expect(call.headers[SIGNING::HEADER_IDEMPOTENCY_KEY.downcase]).to match(/\A[0-9a-f-]{36}\z/)
       else
-        expect(call.headers).not_to have_key("idempotency-key")
+        expect(call.headers).not_to have_key(SIGNING::HEADER_IDEMPOTENCY_KEY.downcase)
       end
 
       if route.bare

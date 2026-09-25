@@ -13,7 +13,7 @@ module Oblodai
     # over the parts of {WEBHOOK_CANONICAL_ORDER} joined by {WEBHOOK_CANONICAL_SEPARATOR}.
     module SigningProtocol
       # The MAC every signature is.
-      ALGORITHM = "HMAC-SHA256, lowercase hex"
+      SIGNATURE_ALGORITHM = "HMAC-SHA256, lowercase hex"
 
       # --- signed request ---
 
@@ -37,25 +37,28 @@ module Oblodai
       # --- webhook delivery ---
 
       # Webhook delivery header of the role `timestamp`.
-      WEBHOOK_HEADER_TIMESTAMP = "X-Webhook-Timestamp"
+      HEADER_WEBHOOK_TIMESTAMP = "X-Webhook-Timestamp"
 
       # Webhook delivery header of the role `signature`.
-      WEBHOOK_HEADER_SIGNATURE = "X-Webhook-Signature"
+      HEADER_WEBHOOK_SIGNATURE = "X-Webhook-Signature"
 
       # Webhook delivery header of the role `signature_prev`.
-      WEBHOOK_HEADER_SIGNATURE_PREV = "X-Webhook-Signature-Prev"
+      HEADER_WEBHOOK_SIGNATURE_PREV = "X-Webhook-Signature-Prev"
 
       # Webhook delivery header of the role `event`.
-      WEBHOOK_HEADER_EVENT = "X-Webhook-Event"
+      HEADER_WEBHOOK_EVENT = "X-Webhook-Event"
 
       # Webhook delivery header of the role `id`.
-      WEBHOOK_HEADER_ID = "X-Webhook-Id"
+      HEADER_WEBHOOK_ID = "X-Webhook-Id"
 
       # Webhook delivery header of the role `event_id`.
-      WEBHOOK_HEADER_EVENT_ID = "X-Webhook-Event-Id"
+      HEADER_WEBHOOK_EVENT_ID = "X-Webhook-Event-Id"
 
       # Webhook delivery header of the role `event_time`.
-      WEBHOOK_HEADER_EVENT_TIME = "X-Webhook-Event-Time"
+      HEADER_WEBHOOK_EVENT_TIME = "X-Webhook-Event-Time"
+
+      # Rehearsal header (role `test`): `"true"` on a test delivery, absent from a live one.
+      HEADER_WEBHOOK_TEST = "X-Webhook-Test"
 
       # Parts of the signed webhook string, in order: unix seconds (`ts`), the raw body.
       WEBHOOK_CANONICAL_ORDER = %w[ts payload].freeze

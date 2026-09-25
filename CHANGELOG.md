@@ -28,8 +28,10 @@ and the minimum Ruby change — every old name and its new one is in [MIGRATION-
 - the signing protocol from the contract (`x-oblodai-signing`, `Oblodai::Generated::SigningProtocol`):
   request and webhook header names, the order and separators of the canonical strings, the skew
   window and the idempotency key limit. `Oblodai::Signing::HEADER_*`, `SKEW_SECONDS`,
-  `Oblodai::Webhooks::HEADER_*`, `DEFAULT_TOLERANCE` and `Oblodai::Idempotency::MAX_KEY_LENGTH` stay,
-  now as the generated values.
+  `Oblodai::Webhooks::HEADER_*` (the rehearsal header `HEADER_TEST` too, from
+  `webhook.test_header`), `DEFAULT_TOLERANCE` and `Oblodai::Idempotency::MAX_KEY_LENGTH` stay, now as
+  the generated values; the conformance suite checks the request a signed call actually sends —
+  method, path and query, body and the headers under the contract's names.
 - the shared conformance suite of the backend (`spec/conformance`), README and example snippets run
   in the specs, and a drift check of the generated code in `make ci`.
 

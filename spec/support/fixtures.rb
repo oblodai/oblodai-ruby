@@ -34,8 +34,24 @@ module Fixtures
   end
 
   # @return [Array<Hash>] real signed webhook deliveries (headers + raw body bytes)
+  # The samples keep the header names they were recorded under; each maps to its role's current name
+  # from the contract, so a header the core renames reaches the samples by regeneration alone.
+  RECORDED_WEBHOOK_HEADERS = {
+    "X-Webhook-Timestamp" => Oblodai::Generated::SigningProtocol::HEADER_WEBHOOK_TIMESTAMP,
+    "X-Webhook-Signature" => Oblodai::Generated::SigningProtocol::HEADER_WEBHOOK_SIGNATURE,
+    "X-Webhook-Signature-Prev" => Oblodai::Generated::SigningProtocol::HEADER_WEBHOOK_SIGNATURE_PREV,
+    "X-Webhook-Event" => Oblodai::Generated::SigningProtocol::HEADER_WEBHOOK_EVENT,
+    "X-Webhook-Id" => Oblodai::Generated::SigningProtocol::HEADER_WEBHOOK_ID,
+    "X-Webhook-Event-Id" => Oblodai::Generated::SigningProtocol::HEADER_WEBHOOK_EVENT_ID,
+    "X-Webhook-Event-Time" => Oblodai::Generated::SigningProtocol::HEADER_WEBHOOK_EVENT_TIME,
+    "X-Webhook-Test" => Oblodai::Generated::SigningProtocol::HEADER_WEBHOOK_TEST
+  }.freeze
+
+  # @return [Array<Hash>] recorded deliveries, their headers under the contract's current names
   def webhook_samples
-    @webhook_samples ||= JSON.parse(File.read(File.join(DIR, "webhook-samples.json")))
+    @webhook_samples ||= JSON.parse(File.read(File.join(DIR, "webhook-samples.json"))).each do |sample|
+      sample["headers"] = sample["headers"].transform_keys { |k| RECORDED_WEBHOOK_HEADERS.fetch(k, k) }
+    end
   end
 
   # @return [Hash{String => Hash}] error envelope samples by code
