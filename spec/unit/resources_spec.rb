@@ -87,7 +87,7 @@ RSpec.describe "resource surface" do
     it "has one namespace per resource of the contract" do
       client = client_with(FakeHTTP.new([]))
       names = Oblodai::Client::RESOURCES.keys
-      expect(names.size).to eq(16)
+      expect(names.size).to eq(17)
       names.each { |name| expect(client.public_send(name)).to be_a(Oblodai::Resources::Base) }
       locked = File.readlines(File.expand_path("../../names.lock", __dir__), chomp: true).map { |l| l.split(".").first }
       expect(locked.uniq.sort).to eq(names.map(&:to_s).sort)

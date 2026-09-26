@@ -16,7 +16,7 @@ Payments, payouts, payment links, splits, static wallets, webhooks — one API k
 <img src="https://img.shields.io/badge/ruby-%E2%89%A5%203.2-CC342D?style=flat-square" alt="Ruby version">
 <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-000000?style=flat-square" alt="License: MIT"></a>
 
-[Documentation](https://docs.oblodai.com) · [Dashboard](https://my.oblodai.com) · [Читать по-русски →](README.ru.md)
+[Documentation](https://docs.oblodai.com) · [Dashboard](https://my.oblodai.com) · [Read in Russian →](README.ru.md)
 
 </div>
 
@@ -141,7 +141,7 @@ the resource name, in snake_case (`createPayout` → `payouts.create`, `getBatch
 table below is written by the generator from the contract.
 
 <!-- sdkgen:methods -->
-16 resources, 120 methods.
+17 resources, 123 methods.
 
 | Resource | Methods |
 | --- | --- |
@@ -161,6 +161,7 @@ table below is written by the generator from the contract.
 | `documents` | `get_signed` · `get_balance` · `get_fees` · `get_ledger` · `get_split` · `get_payout_link_cheque` · `get_statement` · `get_batch` · `get_payment_link` · `get_wallet_statement` · `get_referrals` · `create_job` · `get_job` · `download_job_file` |
 | `checkout` | `get_source_of_funds_form` · `submit_source_of_funds` · `get_public_payment_link` · `payment_link` · `list_currencies` · `get` · `select_method` · `start_onramp` · `get_onramp` · `get_qr` |
 | `sandbox` | `onboard_store` · `faucet` · `simulate_deposit` · `reset` · `list_webhooks` · `replay_webhook` |
+| `cli_login` | `start` · `poll` · `logout_cli` |
 <!-- /sdkgen:methods -->
 
 The request body of a method comes three ways — keywords, a Hash with the wire names, or a request

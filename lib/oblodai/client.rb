@@ -23,7 +23,8 @@ module Oblodai
       payments: :Payments, payment_links: :PaymentLinks, refunds: :Refunds, payouts: :Payouts,
       payout_links: :PayoutLinks, batches: :Batches, splits: :Splits, wallets: :Wallets,
       account: :Account, webhooks: :Webhooks, settings: :Settings, api_allowlist: :ApiAllowlist,
-      referrals: :Referrals, documents: :Documents, checkout: :Checkout, sandbox: :Sandbox
+      referrals: :Referrals, documents: :Documents, checkout: :Checkout, sandbox: :Sandbox,
+      cli_login: :CliLogin
     }.freeze
 
     # @!attribute [r] payments
@@ -58,6 +59,8 @@ module Oblodai
     #   @return [Oblodai::Resources::Checkout]
     # @!attribute [r] sandbox
     #   @return [Oblodai::Resources::Sandbox]
+    # @!attribute [r] cli_login
+    #   @return [Oblodai::Resources::CliLogin]
     attr_reader(*RESOURCES.keys)
     # The transport, exposed for advanced use (custom routes, tests).
     # @return [Oblodai::Transport]

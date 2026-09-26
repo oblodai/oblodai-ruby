@@ -16,11 +16,11 @@ module Oblodai
       # JSON names of every field this release knows.
       FIELDS = %w[expired_at link status].freeze
 
-      # @return [String] До какого момента ссылка действует (UTC).
+      # @return [String] Until when the link is valid (UTC).
       attr_reader :expired_at
-      # @return [String] Ссылка на анкету — передайте её плательщику.
+      # @return [String] The questionnaire link — hand it to the payer.
       attr_reader :link
-      # @return [String] Статус заполнения анкеты. Values: {Oblodai::Enums::SoFStatus}.
+      # @return [String] Questionnaire completion status. Values: {Oblodai::Enums::SoFStatus}.
       attr_reader :status
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -70,9 +70,10 @@ module Oblodai
       # JSON names of every field this release knows.
       FIELDS = %w[order_id uuid].freeze
 
-      # @return [String, nil] Идентификатор заказа мерчанта.
+      # @return [String, nil] The merchant's order id.
       attr_reader :order_id
-      # @return [String, nil] Идентификатор платежа. Нужен uuid или order_id; приоритет у uuid.
+      # @return [String, nil] Payment id. Either uuid or order_id is required; uuid takes
+      #   precedence.
       attr_reader :uuid
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -118,8 +119,8 @@ module Oblodai
       # JSON names of every field this release knows.
       FIELDS = ["items"].freeze
 
-      # @return [Array<Oblodai::Models::AMLLinkView>] По ссылке на каждый заблокированный депозит
-      #   платежа; пусто — блокировать нечего.
+      # @return [Array<Oblodai::Models::AMLLinkView>] One link per blocked deposit of the payment;
+      #   empty — nothing is blocked.
       attr_reader :items
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -161,8 +162,8 @@ module Oblodai
       # JSON names of every field this release knows.
       FIELDS = ["enabled"].freeze
 
-      # @return [Boolean] true — принимать API-вызовы только с адресов из списка; false — список
-      #   хранится, но не применяется.
+      # @return [Boolean] true — accept API calls only from addresses on the list; false — the list
+      #   is kept but not enforced.
       attr_reader :enabled
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -204,7 +205,7 @@ module Oblodai
       # JSON names of every field this release knows.
       FIELDS = ["cidr"].freeze
 
-      # @return [String] IP или подсеть в CIDR (203.0.113.7 или 203.0.113.0/24).
+      # @return [String] An IP or a CIDR subnet (203.0.113.7 or 203.0.113.0/24).
       attr_reader :cidr
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -246,10 +247,10 @@ module Oblodai
       # JSON names of every field this release knows.
       FIELDS = %w[enabled items].freeze
 
-      # @return [Boolean] Применяется ли список: true — вызовы с адресов вне списка получают 403
-      #   auth.ip_not_allowed.
+      # @return [Boolean] Whether the list is enforced: true — calls from addresses outside the list
+      #   get 403 auth.ip_not_allowed.
       attr_reader :enabled
-      # @return [Array<String>] Разрешённые IP и подсети в CIDR.
+      # @return [Array<String>] Allowed IPs and CIDR subnets.
       attr_reader :items
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -295,19 +296,19 @@ module Oblodai
       # JSON names of every field this release knows.
       FIELDS = %w[api_key_id created_at duration_ms ip method path status].freeze
 
-      # @return [String] Ключ, которым подписан запрос.
+      # @return [String] The key the request was signed with.
       attr_reader :api_key_id
-      # @return [String] Когда пришёл запрос (UTC).
+      # @return [String] When the request arrived (UTC).
       attr_reader :created_at
-      # @return [Integer] Длительность обработки, мс.
+      # @return [Integer] Processing duration, ms.
       attr_reader :duration_ms
-      # @return [String] Адрес клиента.
+      # @return [String] The customer's address.
       attr_reader :ip
-      # @return [String] HTTP-метод.
+      # @return [String] HTTP method.
       attr_reader :method_
-      # @return [String] Путь запроса.
+      # @return [String] Request path.
       attr_reader :path
-      # @return [Integer] Код ответа.
+      # @return [Integer] Response code.
       attr_reader :status
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -373,17 +374,17 @@ module Oblodai
       # JSON names of every field this release knows.
       FIELDS = %w[from limit page q status to].freeze
 
-      # @return [String, nil] Начало периода, YYYY-MM-DD, включительно.
+      # @return [String, nil] Start of the period, YYYY-MM-DD, inclusive.
       attr_reader :from
-      # @return [Integer, nil] Размер страницы, 1..200; по умолчанию 20.
+      # @return [Integer, nil] Page size, 1..200; default 20.
       attr_reader :limit
-      # @return [Integer, nil] Страница, с 1.
+      # @return [Integer, nil] Page, starting from 1.
       attr_reader :page
-      # @return [String, nil] Подстрока по «МЕТОД путь» — то, что человек видит в таблице.
+      # @return [String, nil] A substring of "METHOD path" — what a person sees in the table.
       attr_reader :q
-      # @return [Integer, nil] Точный код ответа; 0 — все.
+      # @return [Integer, nil] The exact response code; 0 — all.
       attr_reader :status
-      # @return [String, nil] Конец периода, YYYY-MM-DD, ВКЛЮЧИТЕЛЬНО (день целиком).
+      # @return [String, nil] End of the period, YYYY-MM-DD, INCLUSIVE (the whole day).
       attr_reader :to
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -445,11 +446,11 @@ module Oblodai
       # JSON names of every field this release knows.
       FIELDS = %w[items retention_days total].freeze
 
-      # @return [Array<Oblodai::Models::APILogEntry>] Строки этой страницы, новые сверху.
+      # @return [Array<Oblodai::Models::APILogEntry>] The rows of this page, newest first.
       attr_reader :items
-      # @return [Integer] Сколько дней лог хранится.
+      # @return [Integer] How many days the log is kept.
       attr_reader :retention_days
-      # @return [Integer] Всего строк по фильтру.
+      # @return [Integer] Total rows matching the filter.
       attr_reader :total
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -499,15 +500,15 @@ module Oblodai
       # JSON names of every field this release knows.
       FIELDS = %w[available currency network reason].freeze
 
-      # @return [Boolean] Можно ли платить этим методом здесь.
+      # @return [Boolean] Whether this method can be used to pay here.
       attr_reader :available
-      # @return [String] Код актива.
+      # @return [String] Asset code.
       attr_reader :currency
-      # @return [String] Сеть актива.
+      # @return [String] The asset's network.
       attr_reader :network
-      # @return [String, nil] Почему недоступен: not_served_here — развёртывание не принимает этот
-      #   метод, unknown_method — метода нет в каталоге; у доступного ключа нет. Values:
-      #   {Oblodai::Enums::AcceptedReason}.
+      # @return [String, nil] Why it is unavailable: not_served_here — the deployment does not
+      #   accept this method, unknown_method — the method is not in the catalog; an available one has
+      #   no such key. Values: {Oblodai::Enums::AcceptedReason}.
       attr_reader :reason
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -561,9 +562,9 @@ module Oblodai
       # JSON names of every field this release knows.
       FIELDS = %w[items paginate].freeze
 
-      # @return [Array<Oblodai::Models::AcceptedConfiguredMethod>] Записи этой страницы.
+      # @return [Array<Oblodai::Models::AcceptedConfiguredMethod>] The records of this page.
       attr_reader :items
-      # @return [Oblodai::Models::Pagination] Блок пагинации.
+      # @return [Oblodai::Models::Pagination] Pagination block.
       attr_reader :paginate
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -609,9 +610,9 @@ module Oblodai
       # JSON names of every field this release knows.
       FIELDS = %w[currency network].freeze
 
-      # @return [String] Код актива.
+      # @return [String] Asset code.
       attr_reader :currency
-      # @return [String] Сеть актива.
+      # @return [String] The asset's network.
       attr_reader :network
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -657,8 +658,8 @@ module Oblodai
       # JSON names of every field this release knows.
       FIELDS = ["accepted"].freeze
 
-      # @return [Array<Oblodai::Models::AcceptedMethod>] Полный список пар валюта+сеть, которыми
-      #   разрешено платить; пустой список — принимать всё из каталога.
+      # @return [Array<Oblodai::Models::AcceptedMethod>] The full list of currency+network pairs
+      #   allowed for payment; an empty list — accept everything in the catalog.
       attr_reader :accepted
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -700,10 +701,10 @@ module Oblodai
       # JSON names of every field this release knows.
       FIELDS = %w[ok unknown].freeze
 
-      # @return [Boolean] Набор сохранён.
+      # @return [Boolean] The set has been saved.
       attr_reader :ok
-      # @return [Array<Oblodai::Models::AcceptedMethod>, nil] Сохранённые, но неизвестные каталогу
-      #   пары — оставлены как были; ключа нет, когда таких нет.
+      # @return [Array<Oblodai::Models::AcceptedMethod>, nil] Saved pairs that the catalog does not
+      #   know — kept as they were; no key when there are none.
       attr_reader :unknown
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -749,9 +750,10 @@ module Oblodai
       # JSON names of every field this release knows.
       FIELDS = %w[accuracy_percent enabled].freeze
 
-      # @return [Integer] Допуск в процентах, 1–5; 0 — допуск выключен (нужна точная сумма).
+      # @return [Integer] Tolerance in percent, 1–5; 0 — tolerance disabled (the exact amount is
+      #   required).
       attr_reader :accuracy_percent
-      # @return [Boolean] Включён ли допуск.
+      # @return [Boolean] Whether the tolerance is enabled.
       attr_reader :enabled
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -797,7 +799,7 @@ module Oblodai
       # JSON names of every field this release knows.
       FIELDS = ["uuid"].freeze
 
-      # @return [String] Идентификатор выплаты.
+      # @return [String] Payout id.
       attr_reader :uuid
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -839,19 +841,19 @@ module Oblodai
       # JSON names of every field this release knows.
       FIELDS = %w[configured enabled min_amount mode sources target].freeze
 
-      # @return [Boolean] Есть ли приказ. false — остальные поля — умолчания формы.
+      # @return [Boolean] Whether an order exists. false — the other fields are form defaults.
       attr_reader :configured
-      # @return [Boolean] Включён ли приказ.
+      # @return [Boolean] Whether the order is enabled.
       attr_reader :enabled
-      # @return [BigDecimal] Пол одной конвертации в долларах, десятичной строкой (с умолчанием
-      #   процесса).
+      # @return [BigDecimal] The floor for a single conversion in dollars, as a decimal string (with
+      #   the process default applied).
       attr_reader :min_amount
-      # @return [String] Режим зачисления: economy или instant. Values:
+      # @return [String] The crediting mode: economy or instant. Values:
       #   {Oblodai::Enums::AutoConvertMode}.
       attr_reader :mode
-      # @return [Array<String>] Монеты, которые сводятся; пусто — [], не null.
+      # @return [Array<String>] The coins being converted; empty — [], not null.
       attr_reader :sources
-      # @return [String] Монета, в которую сводится выручка; пусто без приказа.
+      # @return [String] The coin revenue is converted into; empty without an order.
       attr_reader :target
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -913,11 +915,11 @@ module Oblodai
       # JSON names of every field this release knows.
       FIELDS = %w[configured overpay underpay].freeze
 
-      # @return [Boolean] false — политику не задавали, действует умолчание (обе включены).
+      # @return [Boolean] false — no policy has been set, the default applies (both enabled).
       attr_reader :configured
-      # @return [Boolean] Возвращается ли излишек при переплате (paid_over).
+      # @return [Boolean] Whether the excess of an overpayment (paid_over) is refunded.
       attr_reader :overpay
-      # @return [Boolean] Возвращаются ли средства при истёкшей недоплате (wrong_amount).
+      # @return [Boolean] Whether the funds of an expired underpayment (wrong_amount) are refunded.
       attr_reader :underpay
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -967,7 +969,7 @@ module Oblodai
       # JSON names of every field this release knows.
       FIELDS = ["currency"].freeze
 
-      # @return [String] Актив, автовывод которого выключить.
+      # @return [String] The asset whose auto-withdrawal to disable.
       attr_reader :currency
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -1009,7 +1011,7 @@ module Oblodai
       # JSON names of every field this release knows.
       FIELDS = ["items"].freeze
 
-      # @return [Array<Oblodai::Models::AutoWithdrawRule>] Правила автовывода, по одному на актив.
+      # @return [Array<Oblodai::Models::AutoWithdrawRule>] Auto-withdrawal rules, one per asset.
       attr_reader :items
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -1051,13 +1053,13 @@ module Oblodai
       # JSON names of every field this release knows.
       FIELDS = %w[address currency min_amount network].freeze
 
-      # @return [String] Адрес назначения.
+      # @return [String] Destination address.
       attr_reader :address
-      # @return [String] Актив.
+      # @return [String] Asset.
       attr_reader :currency
-      # @return [BigDecimal] Порог срабатывания в единицах актива.
+      # @return [BigDecimal] The trigger threshold in asset units.
       attr_reader :min_amount
-      # @return [String] Сеть адреса назначения.
+      # @return [String] The destination address network.
       attr_reader :network
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -1111,14 +1113,14 @@ module Oblodai
       # JSON names of every field this release knows.
       FIELDS = %w[address currency min_amount network].freeze
 
-      # @return [String] Адрес назначения (внешний кошелёк мерчанта).
+      # @return [String] Destination address (the merchant's external wallet).
       attr_reader :address
-      # @return [String] Актив, который выводить автоматически.
+      # @return [String] The asset to withdraw automatically.
       attr_reader :currency
-      # @return [String] Сеть адреса назначения.
+      # @return [String] The destination address network.
       attr_reader :network
-      # @return [String, nil] Порог: вывод срабатывает, когда доступный баланс актива не меньше этой
-      #   суммы; пусто — сетевой минимум.
+      # @return [String, nil] Threshold: the withdrawal triggers when the asset's available balance
+      #   is at least this amount; empty — the network minimum.
       attr_reader :min_amount
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -1172,7 +1174,7 @@ module Oblodai
       # JSON names of every field this release knows.
       FIELDS = ["balance"].freeze
 
-      # @return [Oblodai::Models::MerchantBalances] Балансы владельца.
+      # @return [Oblodai::Models::MerchantBalances] The owner's balances.
       attr_reader :balance
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -1214,28 +1216,28 @@ module Oblodai
       # JSON names of every field this release knows.
       FIELDS = %w[error_code http_status idx message ok order_id result status].freeze
 
-      # @return [Integer] Порядковый номер элемента в исходном массиве (с нуля).
+      # @return [Integer] The item's index in the original array (zero-based).
       attr_reader :idx
-      # @return [String] Статус элемента: pending | processing | done | error. Values:
+      # @return [String] Item status: pending | processing | done | error. Values:
       #   {Oblodai::Enums::BatchItemStatus}.
       attr_reader :status
-      # @return [String, nil] Машиночитаемый код ошибки — тот же, что вернул бы одиночный вызов
-      #   (payment.below_minimum, payout.address_network_mismatch, …); batch.stopped /
-      #   batch.key_revoked — элемент не выполнялся; только при status «error». Пусто у элементов,
-      #   завершённых до ввода поля.
+      # @return [String, nil] The machine-readable error code — the same one a single call would
+      #   return (payment.below_minimum, payout.address_network_mismatch, …); batch.stopped /
+      #   batch.key_revoked — the item was not executed; only with status "error". Empty for items
+      #   completed before the field was introduced.
       attr_reader :error_code
-      # @return [Integer, nil] HTTP-статус, которым ответил бы одиночный вызов (400, 409, …);
-      #   отсутствует, если элемент не дошёл до обработчика (batch.stopped, batch.key_revoked).
+      # @return [Integer, nil] The HTTP status a single call would have returned (400, 409, …);
+      #   absent if the item never reached the handler (batch.stopped, batch.key_revoked).
       attr_reader :http_status
-      # @return [String, nil] Человекочитаемое сообщение об ошибке; только при status «error».
+      # @return [String, nil] A human-readable error message; only with status "error".
       attr_reader :message
-      # @return [Boolean, nil] Итог элемента: true при status «done», false при status «error»;
-      #   отсутствует, пока элемент не обработан.
+      # @return [Boolean, nil] The item outcome: true with status "done", false with status "error";
+      #   absent until the item has been processed.
       attr_reader :ok
-      # @return [String, nil] order_id элемента, если вы его задавали; присутствует не всегда.
+      # @return [String, nil] The item's order_id, if you set one; not always present.
       attr_reader :order_id
-      # @return [Object, nil] Результат успешной операции — тот же объект, что вернул бы одиночный
-      #   вызов; только при status «done».
+      # @return [Object, nil] The result of a successful operation — the same object a single call
+      #   would return; only with status "done".
       attr_reader :result
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -1305,11 +1307,11 @@ module Oblodai
       # JSON names of every field this release knows.
       FIELDS = %w[batch_id limit offset].freeze
 
-      # @return [String] Идентификатор батча из ответа на submit.
+      # @return [String] The batch id from the submit response.
       attr_reader :batch_id
-      # @return [Integer, nil] Сколько элементов вернуть в items (пагинация).
+      # @return [Integer, nil] How many items to return in items (pagination).
       attr_reader :limit
-      # @return [Integer, nil] Смещение по элементам.
+      # @return [Integer, nil] Offset in items.
       attr_reader :offset
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -1359,34 +1361,33 @@ module Oblodai
       # JSON names of every field this release knows.
       FIELDS = %w[batch_id created_at failed items kind on_error status succeeded total updated_at].freeze
 
-      # @return [String] Идентификатор батча.
+      # @return [String] Batch id.
       attr_reader :batch_id
-      # @return [String] Время создания батча (ISO 8601, UTC).
+      # @return [String] Batch creation time (ISO 8601, UTC).
       attr_reader :created_at
-      # @return [Integer] Завершилось ошибкой (при on_error stop сюда попадают и пропущенные
-      #   элементы).
+      # @return [Integer] Failed (with on_error stop, skipped items are counted here too).
       attr_reader :failed
-      # @return [Array<Oblodai::Models::BatchInfoItem>] Страница элементов с результатом или ошибкой
-      #   по каждому.
+      # @return [Array<Oblodai::Models::BatchInfoItem>] A page of items with the result or error for
+      #   each.
       attr_reader :items
-      # @return [String] Вид батча: payment | refund | payout | transfer. Values:
+      # @return [String] Batch kind: payment | refund | payout | transfer. Values:
       #   {Oblodai::Enums::BatchKind}.
       attr_reader :kind
-      # @return [String] Режим обработки ошибок, с которым батч был отправлен: continue | stop.
+      # @return [String] The error handling mode the batch was submitted with: continue | stop.
       #   Values: {Oblodai::Enums::BatchOnError}.
       attr_reader :on_error
-      # @return [String] Статус батча: pending | processing | completed | stopped. ТЕРМИНАЛЬНЫЕ —
-      #   completed И stopped (опрашивайте до одного из них, не только до completed): completed =
-      #   обработка дошла до конца, stopped = батч с on_error=stop остановился на первой ошибке
-      #   (остальные элементы пропущены и учтены в failed). Ни один не значит «всё успешно» — смотрите
-      #   succeeded/failed. Values: {Oblodai::Enums::BatchStatus}.
+      # @return [String] Batch status: pending | processing | completed | stopped. TERMINAL ones are
+      #   completed AND stopped (poll until either of them, not only completed): completed =
+      #   processing reached the end, stopped = a batch with on_error=stop halted at the first error
+      #   (the remaining items were skipped and counted in failed). Neither means "everything
+      #   succeeded" — check succeeded/failed. Values: {Oblodai::Enums::BatchStatus}.
       attr_reader :status
-      # @return [Integer] Успешно обработано.
+      # @return [Integer] Processed successfully.
       attr_reader :succeeded
-      # @return [Integer] Всего элементов в батче; считается по всему батчу и от пагинации не
-      #   зависит.
+      # @return [Integer] Total items in the batch; counted over the whole batch, independent of
+      #   pagination.
       attr_reader :total
-      # @return [String] Время последнего изменения (ISO 8601, UTC).
+      # @return [String] Time of the last change (ISO 8601, UTC).
       attr_reader :updated_at
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -1464,15 +1465,15 @@ module Oblodai
       # JSON names of every field this release knows.
       FIELDS = %w[batch_id count kind status].freeze
 
-      # @return [String] Идентификатор батча — с ним идите в POST /v1/batch/info за статусом и
-      #   результатами.
+      # @return [String] The batch id — use it with POST /v1/batch/info to get the status and
+      #   results.
       attr_reader :batch_id
-      # @return [Integer] Сколько элементов принято в обработку.
+      # @return [Integer] How many items were accepted for processing.
       attr_reader :count
-      # @return [String] Вид батча: payment | refund | payout | transfer. Values:
+      # @return [String] Batch kind: payment | refund | payout | transfer. Values:
       #   {Oblodai::Enums::BatchKind}.
       attr_reader :kind
-      # @return [String] Стартовый статус — всегда pending. Values: {Oblodai::Enums::BatchStatus}.
+      # @return [String] The initial status — always pending. Values: {Oblodai::Enums::BatchStatus}.
       attr_reader :status
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -1526,10 +1527,10 @@ module Oblodai
       # JSON names of every field this release knows.
       FIELDS = %w[address is_force_block].freeze
 
-      # @return [String] Адрес статического кошелька
+      # @return [String] Static wallet address
       attr_reader :address
-      # @return [Boolean, nil] true — заблокировать (значение по умолчанию, если поле опущено);
-      #   false — снять блокировку
+      # @return [Boolean, nil] true — block (the default if the field is omitted); false — lift the
+      #   block
       attr_reader :is_force_block
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -1575,11 +1576,11 @@ module Oblodai
       # JSON names of every field this release knows.
       FIELDS = %w[address blocked uuid].freeze
 
-      # @return [String] Адрес кошелька.
+      # @return [String] Wallet address.
       attr_reader :address
-      # @return [Boolean] Заблокирован ли кошелёк после вызова.
+      # @return [Boolean] Whether the wallet is blocked after the call.
       attr_reader :blocked
-      # @return [String] Идентификатор статического кошелька.
+      # @return [String] Static wallet id.
       attr_reader :uuid
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -1629,12 +1630,13 @@ module Oblodai
       # JSON names of every field this release knows.
       FIELDS = %w[address memo uuid].freeze
 
-      # @return [String] Адрес назначения возврата.
+      # @return [String] Refund destination address.
       attr_reader :address
-      # @return [String] Идентификатор статического кошелька (из ответа /v1/wallet).
+      # @return [String] The static wallet id (from the /v1/wallet response).
       attr_reader :uuid
-      # @return [String, nil] Тег/мемо назначения (XRP destination tag, XLM memo id, TON comment).
-      #   Обязателен для классического адреса на tag/memo-сети, если тег не встроен в X-/M-адрес.
+      # @return [String, nil] Destination tag/memo (XRP destination tag, XLM memo id, TON comment).
+      #   Required for a classic address on a tag/memo network unless the tag is embedded in an
+      #   X-/M-address.
       attr_reader :memo
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -1690,63 +1692,66 @@ module Oblodai
         network order_id payer_amount payment_order_id refund_for source status txid updated_at uuid wallet_uuid
       ].freeze
 
-      # @return [String] Адрес получателя.
+      # @return [String] Recipient address.
       attr_reader :address
-      # @return [BigDecimal] Сумма выплаты в валюте currency, списанная с вашего баланса.
+      # @return [BigDecimal] The payout amount in currency, debited from your balance.
       attr_reader :amount
-      # @return [Boolean] true — выплата ждёт подтверждения (внутренние сценарии; по API-ключу
-      #   всегда false).
+      # @return [Boolean] true — the payout is awaiting approval (internal scenarios; always false
+      #   with an API key).
       attr_reader :approval_required
-      # @return [BigDecimal] Удержанная сетевая комиссия, в валюте выплаты. 0 — комиссию поглотил
-      #   шлюз.
+      # @return [BigDecimal] The withheld network fee, in the payout currency. 0 — the gateway
+      #   absorbed the fee.
       attr_reader :commission
-      # @return [String] Время создания (ISO 8601).
+      # @return [String] Creation time (ISO 8601).
       attr_reader :created_at
-      # @return [String] Код валюты выплаты.
+      # @return [String] Payout currency code.
       attr_reader :currency
-      # @return [String] Подписанная ссылка на PDF-чек этой операции — открывается без API-ключа,
-      #   можно вложить в письмо или отдать получателю. Пусто, если генерация документов не включена.
+      # @return [String] A signed link to the PDF receipt of this operation — opens without an API
+      #   key, can be attached to an email or given to the recipient. Empty if document generation is
+      #   not enabled.
       attr_reader :document_url
-      # @return [String] Кто заплатил сетевую комиссию: gateway — шлюз поглотил её (commission = 0);
-      #   merchant — сумма списания увеличена на комиссию, получатель получает запрошенное целиком
-      #   (is_subtract=true, выплатная ссылка с fee_bearer=merchant); recipient — комиссия удержана из
-      #   выплаты, получателю приходит меньше запрошенного. Values: {Oblodai::Enums::PayoutFeeBearer}.
+      # @return [String] Who paid the network fee: gateway — the gateway absorbed it (commission =
+      #   0); merchant — the debit amount was increased by the fee, the recipient gets the full
+      #   requested amount (is_subtract=true, a payout link with fee_bearer=merchant); recipient — the
+      #   fee was withheld from the payout, the recipient gets less than requested. Values:
+      #   {Oblodai::Enums::PayoutFeeBearer}.
       attr_reader :fee_bearer
-      # @return [Boolean] true — статус финальный (confirmed / failed / cancelled).
+      # @return [Boolean] true — the status is final (confirmed / failed / cancelled).
       attr_reader :is_final
-      # @return [Boolean] true — это возврат платежа, а не обычная выплата.
+      # @return [Boolean] true — this is a payment refund, not a regular payout.
       attr_reader :is_refund
-      # @return [String] Тег/мемо назначения, переданный при создании (TON Jetton, memo-биржи).
-      #   Пусто — без мемо.
+      # @return [String] The destination tag/memo passed at creation (TON Jetton, exchange memos).
+      #   Empty — no memo.
       attr_reader :memo
-      # @return [String] Сеть блокчейна.
+      # @return [String] Blockchain network.
       attr_reader :network
-      # @return [BigDecimal] Сколько реально уходит получателю на адрес: amount − commission.
+      # @return [BigDecimal] How much actually goes to the recipient's address: amount − commission.
       attr_reader :payer_amount
-      # @return [String] api (через интеграцию) | manual (из кабинета). Values:
+      # @return [String] api (via the integration) | manual (from the dashboard). Values:
       #   {Oblodai::Enums::PayoutSource}.
       attr_reader :source
-      # @return [String] Статус выплаты: pending (создана, ждёт) | approved (одобрена) |
-      #   awaiting_cosign (ждёт второй подписи) | broadcasting (отправляется) | sent (отправлена, ждёт
-      #   подтверждений) | confirmed (подтверждена — готово) | failed | cancelled. Значение можно
-      #   передать обратно в фильтр истории как есть. Values: {Oblodai::Enums::PayoutStatus}.
+      # @return [String] Payout status: pending (created, waiting) | approved (approved) |
+      #   awaiting_cosign (waiting for the second signature) | broadcasting (being broadcast) | sent
+      #   (sent, awaiting confirmations) | confirmed (confirmed — done) | failed | cancelled. The
+      #   value can be passed back to the history filter as is. Values:
+      #   {Oblodai::Enums::PayoutStatus}.
       attr_reader :status
-      # @return [String] Хеш транзакции в блокчейне (появляется после отправки).
+      # @return [String] The blockchain transaction hash (appears after sending).
       attr_reader :txid
-      # @return [String] Время последнего изменения (ISO 8601).
+      # @return [String] Time of the last change (ISO 8601).
       attr_reader :updated_at
-      # @return [String] Идентификатор выплаты.
+      # @return [String] Payout id.
       attr_reader :uuid
-      # @return [String] Кошелёк, с которого вернули деньги.
+      # @return [String] The wallet the money was refunded from.
       attr_reader :wallet_uuid
-      # @return [String, nil] Ваш номер (reference) выплаты. У возврата — null: возврат не имеет
-      #   вашего идентификатора, см. payment_order_id.
+      # @return [String, nil] Your payout number (reference). null for a refund: a refund has no
+      #   identifier of yours, see payment_order_id.
       attr_reader :order_id
-      # @return [String, nil] Ваш order_id платежа, по которому сделан возврат (null у обычной
-      #   выплаты). У возврата собственного order_id нет — он приходит null, а сверять возврат с
-      #   заказом нужно по этому полю.
+      # @return [String, nil] Your order_id of the payment that was refunded (null for a regular
+      #   payout). A refund has no order_id of its own — it comes as null, so match a refund to an
+      #   order by this field.
       attr_reader :payment_order_id
-      # @return [String, nil] Идентификатор возвращаемого платежа (null, если это не возврат).
+      # @return [String, nil] The id of the payment being refunded (null if this is not a refund).
       attr_reader :refund_for
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -1865,6 +1870,304 @@ module Oblodai
       end
     end
 
+    # CLIDeviceAuthorization of the API.
+    class CLIDeviceAuthorization < Generated::Model
+      # JSON names of the fields the API always sends.
+      REQUIRED = %w[device_code expires_in interval user_code verification_uri verification_uri_complete].freeze
+      # JSON names of every field this release knows.
+      FIELDS = %w[device_code expires_in interval user_code verification_uri verification_uri_complete].freeze
+
+      # @return [String] The CLI's secret for polling POST /v1/cli/token. Never show it to the user.
+      attr_reader :device_code
+      # @return [Integer] Seconds until the request expires.
+      attr_reader :expires_in
+      # @return [Integer] Seconds to wait between polls; cli.slow_down raises it by 5.
+      attr_reader :interval
+      # @return [String] The code the user confirms in the browser.
+      attr_reader :user_code
+      # @return [String] The cabinet page where the user enters the code.
+      attr_reader :verification_uri
+      # @return [String] The same page with the code filled in — open this one in the browser.
+      attr_reader :verification_uri_complete
+      # @return [Hash{String => Object}] fields this release does not know yet, as sent
+      attr_reader :extra
+
+      def initialize(
+        device_code:,
+        expires_in:,
+        interval:,
+        user_code:,
+        verification_uri:,
+        verification_uri_complete:,
+        extra: {}
+      )
+        super()
+        @device_code = device_code
+        @expires_in = expires_in
+        @interval = interval
+        @user_code = user_code
+        @verification_uri = verification_uri
+        @verification_uri_complete = verification_uri_complete
+        @extra = extra
+        freeze
+      end
+
+      # Build from a decoded JSON object (string or symbol keys).
+      # @param data [Hash]
+      # @return [CLIDeviceAuthorization]
+      def self.from_h(data)
+        data = Generated::Codec.object(data)
+        new(
+          device_code: Generated::Codec.read(data.fetch("device_code"), :string),
+          expires_in: Generated::Codec.read(data.fetch("expires_in"), :integer),
+          interval: Generated::Codec.read(data.fetch("interval"), :integer),
+          user_code: Generated::Codec.read(data.fetch("user_code"), :string),
+          verification_uri: Generated::Codec.read(data.fetch("verification_uri"), :string),
+          verification_uri_complete: Generated::Codec.read(data.fetch("verification_uri_complete"), :string),
+          extra: Generated::Codec.extra(data, FIELDS)
+        )
+      end
+
+      # The wire form: JSON names, amounts as decimal strings, unknown fields kept.
+      # @return [Hash{String => Object}]
+      def to_h
+        out = @extra.dup
+        out["device_code"] = Generated::Codec.dump(@device_code)
+        out["expires_in"] = Generated::Codec.dump(@expires_in)
+        out["interval"] = Generated::Codec.dump(@interval)
+        out["user_code"] = Generated::Codec.dump(@user_code)
+        out["verification_uri"] = Generated::Codec.dump(@verification_uri)
+        out["verification_uri_complete"] = Generated::Codec.dump(@verification_uri_complete)
+        out
+      end
+    end
+
+    # CLIDeviceRequest of the API.
+    class CLIDeviceRequest < Generated::Model
+      # JSON names of the fields the API always sends.
+      REQUIRED = [].freeze
+      # JSON names of every field this release knows.
+      FIELDS = %w[client_name device_name].freeze
+
+      # @return [String, nil] The client asking for access (at most 64 characters); shown in the
+      #   cabinet. Empty — "oblodai".
+      attr_reader :client_name
+      # @return [String, nil] The device (at most 100 characters); shown in the cabinet and becomes
+      #   the key label. Empty — "CLI".
+      attr_reader :device_name
+      # @return [Hash{String => Object}] fields this release does not know yet, as sent
+      attr_reader :extra
+
+      def initialize(
+        client_name: nil,
+        device_name: nil,
+        extra: {}
+      )
+        super()
+        @client_name = client_name
+        @device_name = device_name
+        @extra = extra
+        freeze
+      end
+
+      # Build from a decoded JSON object (string or symbol keys).
+      # @param data [Hash]
+      # @return [CLIDeviceRequest]
+      def self.from_h(data)
+        data = Generated::Codec.object(data)
+        new(
+          client_name: Generated::Codec.read(data["client_name"], :string),
+          device_name: Generated::Codec.read(data["device_name"], :string),
+          extra: Generated::Codec.extra(data, FIELDS)
+        )
+      end
+
+      # The wire form: JSON names, amounts as decimal strings, unknown fields kept.
+      # @return [Hash{String => Object}]
+      def to_h
+        out = @extra.dup
+        out["client_name"] = Generated::Codec.dump(@client_name) unless @client_name.nil?
+        out["device_name"] = Generated::Codec.dump(@device_name) unless @device_name.nil?
+        out
+      end
+    end
+
+    # CLILogoutResult of the API.
+    class CLILogoutResult < Generated::Model
+      # JSON names of the fields the API always sends.
+      REQUIRED = %w[public_id revoked].freeze
+      # JSON names of every field this release knows.
+      FIELDS = %w[public_id revoked].freeze
+
+      # @return [String] The CLI key that was revoked (the one that signed this request).
+      attr_reader :public_id
+      # @return [Boolean] Always true: the key no longer authenticates.
+      attr_reader :revoked
+      # @return [Hash{String => Object}] fields this release does not know yet, as sent
+      attr_reader :extra
+
+      def initialize(
+        public_id:,
+        revoked:,
+        extra: {}
+      )
+        super()
+        @public_id = public_id
+        @revoked = revoked
+        @extra = extra
+        freeze
+      end
+
+      # Build from a decoded JSON object (string or symbol keys).
+      # @param data [Hash]
+      # @return [CLILogoutResult]
+      def self.from_h(data)
+        data = Generated::Codec.object(data)
+        new(
+          public_id: Generated::Codec.read(data.fetch("public_id"), :string),
+          revoked: Generated::Codec.read(data.fetch("revoked"), :boolean),
+          extra: Generated::Codec.extra(data, FIELDS)
+        )
+      end
+
+      # The wire form: JSON names, amounts as decimal strings, unknown fields kept.
+      # @return [Hash{String => Object}]
+      def to_h
+        out = @extra.dup
+        out["public_id"] = Generated::Codec.dump(@public_id)
+        out["revoked"] = Generated::Codec.dump(@revoked)
+        out
+      end
+    end
+
+    # CLIToken of the API.
+    class CLIToken < Generated::Model
+      # JSON names of the fields the API always sends.
+      REQUIRED = %w[expires_at label merchant_id merchant_name mode public_id role secret].freeze
+      # JSON names of every field this release knows.
+      FIELDS = %w[expires_at label merchant_id merchant_name mode public_id role secret].freeze
+
+      # @return [String] When the key stops working; log in again after that.
+      attr_reader :expires_at
+      # @return [String] The key label (device name).
+      attr_reader :label
+      # @return [String] The merchant (store) the key acts for.
+      attr_reader :merchant_id
+      # @return [String] The store's name at approval time.
+      attr_reader :merchant_name
+      # @return [String] live — a production store; test — its sandbox. Values:
+      #   {Oblodai::Enums::KeyMode}.
+      attr_reader :mode
+      # @return [String] The CLI key's public id (X-Public-Id).
+      attr_reader :public_id
+      # @return [String] The team member's role the key acts with (at approval time; the core checks
+      #   the current one on every call). Values: {Oblodai::Enums::Role}.
+      attr_reader :role
+      # @return [String] The key secret. Returned exactly once — store it now.
+      attr_reader :secret
+      # @return [Hash{String => Object}] fields this release does not know yet, as sent
+      attr_reader :extra
+
+      def initialize(
+        expires_at:,
+        label:,
+        merchant_id:,
+        merchant_name:,
+        mode:,
+        public_id:,
+        role:,
+        secret:,
+        extra: {}
+      )
+        super()
+        @expires_at = expires_at
+        @label = label
+        @merchant_id = merchant_id
+        @merchant_name = merchant_name
+        @mode = mode
+        @public_id = public_id
+        @role = role
+        @secret = secret
+        @extra = extra
+        freeze
+      end
+
+      # Build from a decoded JSON object (string or symbol keys).
+      # @param data [Hash]
+      # @return [CLIToken]
+      def self.from_h(data)
+        data = Generated::Codec.object(data)
+        new(
+          expires_at: Generated::Codec.read(data.fetch("expires_at"), :string),
+          label: Generated::Codec.read(data.fetch("label"), :string),
+          merchant_id: Generated::Codec.read(data.fetch("merchant_id"), :string),
+          merchant_name: Generated::Codec.read(data.fetch("merchant_name"), :string),
+          mode: Generated::Codec.read(data.fetch("mode"), :string),
+          public_id: Generated::Codec.read(data.fetch("public_id"), :string),
+          role: Generated::Codec.read(data.fetch("role"), :string),
+          secret: Generated::Codec.read(data.fetch("secret"), :string),
+          extra: Generated::Codec.extra(data, FIELDS)
+        )
+      end
+
+      # The wire form: JSON names, amounts as decimal strings, unknown fields kept.
+      # @return [Hash{String => Object}]
+      def to_h
+        out = @extra.dup
+        out["expires_at"] = Generated::Codec.dump(@expires_at)
+        out["label"] = Generated::Codec.dump(@label)
+        out["merchant_id"] = Generated::Codec.dump(@merchant_id)
+        out["merchant_name"] = Generated::Codec.dump(@merchant_name)
+        out["mode"] = Generated::Codec.dump(@mode)
+        out["public_id"] = Generated::Codec.dump(@public_id)
+        out["role"] = Generated::Codec.dump(@role)
+        out["secret"] = Generated::Codec.dump(@secret)
+        out
+      end
+    end
+
+    # CLITokenRequest of the API.
+    class CLITokenRequest < Generated::Model
+      # JSON names of the fields the API always sends.
+      REQUIRED = ["device_code"].freeze
+      # JSON names of every field this release knows.
+      FIELDS = ["device_code"].freeze
+
+      # @return [String] device_code from POST /v1/cli/device.
+      attr_reader :device_code
+      # @return [Hash{String => Object}] fields this release does not know yet, as sent
+      attr_reader :extra
+
+      def initialize(
+        device_code:,
+        extra: {}
+      )
+        super()
+        @device_code = device_code
+        @extra = extra
+        freeze
+      end
+
+      # Build from a decoded JSON object (string or symbol keys).
+      # @param data [Hash]
+      # @return [CLITokenRequest]
+      def self.from_h(data)
+        data = Generated::Codec.object(data)
+        new(
+          device_code: Generated::Codec.read(data.fetch("device_code"), :string),
+          extra: Generated::Codec.extra(data, FIELDS)
+        )
+      end
+
+      # The wire form: JSON names, amounts as decimal strings, unknown fields kept.
+      # @return [Hash{String => Object}]
+      def to_h
+        out = @extra.dup
+        out["device_code"] = Generated::Codec.dump(@device_code)
+        out
+      end
+    end
+
     # CancelPayoutRequest of the API.
     class CancelPayoutRequest < Generated::Model
       # JSON names of the fields the API always sends.
@@ -1872,7 +2175,7 @@ module Oblodai
       # JSON names of every field this release knows.
       FIELDS = ["uuid"].freeze
 
-      # @return [String] Идентификатор выплаты (или возврата) для отмены.
+      # @return [String] The id of the payout (or refund) to cancel.
       attr_reader :uuid
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -1914,16 +2217,16 @@ module Oblodai
       # JSON names of every field this release knows.
       FIELDS = %w[email_receipts fail_url success_url].freeze
 
-      # @return [Boolean, nil] Слать ли покупателю чек на почту после оплаты. Чек уходит только если
-      #   покупатель оставил адрес. По умолчанию — да.
+      # @return [Boolean, nil] Whether to email the buyer a receipt after payment. The receipt is
+      #   sent only if the buyer left an address. Defaults to yes.
       attr_reader :email_receipts
-      # @return [String, nil] Куда вернуть покупателя, если он ушёл с оплаты. Пустая строка — никуда
-      #   не отправлять. Поле можно не присылать — тогда прежнее значение сохранится. Подставляется
-      #   только в те счета, где url_return не задан.
+      # @return [String, nil] Where to send the buyer if they left the payment page. An empty string
+      #   — do not redirect. The field may be omitted — then the previous value is kept. Applied only
+      #   to invoices where url_return is not set.
       attr_reader :fail_url
-      # @return [String, nil] Куда вернуть покупателя после успешной оплаты. Пустая строка — никуда
-      #   не отправлять. Поле можно не присылать — тогда прежнее значение сохранится. Подставляется
-      #   только в те счета, где url_success не задан.
+      # @return [String, nil] Where to send the buyer after a successful payment. An empty string —
+      #   do not redirect. The field may be omitted — then the previous value is kept. Applied only to
+      #   invoices where url_success is not set.
       attr_reader :success_url
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -1973,11 +2276,11 @@ module Oblodai
       # JSON names of every field this release knows.
       FIELDS = %w[email_receipts fail_url success_url].freeze
 
-      # @return [Boolean] Слать ли покупателю чек на почту после оплаты.
+      # @return [Boolean] Whether to email the buyer a receipt after payment.
       attr_reader :email_receipts
-      # @return [String] Куда вернуть покупателя, ушедшего с оплаты; пусто — никуда.
+      # @return [String] Where to send a buyer who left the payment page; empty — nowhere.
       attr_reader :fail_url
-      # @return [String] Куда вернуть покупателя после оплаты; пусто — никуда.
+      # @return [String] Where to send the buyer after payment; empty — nowhere.
       attr_reader :success_url
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -2027,12 +2330,12 @@ module Oblodai
       # JSON names of every field this release knows.
       FIELDS = %w[address memo passcode].freeze
 
-      # @return [String] Адрес получателя в сети выплаты.
+      # @return [String] The recipient's address on the payout network.
       attr_reader :address
-      # @return [String, nil] Memo/tag — только для сетей, где он обязателен.
+      # @return [String, nil] Memo/tag — only for networks where it is required.
       attr_reader :memo
-      # @return [String, nil] Код получения — если отправитель установил его на ссылку. После 10
-      #   неверных вводов ссылка запирается.
+      # @return [String, nil] Claim passcode — if the sender set one on the link. After 10 wrong
+      #   attempts the link is locked.
       attr_reader :passcode
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -2082,15 +2385,15 @@ module Oblodai
       # JSON names of every field this release knows.
       FIELDS = %w[available fee_percent min_out reason window_minutes].freeze
 
-      # @return [Boolean] Доступен ли режим сейчас.
+      # @return [Boolean] Whether the mode is available right now.
       attr_reader :available
-      # @return [BigDecimal] Комиссия режима в процентах.
+      # @return [BigDecimal] The mode's fee, in percent.
       attr_reader :fee_percent
-      # @return [BigDecimal] Гарантированный минимум к получению, в валюте котировки.
+      # @return [BigDecimal] The guaranteed minimum to receive, in the quote currency.
       attr_reader :min_out
-      # @return [String] Почему недоступен: no_route; пусто — доступен.
+      # @return [String] Why it is unavailable: no_route; empty — available.
       attr_reader :reason
-      # @return [Integer] За сколько минут исполняется заявка.
+      # @return [Integer] How many minutes the order takes to execute.
       attr_reader :window_minutes
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -2148,13 +2451,13 @@ module Oblodai
       # JSON names of every field this release knows.
       FIELDS = %w[available estimated_out fee_percent reason].freeze
 
-      # @return [Boolean] Доступен ли режим сейчас.
+      # @return [Boolean] Whether the mode is available right now.
       attr_reader :available
-      # @return [BigDecimal] Сколько придёт, в валюте котировки.
+      # @return [BigDecimal] How much will arrive, in the quote currency.
       attr_reader :estimated_out
-      # @return [BigDecimal] Комиссия режима в процентах.
+      # @return [BigDecimal] The mode's fee, in percent.
       attr_reader :fee_percent
-      # @return [String] Почему недоступен: frozen, position_cap; пусто — доступен.
+      # @return [String] Why it is unavailable: frozen, position_cap; empty — available.
       attr_reader :reason
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -2208,9 +2511,9 @@ module Oblodai
       # JSON names of every field this release knows.
       FIELDS = %w[economy instant].freeze
 
-      # @return [Oblodai::Models::ConversionEconomyQuote] Конвертация через партию ликвидации.
+      # @return [Oblodai::Models::ConversionEconomyQuote] Conversion via a liquidation batch.
       attr_reader :economy
-      # @return [Oblodai::Models::ConversionInstantQuote] Мгновенная конвертация по спред-курсу.
+      # @return [Oblodai::Models::ConversionInstantQuote] Instant conversion at the spread rate.
       attr_reader :instant
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -2249,8 +2552,8 @@ module Oblodai
       end
     end
 
-    # Приходит, когда конвертация в эконом-режиме исполнена (completed — зачислено) или отменена с
-    # возвратом исходной суммы (refunded).
+    # Sent when an economy-mode conversion is executed (completed — credited) or cancelled with the
+    # source amount returned (refunded).
     class ConversionWebhook < Generated::Model
       # JSON names of the fields the API always sends.
       REQUIRED = %w[
@@ -2263,45 +2566,47 @@ module Oblodai
         status test to type
       ].freeze
 
-      # @return [String] Когда завершена (ISO 8601).
+      # @return [String] When completed (ISO 8601).
       attr_reader :completed_at
-      # @return [String] Когда конвертация принята (ISO 8601).
+      # @return [String] When the conversion was accepted (ISO 8601).
       attr_reader :created_at
-      # @return [String] Подписанная ссылка на PDF-чек конвертации; пусто у возврата и когда
-      #   документы выключены.
+      # @return [String] A signed link to the PDF conversion receipt; empty for a refund and when
+      #   documents are disabled.
       attr_reader :document_url
-      # @return [String] Когда событие произошло, UTC с миллисекундами (ISO 8601).
+      # @return [String] When the event happened, UTC with milliseconds (ISO 8601).
       attr_reader :event_at
-      # @return [BigDecimal] Комиссия конвертации, в процентах.
+      # @return [BigDecimal] Conversion fee, in percent.
       attr_reader :fee_percent
-      # @return [String] Из какой валюты.
+      # @return [String] Source currency.
       attr_reader :from
-      # @return [String] Идентификатор конвертации — тот id, что вернул запрос конвертации.
+      # @return [String] The conversion id — the id returned by the conversion request.
       attr_reader :id
-      # @return [Boolean] Всегда true: событие приходит, когда деньги уже зачислены или возвращены.
+      # @return [Boolean] Always true: the event arrives when the money has already been credited or
+      #   returned.
       attr_reader :is_final
-      # @return [String] Режим: economy (исполнена очередью) | instant.
+      # @return [String] Mode: economy (executed via the queue) | instant.
       attr_reader :mode
-      # @return [String] Причина возврата (market_below_min | window_expired); пусто у completed.
+      # @return [String] The refund reason (market_below_min | window_expired); empty for completed.
       attr_reader :reason
-      # @return [BigDecimal] Сколько отдано, в валюте from.
+      # @return [BigDecimal] How much was given, in the from currency.
       attr_reader :sent
-      # @return [Integer] Глобальный номер события: в пределах одного объекта больший номер новее,
-      #   меньший — опоздавшая доставка, её нужно отбросить. У репетиции (test: true) всегда 0.
+      # @return [Integer] The global event number: within one object a higher number is newer, a
+      #   lower one is a late delivery and must be discarded. Always 0 on a rehearsal (test: true).
       attr_reader :sequence
-      # @return [String] completed — зачислено; refunded — исходная сумма возвращена. Values:
+      # @return [String] completed — credited; refunded — the source amount was returned. Values:
       #   {Oblodai::Enums::ConversionWebhookStatus}.
       attr_reader :status
-      # @return [String] В какую валюту.
+      # @return [String] Target currency.
       attr_reader :to
-      # @return [String] Вид события: payment | payout | wallet | conversion — какое тело пришло.
+      # @return [String] Event kind: payment | payout | wallet | conversion — which body arrived.
       attr_reader :type
-      # @return [BigDecimal, nil] Сколько зачислено, в валюте to. Есть только у completed; у
-      #   refunded поля нет.
+      # @return [BigDecimal, nil] How much was credited, in the to currency. Present only for
+      #   completed; refunded has no such field.
       attr_reader :received
-      # @return [Boolean, nil] Есть только у репетиции (/v1/test-webhook/*,
-      #   /v1/payment/testing-webhook) и всегда true — внутри подписи. Боевое событие этого поля не
-      #   несёт никогда: тело с test: true обработчик обязан игнорировать, даже если подпись верна.
+      # @return [Boolean, nil] Present only on a rehearsal (/v1/test-webhook/*,
+      #   /v1/payment/testing-webhook) and always true — inside the signature. A live event never
+      #   carries this field: your handler must ignore a body with test: true even if the signature is
+      #   valid.
       attr_reader :test
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -2407,12 +2712,12 @@ module Oblodai
       # JSON names of every field this release knows.
       FIELDS = %w[currency network order_id].freeze
 
-      # @return [String] Символ валюты приёма (USDT, BTC, ETH, …)
+      # @return [String] The symbol of the accepted currency (USDT, BTC, ETH, …)
       attr_reader :currency
-      # @return [String] Сеть приёма (tron, ethereum, bitcoin, …)
+      # @return [String] The receiving network (tron, ethereum, bitcoin, …)
       attr_reader :network
-      # @return [String, nil] Ваш идентификатор клиента/заказа. Закрепляет отдельный постоянный
-      #   адрес за клиентом
+      # @return [String, nil] Your customer/order identifier. Assigns a dedicated permanent address
+      #   to the customer
       attr_reader :order_id
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -2462,10 +2767,11 @@ module Oblodai
       # JSON names of every field this release knows.
       FIELDS = %w[currencies pricing_currencies].freeze
 
-      # @return [Array<Oblodai::Models::CurrencyEntry>] Чем счёт можно оплатить: монеты по сетям.
+      # @return [Array<Oblodai::Models::CurrencyEntry>] What the invoice can be paid with: coins by
+      #   network.
       attr_reader :currencies
-      # @return [Array<Oblodai::Models::PricingCurrency>] В чём счёт можно выставить: те же монеты и
-      #   фиат; отсортированы по коду.
+      # @return [Array<Oblodai::Models::PricingCurrency>] What an invoice can be priced in: the same
+      #   coins plus fiat; sorted by code.
       attr_reader :pricing_currencies
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -2511,9 +2817,9 @@ module Oblodai
       # JSON names of every field this release knows.
       FIELDS = %w[currency decimals networks].freeze
 
-      # @return [String] Код валюты.
+      # @return [String] Currency code.
       attr_reader :currency
-      # @return [Integer] Знаков после запятой в суммах этой валюты.
+      # @return [Integer] Decimal places in amounts of this currency.
       attr_reader :decimals
       # @return [Array<Oblodai::Models::CurrencyNetwork>]
       attr_reader :networks
@@ -2567,25 +2873,25 @@ module Oblodai
         available chain_id contract default_offer deposit_available kind min_confirmations network payout_available
       ].freeze
 
-      # @return [Boolean] То же, что deposit_available.
+      # @return [Boolean] The same as deposit_available.
       attr_reader :available
-      # @return [Boolean] false — метод показывается на оплате только после явного включения
-      #   мерчантом.
+      # @return [Boolean] false — the method is shown at checkout only after the merchant explicitly
+      #   enables it.
       attr_reader :default_offer
-      # @return [Boolean] Приём в этой сети работает на этом развёртывании.
+      # @return [Boolean] Accepting payments on this network works on this deployment.
       attr_reader :deposit_available
-      # @return [String] native — монета сети, token — токен контракта. Values:
+      # @return [String] native — the network's native coin, token — a contract token. Values:
       #   {Oblodai::Enums::AssetKind}.
       attr_reader :kind
-      # @return [Integer] Подтверждений до зачисления.
+      # @return [Integer] Confirmations until crediting.
       attr_reader :min_confirmations
-      # @return [String] Сеть.
+      # @return [String] Network.
       attr_reader :network
-      # @return [Boolean] Выплаты в этой сети работают на этом развёртывании.
+      # @return [Boolean] Payouts on this network work on this deployment.
       attr_reader :payout_available
-      # @return [Integer, nil] Номер EVM-сети (EIP-155); только у EVM-сетей.
+      # @return [Integer, nil] The EVM chain id (EIP-155); EVM networks only.
       attr_reader :chain_id
-      # @return [String, nil] Контракт токена; у монеты сети ключа нет.
+      # @return [String, nil] The token contract; a native coin has no such key.
       attr_reader :contract
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -2659,29 +2965,31 @@ module Oblodai
       # JSON names of every field this release knows.
       FIELDS = %w[created_at error file format job_id kind lang period ready_within status updated_at].freeze
 
-      # @return [String] Когда задача поставлена (UTC).
+      # @return [String] When the job was queued (UTC).
       attr_reader :created_at
-      # @return [String] Формат файла: pdf или csv.
+      # @return [String] File format: pdf or csv.
       attr_reader :format_
-      # @return [String] Идентификатор задачи.
+      # @return [String] Job id.
       attr_reader :job_id
-      # @return [String] Вид отчёта. Values: {Oblodai::Enums::DocumentJobKind}.
+      # @return [String] Report kind. Values: {Oblodai::Enums::DocumentJobKind}.
       attr_reader :kind
-      # @return [String] Язык документа.
+      # @return [String] Document language.
       attr_reader :lang
-      # @return [Oblodai::Models::DocumentJobPeriod] Период отчёта.
+      # @return [Oblodai::Models::DocumentJobPeriod] Report period.
       attr_reader :period
-      # @return [String] Статус задачи: queued, processing, done, failed или expired. Values:
+      # @return [String] Job status: queued, processing, done, failed or expired. Values:
       #   {Oblodai::Enums::DocumentJobStatus}.
       attr_reader :status
-      # @return [String] Когда задача менялась последний раз (UTC).
+      # @return [String] When the job last changed (UTC).
       attr_reader :updated_at
-      # @return [Oblodai::Models::DocumentJobError, nil] Почему файла нет; есть у задачи в статусе
-      #   failed или expired.
+      # @return [Oblodai::Models::DocumentJobError, nil] Why there is no file; present on a job in
+      #   status failed or expired.
       attr_reader :error
-      # @return [Oblodai::Models::DocumentJobFile, nil] Готовый файл; есть у задачи в статусе done.
+      # @return [Oblodai::Models::DocumentJobFile, nil] The finished file; present on a job in
+      #   status done.
       attr_reader :file
-      # @return [String, nil] Срок готовности; есть, пока задача в очереди или в работе.
+      # @return [String, nil] The readiness deadline; present while the job is queued or in
+      #   progress.
       attr_reader :ready_within
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -2763,9 +3071,9 @@ module Oblodai
       # JSON names of every field this release knows.
       FIELDS = %w[code message].freeze
 
-      # @return [String] Машинный код отказа.
+      # @return [String] The machine code of the rejection.
       attr_reader :code
-      # @return [String] Что случилось и что делать.
+      # @return [String] What happened and what to do.
       attr_reader :message
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -2811,13 +3119,13 @@ module Oblodai
       # JSON names of every field this release knows.
       FIELDS = %w[download_url expires_at rows size_bytes].freeze
 
-      # @return [String] Путь скачивания (GET под ключом мерчанта).
+      # @return [String] The download path (GET under the merchant key).
       attr_reader :download_url
-      # @return [Integer] Строк в отчёте.
+      # @return [Integer] Rows in the report.
       attr_reader :rows
-      # @return [Integer] Размер файла в байтах.
+      # @return [Integer] File size in bytes.
       attr_reader :size_bytes
-      # @return [String, nil] До какого момента файл хранится (UTC).
+      # @return [String, nil] Until when the file is kept (UTC).
       attr_reader :expires_at
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -2871,7 +3179,7 @@ module Oblodai
       # JSON names of every field this release knows.
       FIELDS = ["job_id"].freeze
 
-      # @return [String] Идентификатор задачи из ответа создания.
+      # @return [String] The job id from the creation response.
       attr_reader :job_id
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -2913,9 +3221,9 @@ module Oblodai
       # JSON names of every field this release knows.
       FIELDS = %w[from to].freeze
 
-      # @return [String] Начало периода, YYYY-MM-DD.
+      # @return [String] Start of the period, YYYY-MM-DD.
       attr_reader :from
-      # @return [String] Конец периода включительно, YYYY-MM-DD.
+      # @return [String] End of the period, inclusive, YYYY-MM-DD.
       attr_reader :to
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -2961,19 +3269,19 @@ module Oblodai
       # JSON names of every field this release knows.
       FIELDS = %w[format from kind lang to].freeze
 
-      # @return [String] Вид отчёта: statement (операции), fees (комиссии) или ledger (движения
-      #   баланса). Values: {Oblodai::Enums::DocumentJobKind}.
+      # @return [String] Report kind: statement (operations), fees (fees) or ledger (balance
+      #   movements). Values: {Oblodai::Enums::DocumentJobKind}.
       attr_reader :kind
-      # @return [String, nil] Формат файла: pdf (по умолчанию) или csv. CSV собирается без вёрстки —
-      #   для тяжёлых выписок дешевле и грузится в Excel/1С.
+      # @return [String, nil] File format: pdf (default) or csv. CSV is built without layout —
+      #   cheaper for heavy statements and imports into Excel/1C.
       attr_reader :format_
-      # @return [String, nil] Начало периода, YYYY-MM-DD (по умолчанию — первое число текущего
-      #   месяца).
+      # @return [String, nil] Start of the period, YYYY-MM-DD (defaults to the first day of the
+      #   current month).
       attr_reader :from
-      # @return [String, nil] Язык документа (по умолчанию en).
+      # @return [String, nil] Document language (en by default).
       attr_reader :lang
-      # @return [String, nil] Конец периода включительно, YYYY-MM-DD (по умолчанию — сегодня).
-      #   Период — до двух лет.
+      # @return [String, nil] End of the period, inclusive, YYYY-MM-DD (defaults to today). The
+      #   period is up to two years.
       attr_reader :to
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -3031,29 +3339,31 @@ module Oblodai
       # JSON names of every field this release knows.
       FIELDS = %w[created_at error file format job_id kind lang period ready_within status updated_at].freeze
 
-      # @return [String] Когда задача поставлена (UTC).
+      # @return [String] When the job was queued (UTC).
       attr_reader :created_at
-      # @return [String] Формат файла: pdf или csv.
+      # @return [String] File format: pdf or csv.
       attr_reader :format_
-      # @return [String] Идентификатор задачи.
+      # @return [String] Job id.
       attr_reader :job_id
-      # @return [String] Вид отчёта. Values: {Oblodai::Enums::DocumentJobKind}.
+      # @return [String] Report kind. Values: {Oblodai::Enums::DocumentJobKind}.
       attr_reader :kind
-      # @return [String] Язык документа.
+      # @return [String] Document language.
       attr_reader :lang
-      # @return [Oblodai::Models::DocumentJobPeriod] Период отчёта.
+      # @return [Oblodai::Models::DocumentJobPeriod] Report period.
       attr_reader :period
-      # @return [String] Статус задачи: queued, processing, done, failed или expired. Values:
+      # @return [String] Job status: queued, processing, done, failed or expired. Values:
       #   {Oblodai::Enums::DocumentJobStatus}.
       attr_reader :status
-      # @return [String] Когда задача менялась последний раз (UTC).
+      # @return [String] When the job last changed (UTC).
       attr_reader :updated_at
-      # @return [Oblodai::Models::DocumentJobError, nil] Почему файла нет; есть у задачи в статусе
-      #   failed или expired.
+      # @return [Oblodai::Models::DocumentJobError, nil] Why there is no file; present on a job in
+      #   status failed or expired.
       attr_reader :error
-      # @return [Oblodai::Models::DocumentJobFile, nil] Готовый файл; есть у задачи в статусе done.
+      # @return [Oblodai::Models::DocumentJobFile, nil] The finished file; present on a job in
+      #   status done.
       attr_reader :file
-      # @return [String, nil] Срок готовности; есть, пока задача в очереди или в работе.
+      # @return [String, nil] The readiness deadline; present while the job is queued or in
+      #   progress.
       attr_reader :ready_within
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -3175,26 +3485,30 @@ module Oblodai
       # JSON names of the fields the API always sends.
       REQUIRED = %w[code retryable].freeze
       # JSON names of every field this release knows.
-      FIELDS = %w[code field message request_id retry_after retryable].freeze
+      FIELDS = %w[code details field message request_id retry_after retryable].freeze
 
-      # @return [String] Стабильный машинный код `<область>.<причина>` — единственное поле, по
-      #   которому можно ветвиться. Список известных кодов — ErrorCode; новые коды добавляются без
-      #   смены версии, поэтому клиент обязан переживать незнакомый код.
+      # @return [String] A stable machine code `<area>.<reason>` — the only field you may branch on.
+      #   The list of known codes is ErrorCode; new codes are added without a version change, so a
+      #   client must tolerate an unknown code.
       attr_reader :code
-      # @return [Boolean] true — повтор того же запроса без изменений может пройти, когда условие
-      #   снимется; false — повторять бессмысленно без правки запроса.
+      # @return [Boolean] true — repeating the same request unchanged may succeed once the condition
+      #   clears; false — retrying is pointless without changing the request.
       attr_reader :retryable
-      # @return [String, nil] Имя поля запроса, к которому относится ошибка, в присланном написании.
-      #   Отсутствует, если ошибка не про конкретное поле.
+      # @return [Hash{String => String}, nil] Machine-readable facts about this refusal, with keys
+      #   documented by its code (e.g. `cli.permission_denied` carries `required_role` and `role`).
+      #   Absent when the code has none.
+      attr_reader :details
+      # @return [String, nil] The name of the request field the error refers to, spelled as sent.
+      #   Absent if the error is not about a specific field.
       attr_reader :field
-      # @return [String, nil] Человекочитаемое пояснение. Текст не является контрактом и может
-      #   меняться.
+      # @return [String, nil] A human-readable explanation. The text is not part of the contract and
+      #   may change.
       attr_reader :message
-      # @return [String, nil] Идентификатор запроса (дублирует X-Request-ID) — приложите его к
-      #   обращению в поддержку.
+      # @return [String, nil] The request id (duplicates X-Request-ID) — include it when contacting
+      #   support.
       attr_reader :request_id
-      # @return [Integer, nil] Подсказка, через сколько секунд повторять (дублирует заголовок
-      #   Retry-After).
+      # @return [Integer, nil] A hint of how many seconds to wait before retrying (duplicates the
+      #   Retry-After header).
       attr_reader :retry_after
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -3202,6 +3516,7 @@ module Oblodai
       def initialize(
         code:,
         retryable:,
+        details: nil,
         field: nil,
         message: nil,
         request_id: nil,
@@ -3211,6 +3526,7 @@ module Oblodai
         super()
         @code = code
         @retryable = retryable
+        @details = details
         @field = field
         @message = message
         @request_id = request_id
@@ -3227,6 +3543,7 @@ module Oblodai
         new(
           code: Generated::Codec.read(data.fetch("code"), :string),
           retryable: Generated::Codec.read(data.fetch("retryable"), :boolean),
+          details: Generated::Codec.read(data["details"], %i[map string]),
           field: Generated::Codec.read(data["field"], :string),
           message: Generated::Codec.read(data["message"], :string),
           request_id: Generated::Codec.read(data["request_id"], :string),
@@ -3241,6 +3558,7 @@ module Oblodai
         out = @extra.dup
         out["code"] = Generated::Codec.dump(@code)
         out["retryable"] = Generated::Codec.dump(@retryable)
+        out["details"] = Generated::Codec.dump(@details) unless @details.nil?
         out["field"] = Generated::Codec.dump(@field) unless @field.nil?
         out["message"] = Generated::Codec.dump(@message) unless @message.nil?
         out["request_id"] = Generated::Codec.dump(@request_id) unless @request_id.nil?
@@ -3256,11 +3574,11 @@ module Oblodai
       # JSON names of every field this release knows.
       FIELDS = %w[course from to].freeze
 
-      # @return [String] Цена одной единицы from в to, десятичной строкой.
+      # @return [String] The price of one unit of from in to, as a decimal string.
       attr_reader :course
-      # @return [String] Исходная валюта.
+      # @return [String] Source currency.
       attr_reader :from
-      # @return [String] Валюта котировки.
+      # @return [String] Quote currency.
       attr_reader :to
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -3310,19 +3628,19 @@ module Oblodai
       # JSON names of every field this release knows.
       FIELDS = %w[amount currency_from currency_to limit offset].freeze
 
-      # @return [BigDecimal, nil] Сумма в currency_from. Вместе с currency_from и currency_to
-      #   добавляет в ответ блок modes: обе цены конвертации (instant/economy) с доступностью каждого
-      #   режима
+      # @return [BigDecimal, nil] The amount in currency_from. Together with currency_from and
+      #   currency_to it adds a modes block to the response: both conversion prices (instant/economy)
+      #   with the availability of each mode
       attr_reader :amount
-      # @return [String, nil] Код валюты. Если задан — вернётся курс только по нему. Если пусто или
-      #   тело {} — по всем валютам
+      # @return [String, nil] Currency code. If set, only its rate is returned. If empty or the body
+      #   is {} — rates for all currencies
       attr_reader :currency_from
-      # @return [String, nil] Валюта котировки: по умолчанию USDT; любой прайсинговый актив, включая
-      #   фиаты с прямым фидом (EUR, RUB, …)
+      # @return [String, nil] Quote currency: USDT by default; any pricing asset, including fiat
+      #   currencies with a direct feed (EUR, RUB, …)
       attr_reader :currency_to
-      # @return [Integer, nil] Размер страницы, 1–100; по умолчанию 25
+      # @return [Integer, nil] Page size, 1–100; default 25
       attr_reader :limit
-      # @return [Integer, nil] Смещение от начала списка; по умолчанию 0
+      # @return [Integer, nil] Offset from the start of the list; default 0
       attr_reader :offset
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -3380,12 +3698,12 @@ module Oblodai
       # JSON names of every field this release knows.
       FIELDS = %w[items modes paginate].freeze
 
-      # @return [Array<Oblodai::Models::ExchangeRate>] Курсы этой страницы.
+      # @return [Array<Oblodai::Models::ExchangeRate>] The rates of this page.
       attr_reader :items
-      # @return [Oblodai::Models::Pagination] Блок пагинации.
+      # @return [Oblodai::Models::Pagination] Pagination block.
       attr_reader :paginate
-      # @return [Oblodai::Models::ConversionModes, nil] Квота конвертации в обоих режимах; нет ключа
-      #   — квоту не просили, она не удалась или пара вне режимов.
+      # @return [Oblodai::Models::ConversionModes, nil] The conversion quota in both modes; no key —
+      #   no quota was requested, it failed, or the pair is outside both modes.
       attr_reader :modes
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -3435,11 +3753,11 @@ module Oblodai
       # JSON names of every field this release knows.
       FIELDS = %w[amount asset idempotency_key].freeze
 
-      # @return [BigDecimal] Сумма тестовых денег, строкой; потолок 1000000 за вызов.
+      # @return [BigDecimal] The amount of test money, as a string; capped at 1000000 per call.
       attr_reader :amount
-      # @return [String] Актив пополнения (USDT, BTC, …).
+      # @return [String] Deposit asset (USDT, BTC, …).
       attr_reader :asset
-      # @return [String, nil] Ключ безопасного повтора; пусто — каждый вызов даёт новое пополнение.
+      # @return [String, nil] The safe-retry key; empty — every call creates a new top-up.
       attr_reader :idempotency_key
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -3489,12 +3807,12 @@ module Oblodai
       # JSON names of every field this release knows.
       FIELDS = %w[amount asset journal_id].freeze
 
-      # @return [BigDecimal] Зачисленная сумма в точности актива.
+      # @return [BigDecimal] The credited amount at the asset's precision.
       attr_reader :amount
-      # @return [String] Актив пополнения.
+      # @return [String] Deposit asset.
       attr_reader :asset
-      # @return [String] Журнальная запись пополнения; повтор с тем же idempotency_key возвращает ту
-      #   же.
+      # @return [String] The ledger entry of the top-up; a retry with the same idempotency_key
+      #   returns the same one.
       attr_reader :journal_id
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -3544,19 +3862,20 @@ module Oblodai
       # JSON names of every field this release knows.
       FIELDS = %w[include_refunds kind limit offset status].freeze
 
-      # @return [Boolean, nil] Только для /v1/payout/history: true — вместе с выплатами вернуть и
-      #   возвраты (прежнее поведение ленты без kind). По умолчанию false: возвраты — отдельно,
+      # @return [Boolean, nil] Only for /v1/payout/history: true — return refunds together with
+      #   payouts (the former behavior of the feed without kind). Default false: refunds are separate,
       #   kind=refund.
       attr_reader :include_refunds
-      # @return [String, nil] Только для /v1/payout/history: payout — обычные выплаты, refund —
-      #   возвраты; пусто — обычные выплаты (с include_refunds=true — всё вместе). Values:
+      # @return [String, nil] Only for /v1/payout/history: payout — regular payouts, refund —
+      #   refunds; empty — regular payouts (with include_refunds=true — everything together). Values:
       #   {Oblodai::Enums::PayoutKind}.
       attr_reader :kind
-      # @return [Integer, nil] Размер страницы, 1–100; вне диапазона — 25.
+      # @return [Integer, nil] Page size, 1–100; out of range — 25.
       attr_reader :limit
-      # @return [Integer, nil] Смещение от начала списка (новые сверху).
+      # @return [Integer, nil] Offset from the start of the list (newest first).
       attr_reader :offset
-      # @return [String, nil] Фильтр по статусу (точное значение из словаря статусов); пусто — все.
+      # @return [String, nil] Filter by status (an exact value from the status vocabulary); empty —
+      #   all.
       attr_reader :status
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -3614,18 +3933,21 @@ module Oblodai
       # JSON names of every field this release knows.
       FIELDS = %w[amount currency network order_id payer_email].freeze
 
-      # @return [BigDecimal, nil] Сумма, которую ввёл покупатель, в валюте цены ссылки; обязательна
-      #   для open и range, для fixed игнорируется
+      # @return [BigDecimal, nil] The amount the buyer entered, in the link's price currency;
+      #   required for open and range, ignored for fixed
       attr_reader :amount
-      # @return [String, nil] Валюта расчёта — монета, которой платит покупатель; нужна, только если
-      #   ссылка не закрепила pinned_currency
+      # @return [String, nil] The settlement currency — the coin the buyer pays with; needed only if
+      #   the link did not pin pinned_currency
       attr_reader :currency
-      # @return [String, nil] Сеть расчёта; нужна, только если ссылка не закрепила pinned_network
+      # @return [String, nil] The settlement network; needed only if the link did not pin
+      #   pinned_network
       attr_reader :network
-      # @return [String, nil] Номер заказа магазина из встроенного виджета (data-oblodai-order-id);
-      #   переносится на счёт и в вебхук для сопоставления с заказом; не ключ идемпотентности
+      # @return [String, nil] The store's order number from the embedded widget
+      #   (data-oblodai-order-id); carried over to the invoice and the webhook for matching with the
+      #   order; not an idempotency key
       attr_reader :order_id
-      # @return [String, nil] Email покупателя — на него автоматически уйдёт чек после оплаты
+      # @return [String, nil] The buyer's email — a receipt is sent to it automatically after
+      #   payment
       attr_reader :payer_email
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -3683,10 +4005,10 @@ module Oblodai
       # JSON names of every field this release knows.
       FIELDS = %w[order_id uuid].freeze
 
-      # @return [String, nil] Ваша ссылка на заказ.
+      # @return [String, nil] Your order reference.
       attr_reader :order_id
-      # @return [String, nil] Идентификатор счёта в Oblodai. Нужен uuid или order_id; приоритет у
-      #   uuid.
+      # @return [String, nil] The invoice id in Oblodai. Either uuid or order_id is required; uuid
+      #   takes precedence.
       attr_reader :uuid
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -3732,10 +4054,10 @@ module Oblodai
       # JSON names of every field this release knows.
       FIELDS = %w[payouts source].freeze
 
-      # @return [Array<Oblodai::Models::PayoutRequest>] Массив до 100 элементов; поля каждого — как
-      #   в POST /v1/payout.
+      # @return [Array<Oblodai::Models::PayoutRequest>] An array of up to 100 items; the fields of
+      #   each are as in POST /v1/payout.
       attr_reader :payouts
-      # @return [String, nil] Метка происхождения, применяется ко всем элементам без своего source.
+      # @return [String, nil] The origin label, applied to all items without their own source.
       attr_reader :source
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -3781,7 +4103,7 @@ module Oblodai
       # JSON names of every field this release knows.
       FIELDS = ["items"].freeze
 
-      # @return [Array<Oblodai::Models::MassPayoutResultItemsItem>] Элементы в порядке запроса.
+      # @return [Array<Oblodai::Models::MassPayoutResultItemsItem>] Items in request order.
       attr_reader :items
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -3823,19 +4145,21 @@ module Oblodai
       # JSON names of every field this release knows.
       FIELDS = %w[error_code http_status idx message ok order_id result].freeze
 
-      # @return [Integer] Номер элемента в запросе.
+      # @return [Integer] The item's number in the request.
       attr_reader :idx
-      # @return [Boolean] Элемент выполнен.
+      # @return [Boolean] The item was executed.
       attr_reader :ok
-      # @return [String, nil] Машинный код отказа; есть при ok=false.
+      # @return [String, nil] The machine code of the rejection; present when ok=false.
       attr_reader :error_code
-      # @return [Integer, nil] HTTP-статус, которым ответил бы одиночный вызов; есть при ok=false.
+      # @return [Integer, nil] The HTTP status a single call would have returned; present when
+      #   ok=false.
       attr_reader :http_status
-      # @return [String, nil] Текст отказа; есть при ok=false.
+      # @return [String, nil] The rejection text; present when ok=false.
       attr_reader :message
-      # @return [String, nil] order_id элемента, если он был в запросе.
+      # @return [String, nil] The item's order_id, if it was in the request.
       attr_reader :order_id
-      # @return [Oblodai::Models::PayoutItem, nil] Результат одиночного вызова; есть при ok=true.
+      # @return [Oblodai::Models::PayoutItem, nil] The result of a single call; present when
+      #   ok=true.
       attr_reader :result
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -3901,12 +4225,12 @@ module Oblodai
       # JSON names of every field this release knows.
       FIELDS = %w[balance converting currency].freeze
 
-      # @return [String] Доступно к выводу, десятичной строкой.
+      # @return [String] Available to withdraw, as a decimal string.
       attr_reader :balance
-      # @return [String] Символ актива.
+      # @return [String] Asset symbol.
       attr_reader :currency
-      # @return [BigDecimal, nil] Сколько этой монеты сейчас едет через очередь автоконверта
-      #   (economy); нет ключа — очереди нет.
+      # @return [BigDecimal, nil] How much of this coin is currently in transit through the
+      #   auto-conversion queue (economy); no key — no queue.
       attr_reader :converting
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -3956,7 +4280,7 @@ module Oblodai
       # JSON names of every field this release knows.
       FIELDS = ["merchant"].freeze
 
-      # @return [Array<Oblodai::Models::MerchantBalanceEntry>] Доступные балансы по активам.
+      # @return [Array<Oblodai::Models::MerchantBalanceEntry>] Available balances per asset.
       attr_reader :merchant
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -3998,9 +4322,10 @@ module Oblodai
       # JSON names of every field this release knows.
       FIELDS = %w[public_id secret].freeze
 
-      # @return [String] Публичная часть ключа.
+      # @return [String] The public part of the key.
       attr_reader :public_id
-      # @return [String] Секрет ключа; пусто у повторного ответа песочницы (секрет хэширован).
+      # @return [String] The key secret; empty in a repeated sandbox response (the secret is
+      #   hashed).
       attr_reader :secret
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -4046,7 +4371,7 @@ module Oblodai
       # JSON names of every field this release knows.
       FIELDS = ["status"].freeze
 
-      # @return [String] Пустая строка: живой он-рамп-сессии по счёту нет. Values:
+      # @return [String] An empty string: there is no live on-ramp session for the invoice. Values:
       #   {Oblodai::Enums::OnrampIdleStatus}.
       attr_reader :status
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
@@ -4089,13 +4414,13 @@ module Oblodai
       # JSON names of every field this release knows.
       FIELDS = %w[expires_at reason session_id status].freeze
 
-      # @return [String] Срок жизни сессии (UTC).
+      # @return [String] Session lifetime (UTC).
       attr_reader :expires_at
-      # @return [String] Причина отказа провайдера дословно; пусто, если её нет.
+      # @return [String] The provider's rejection reason, verbatim; empty if there is none.
       attr_reader :reason
-      # @return [String] Идентификатор он-рамп-сессии.
+      # @return [String] On-ramp session id.
       attr_reader :session_id
-      # @return [String] Состояние сессии. Values: {Oblodai::Enums::OnrampStatus}.
+      # @return [String] Session state. Values: {Oblodai::Enums::OnrampStatus}.
       attr_reader :status
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -4149,23 +4474,23 @@ module Oblodai
       # JSON names of every field this release knows.
       FIELDS = %w[expires_at fiat_amount fiat_currency provider reason session_id status url].freeze
 
-      # @return [String] Срок жизни сессии, RFC3339 (UTC).
+      # @return [String] Session lifetime, RFC3339 (UTC).
       attr_reader :expires_at
-      # @return [String] Сколько спишется с карты, в целых единицах фиата; пусто, если провайдер
-      #   суммы не назвал. Оценка: курс и комиссия провайдера двигаются.
+      # @return [String] How much will be charged to the card, in whole fiat units; empty if the
+      #   provider did not name an amount. An estimate: the provider's rate and fee move.
       attr_reader :fiat_amount
-      # @return [String] Валюта списания.
+      # @return [String] Debit currency.
       attr_reader :fiat_currency
-      # @return [String] Идентификатор он-рамп-сессии.
+      # @return [String] On-ramp session id.
       attr_reader :session_id
-      # @return [String] Состояние сессии. Values: {Oblodai::Enums::OnrampStatus}.
+      # @return [String] Session state. Values: {Oblodai::Enums::OnrampStatus}.
       attr_reader :status
-      # @return [String] Подписанная ссылка на виджет покупки. Пустая, если покупка уже идёт: тогда
-      #   смотрите status.
+      # @return [String] A signed link to the purchase widget. Empty if a purchase is already in
+      #   progress: then check status.
       attr_reader :url
-      # @return [String, nil] Какой рамп дал лучшую котировку на момент открытия.
+      # @return [String, nil] Which on-ramp gave the best quote at the time of opening.
       attr_reader :provider
-      # @return [String, nil] Причина отказа провайдера, дословно, когда она есть.
+      # @return [String, nil] The provider's rejection reason, verbatim, when there is one.
       attr_reader :reason
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -4235,9 +4560,9 @@ module Oblodai
       # JSON names of every field this release knows.
       FIELDS = %w[limit offset].freeze
 
-      # @return [Integer, nil] Размер страницы, 1–100; вне диапазона — 25.
+      # @return [Integer, nil] Page size, 1–100; out of range — 25.
       attr_reader :limit
-      # @return [Integer, nil] Смещение от начала списка.
+      # @return [Integer, nil] Offset from the start of the list.
       attr_reader :offset
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -4283,13 +4608,13 @@ module Oblodai
       # JSON names of every field this release knows.
       FIELDS = %w[has_pages offset per_page total].freeze
 
-      # @return [Boolean] Есть ли записи дальше этой страницы.
+      # @return [Boolean] Whether there are records beyond this page.
       attr_reader :has_pages
-      # @return [Integer] Смещение этой страницы.
+      # @return [Integer] The offset of this page.
       attr_reader :offset
-      # @return [Integer] Размер страницы, которую отдали.
+      # @return [Integer] The size of the page returned.
       attr_reader :per_page
-      # @return [Integer] Всего записей по фильтру (на всех страницах).
+      # @return [Integer] Total records matching the filter (across all pages).
       attr_reader :total
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -4343,9 +4668,9 @@ module Oblodai
       # JSON names of every field this release knows.
       FIELDS = %w[currency network].freeze
 
-      # @return [String] Выбранная валюта оплаты.
+      # @return [String] The chosen payment currency.
       attr_reader :currency
-      # @return [String] Выбранная сеть.
+      # @return [String] The chosen network.
       attr_reader :network
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -4391,15 +4716,16 @@ module Oblodai
       # JSON names of every field this release knows.
       FIELDS = %w[currency fee_amount fee_type percent].freeze
 
-      # @return [String] exact — договорная ставка; estimated — оценка по сетевой комиссии. Values:
-      #   {Oblodai::Enums::FeeType}.
+      # @return [String] exact — a contractual rate; estimated — an estimate based on the network
+      #   fee. Values: {Oblodai::Enums::FeeType}.
       attr_reader :fee_type
-      # @return [String, nil] Единица fee_amount: USD у приёма, валюта выплаты у выплаты.
+      # @return [String, nil] The unit of fee_amount: USD for accepting payments, the payout
+      #   currency for payouts.
       attr_reader :currency
-      # @return [BigDecimal, nil] Фиксированная часть комиссии в валюте currency; null — не
-      #   определилась.
+      # @return [BigDecimal, nil] The fixed part of the fee in currency; null — could not be
+      #   determined.
       attr_reader :fee_amount
-      # @return [String, nil] Процент комиссии; null — не определился.
+      # @return [String, nil] The fee percentage; null — could not be determined.
       attr_reader :percent
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -4455,13 +4781,13 @@ module Oblodai
 
       # @return [Oblodai::Models::PayServiceCommission]
       attr_reader :commission
-      # @return [String] Валюта.
+      # @return [String] Currency.
       attr_reader :currency
-      # @return [Boolean] Метод работает на этом развёртывании.
+      # @return [Boolean] The method works on this deployment.
       attr_reader :is_available
       # @return [Oblodai::Models::PayServiceLimit]
       attr_reader :limit
-      # @return [String] Сеть.
+      # @return [String] Network.
       attr_reader :network
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -4519,9 +4845,9 @@ module Oblodai
       # JSON names of every field this release knows.
       FIELDS = %w[items paginate].freeze
 
-      # @return [Array<Oblodai::Models::PayServiceEntry>] Записи этой страницы.
+      # @return [Array<Oblodai::Models::PayServiceEntry>] The records of this page.
       attr_reader :items
-      # @return [Oblodai::Models::Pagination] Блок пагинации.
+      # @return [Oblodai::Models::Pagination] Pagination block.
       attr_reader :paginate
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -4567,12 +4893,13 @@ module Oblodai
       # JSON names of every field this release knows.
       FIELDS = %w[currency max_amount min_amount].freeze
 
-      # @return [String] Потолок одной выплаты в USD; "" — потолка нет (у приёма — всегда).
+      # @return [String] The cap for a single payout in USD; "" — no cap (always so for accepting
+      #   payments).
       attr_reader :max_amount
-      # @return [String, nil] Единица сумм limit; нет ключа — нет и границ в деньгах.
+      # @return [String, nil] The unit of the limit amounts; no key — no monetary bounds either.
       attr_reader :currency
-      # @return [String, nil] Минимальная сумма в валюте currency: "" — минимума нет, null — не
-      #   определилась.
+      # @return [String, nil] The minimum amount in currency: "" — no minimum, null — could not be
+      #   determined.
       attr_reader :min_amount
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -4625,45 +4952,47 @@ module Oblodai
         order_id payer_email subtract theme to_currency url_callback url_return url_success
       ].freeze
 
-      # @return [BigDecimal] Сумма к оплате в валюте currency.
+      # @return [BigDecimal] The amount to pay in currency.
       attr_reader :amount
-      # @return [String] Код валюты цены: любой из 23 фиатов (USD, EUR, RUB, …) или любая монета
-      #   (USDT, BTC, …). У JPY и KRW ноль знаков после запятой.
+      # @return [String] The price currency code: any of the 23 fiat currencies (USD, EUR, RUB, …)
+      #   or any coin (USDT, BTC, …). JPY and KRW have zero decimal places.
       attr_reader :currency
-      # @return [String] Ссылка мерчанта; ключ идемпотентности. Настоятельно рекомендуется.
+      # @return [String] The merchant reference; the idempotency key. Strongly recommended.
       attr_reader :order_id
-      # @return [Float, nil] Допуск недо/переплаты, 0–5 %. Перекрывает настройку мерчанта.
+      # @return [Float, nil] Underpayment/overpayment tolerance, 0–5 %. Overrides the merchant
+      #   setting.
       attr_reader :accuracy_payment_percent
-      # @return [String, nil] Приватные данные мерчанта, эхом в вебхуках (покупателю не видны).
+      # @return [String, nil] The merchant's private data, echoed in webhooks (not visible to the
+      #   buyer).
       attr_reader :additional_data
-      # @return [Boolean, nil] Разрешить доплату остатка.
+      # @return [Boolean, nil] Allow paying the remainder.
       attr_reader :is_payment_multiple
-      # @return [Boolean, nil] Оживить просроченный счёт по order_id вместо создания нового.
+      # @return [Boolean, nil] Revive an expired invoice by order_id instead of creating a new one.
       attr_reader :is_refresh
-      # @return [Integer, nil] Время жизни счёта в секундах, 300–43200; по умолчанию 3600. Значения
-      #   вне диапазона обрезаются к ближайшей границе.
+      # @return [Integer, nil] Invoice lifetime in seconds, 300–43200; default 3600. Out-of-range
+      #   values are clamped to the nearest bound.
       attr_reader :lifetime_seconds
-      # @return [String, nil] Сеть расчёта (напр. tron, ethereum). Необязательна — см. режимы выбора
-      #   валюты и сети.
+      # @return [String, nil] The settlement network (e.g. tron, ethereum). Optional — see the
+      #   currency and network selection modes.
       attr_reader :network
-      # @return [String, nil] Email плательщика. Если задан — после оплаты на него автоматически
-      #   уходит чек; он же получатель по умолчанию у POST /v1/payment/send-email.
+      # @return [String, nil] The payer's email. If set, a receipt is sent to it automatically after
+      #   payment; it is also the default recipient for POST /v1/payment/send-email.
       attr_reader :payer_email
-      # @return [Integer, nil] Устаревшее: % сетевой наценки на плательщика (0–100); payer-facing
-      #   наценки настраиваются через discount.
+      # @return [Integer, nil] Deprecated: % network surcharge on the payer (0–100); payer-facing
+      #   surcharges are configured via discount.
       attr_reader :subtract
-      # @return [String, nil] Тема страницы оплаты: dark | light.
+      # @return [String, nil] Payment page theme: dark | light.
       attr_reader :theme
-      # @return [String, nil] Валюта расчёта — крипта, которой платят. По умолчанию = currency
-      #   (только если currency — крипта); при цене в фиате задайте явно либо опустите вместе с
+      # @return [String, nil] The settlement currency — the crypto used to pay. Defaults to currency
+      #   (only if currency is crypto); for a fiat price set it explicitly or omit it together with
       #   network.
       attr_reader :to_currency
-      # @return [String, nil] Индивидуальный webhook для этого счёта. Требует зарегистрированного
-      #   эндпоинта (POST /v1/webhooks): доставка подписывается его секретом.
+      # @return [String, nil] A per-invoice webhook. Requires a registered endpoint (POST
+      #   /v1/webhooks): the delivery is signed with its secret.
       attr_reader :url_callback
-      # @return [String, nil] Ссылка «назад в магазин» на странице оплаты.
+      # @return [String, nil] The "back to store" link on the payment page.
       attr_reader :url_return
-      # @return [String, nil] Редирект после успешной оплаты.
+      # @return [String, nil] Redirect after a successful payment.
       attr_reader :url_success
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -4767,13 +5096,12 @@ module Oblodai
       # JSON names of every field this release knows.
       FIELDS = %w[on_error payments].freeze
 
-      # @return [Array<Oblodai::Models::PaymentBatchItem>] Массив от 1 до 5000 элементов — те же
-      #   поля, что у POST /v1/payment; order_id обязателен у каждого элемента: по нему сопоставляются
-      #   результаты и он защищает от дублей.
+      # @return [Array<Oblodai::Models::PaymentBatchItem>] An array of 1 to 5000 items — the same
+      #   fields as in POST /v1/payment; order_id is required on each item: results are matched by it
+      #   and it protects against duplicates.
       attr_reader :payments
-      # @return [String, nil] Что делать при ошибке элемента: continue (по умолчанию) — обрабатывать
-      #   остальные; stop — прекратить обработку после первой ошибки. Values:
-      #   {Oblodai::Enums::BatchOnError}.
+      # @return [String, nil] What to do when an item fails: continue (default) — process the rest;
+      #   stop — stop processing after the first error. Values: {Oblodai::Enums::BatchOnError}.
       attr_reader :on_error
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -4819,13 +5147,13 @@ module Oblodai
       # JSON names of every field this release knows.
       FIELDS = %w[currency discount_percent network].freeze
 
-      # @return [String] Монета правила. Пусто — правило по умолчанию для всех монет, у которых нет
-      #   своего.
+      # @return [String] The rule's coin. Empty — the default rule for all coins that have no rule
+      #   of their own.
       attr_reader :currency
-      # @return [Integer] Процент, от -99 до 99. Плюс — скидка плательщику за оплату этой монетой,
-      #   минус — наценка.
+      # @return [Integer] Percent, from -99 to 99. Plus — a discount to the payer for paying with
+      #   this coin, minus — a surcharge.
       attr_reader :discount_percent
-      # @return [String] Сеть. Пусто — любая сеть этой монеты.
+      # @return [String] Network. Empty — any network of this coin.
       attr_reader :network
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -4875,9 +5203,9 @@ module Oblodai
       # JSON names of every field this release knows.
       FIELDS = %w[items paginate].freeze
 
-      # @return [Array<Oblodai::Models::PaymentDiscountRule>] Записи этой страницы.
+      # @return [Array<Oblodai::Models::PaymentDiscountRule>] The records of this page.
       attr_reader :items
-      # @return [Oblodai::Models::Pagination] Блок пагинации.
+      # @return [Oblodai::Models::Pagination] Pagination block.
       attr_reader :paginate
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -4923,19 +5251,20 @@ module Oblodai
       # JSON names of every field this release knows.
       FIELDS = %w[enabled fee_fixed_usd fee_fixed_usd_cents fee_individual fee_percent payer_pays_percent].freeze
 
-      # @return [Boolean] Разрешён ли мерчанту перенос комиссии на покупателя (решение оператора).
+      # @return [Boolean] Whether the merchant is allowed to pass the fee on to the buyer (an
+      #   operator decision).
       attr_reader :enabled
-      # @return [Integer] Доля, которую применит следующий счёт; 0, если оператор выключил перенос
-      #   комиссии.
+      # @return [Integer] The share the next invoice will apply; 0 if the operator has disabled fee
+      #   pass-through.
       attr_reader :payer_pays_percent
-      # @return [BigDecimal, nil] Фиксированная часть комиссии на платёж, USD десятичной строкой.
+      # @return [BigDecimal, nil] The fixed part of the fee per payment, USD as a decimal string.
       attr_reader :fee_fixed_usd
-      # @return [Integer, nil] Устарело: та же фиксированная часть целыми центами США числом —
-      #   читайте fee_fixed_usd.
+      # @return [Integer, nil] Deprecated: the same fixed part in whole US cents as a number — read
+      #   fee_fixed_usd.
       attr_reader :fee_fixed_usd_cents
-      # @return [Boolean, nil] true — персональный тариф; false — умолчание платформы.
+      # @return [Boolean, nil] true — a personal rate; false — the platform default.
       attr_reader :fee_individual
-      # @return [BigDecimal, nil] Процент комиссии мерчанта.
+      # @return [BigDecimal, nil] The merchant fee percentage.
       attr_reader :fee_percent
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -5011,146 +5340,158 @@ module Oblodai
         url_return url_success uuid
       ].freeze
 
-      # @return [String] Ваши приватные данные, которые вернутся в ответе и в вебхуке.
+      # @return [String] Your private data, returned in the response and in the webhook.
       attr_reader :additional_data
-      # @return [String] Адрес, на который клиент отправляет деньги. На XRP это классический r-адрес
-      #   ОБЩЕГО кошелька — платёж обязан нести destination_tag, иначе сеть его отклонит.
+      # @return [String] The address the customer sends money to. On XRP this is the classic
+      #   r-address of a SHARED wallet — the payment must carry destination_tag, otherwise the network
+      #   rejects it.
       attr_reader :address
-      # @return [String] Только XLM: те же реквизиты одной строкой — muxed-адрес M… (SEP-23), адрес
-      #   и memo вместе; его же кодирует QR. Пусто на остальных сетях.
+      # @return [String] XLM only: the same payment details in one string — a muxed M… address
+      #   (SEP-23), address and memo together; the QR code encodes it as well. Empty on other
+      #   networks.
       attr_reader :address_muxed
-      # @return [String] QR-код адреса как PNG data:-URI — можно сразу в <img src>. На XRP кодирует
-      #   X-address (адрес+тег одной строкой).
+      # @return [String] The address QR code as a PNG data: URI — can go straight into <img src>. On
+      #   XRP it encodes the X-address (address + tag in one string).
       attr_reader :address_qr_code
-      # @return [String] Только XRP: те же реквизиты одной строкой в формате X-address (XLS-5) —
-      #   адрес и тег вместе; его же кодирует QR. Пусто на остальных сетях.
+      # @return [String] XRP only: the same payment details in one string in X-address format
+      #   (XLS-5) — address and tag together; the QR code encodes it as well. Empty on other networks.
       attr_reader :address_xaddress
-      # @return [BigDecimal] Сумма к оплате в валюте цены (например, в USD).
+      # @return [BigDecimal] The amount to pay in the price currency (e.g. USD).
       attr_reader :amount
-      # @return [String] Сколько уже подтверждённо оплачено, в крипте оплаты; всегда строка (0, если
-      #   ничего не пришло). Пусто, пока валюта оплаты не выбрана (счёт без валюты).
+      # @return [String] How much has already been paid and confirmed, in the payment crypto; always
+      #   a string (0 if nothing has arrived). Empty until the payment currency is chosen (an invoice
+      #   without a currency).
       attr_reader :amount_paid
-      # @return [String] Сколько ещё осталось доплатить (к оплате − оплачено); 0, если хватает.
-      #   Пусто, пока валюта оплаты не выбрана (счёт без валюты).
+      # @return [String] How much is still left to pay (due − paid); 0 if enough has been paid.
+      #   Empty until the payment currency is chosen (an invoice without a currency).
       attr_reader :amount_remaining
-      # @return [String] Наша комиссия с этого платежа — УДЕРЖАННАЯ величина, в валюте оплаты
-      #   (payer_currency). Ставка счёта уже включает амортизированный фиксированный сбор — второй раз
-      #   он не берётся. ПУСТО, пока по счёту ничего не зачислено (и у валюто-агностичного счёта до
-      #   выбора монеты): нуля здесь не бывает у неоплаченного счёта — «0» читалось бы как «комиссию
-      #   не берут». У оплаченного счёта с нулевым тарифом 0 — настоящий.
+      # @return [String] Our fee on this payment — the WITHHELD amount, in the payment currency
+      #   (payer_currency). The invoice rate already includes the amortized fixed fee — it is not
+      #   charged a second time. EMPTY until anything has been credited on the invoice (and, for a
+      #   currency-agnostic invoice, until a coin is chosen): an unpaid invoice never shows zero here
+      #   — "0" would read as "no fee is charged". For a paid invoice with a zero rate, 0 is genuine.
       attr_reader :commission
-      # @return [Integer] Текущее число подтверждений входящего платежа.
+      # @return [Integer] The current number of confirmations of the incoming payment.
       attr_reader :confirmations
-      # @return [String] Время создания (ISO 8601).
+      # @return [String] Creation time (ISO 8601).
       attr_reader :created_at
-      # @return [String] Валюта цены: фиат (USD, EUR, RUB, JPY… — см. pricing_currencies) или
-      #   монета. Говорит, сколько счёт СТОИТ, а не чем за него платят (это payer_currency).
+      # @return [String] The price currency: fiat (USD, EUR, RUB, JPY… — see pricing_currencies) or
+      #   a coin. It says how much the invoice COSTS, not what it is paid with (that is
+      #   payer_currency).
       attr_reader :currency
-      # @return [String] Только XRP: числовой destination tag, который клиент ОБЯЗАН указать в
-      #   переводе (поле «тег/memo получателя» на бирже или в кошельке). Пусто на остальных сетях.
+      # @return [String] XRP only: the numeric destination tag the customer MUST specify in the
+      #   transfer (the "recipient tag/memo" field at the exchange or in the wallet). Empty on other
+      #   networks.
       attr_reader :destination_tag
-      # @return [String] Подписанная ссылка на PDF-чек этой операции — открывается без API-ключа,
-      #   можно вложить в письмо или отдать клиенту. Пусто, если генерация документов не включена.
+      # @return [String] A signed link to the PDF receipt of this operation — opens without an API
+      #   key, can be attached to an email or given to the customer. Empty if document generation is
+      #   not enabled.
       attr_reader :document_url
-      # @return [String] Курс, зафиксированный этим счётом (сколько валюты оплаты за 1 единицу
-      #   валюты цены) — по нему рассчитан payer_amount. Пусто, пока валюта не выбрана.
+      # @return [String] The rate locked in by this invoice (how much of the payment currency per 1
+      #   unit of the price currency) — payer_amount is calculated from it. Empty until the currency
+      #   is chosen.
       attr_reader :exchange_rate
-      # @return [String] Когда истекает счёт (ISO 8601, как и все временные поля).
+      # @return [String] When the invoice expires (ISO 8601, like all time fields).
       attr_reader :expired_at
-      # @return [BigDecimal] Ставка комиссии этого счёта в процентах — та, что зафиксирована в
-      #   момент создания (смена тарифа не меняет уже созданные счета). Уже включает амортизированный
-      #   фиксированный сбор. В отличие от commission известна с первой секунды и присутствует всегда.
+      # @return [BigDecimal] The fee rate of this invoice in percent — the one locked in at creation
+      #   (a pricing change does not affect invoices already created). Already includes the amortized
+      #   fixed fee. Unlike commission, it is known from the first second and is always present.
       attr_reader :fee_percent
-      # @return [Boolean] true — статус финальный, больше не изменится.
+      # @return [Boolean] true — the status is final and will not change again.
       attr_reader :is_final
-      # @return [Boolean] true — это валюто-агностичная ссылка, клиент ещё не выбрал валюту/сеть.
+      # @return [Boolean] true — this is a currency-agnostic link; the customer has not chosen the
+      #   currency/network yet.
       attr_reader :is_multi
-      # @return [Boolean] true — счёт песочницы (dev-магазина): деньги ненастоящие, в живую сверку
-      #   не включайте.
+      # @return [Boolean] true — a sandbox (dev store) invoice: the money is not real, do not
+      #   include it in live reconciliation.
       attr_reader :is_test
-      # @return [String] Только XLM (Stellar): числовой memo (тип ID), который клиент ОБЯЗАН указать
-      #   в переводе — поле «memo» на бирже или в кошельке. Пусто на остальных сетях.
+      # @return [String] XLM (Stellar) only: the numeric memo (ID type) the customer MUST specify in
+      #   the transfer — the "memo" field at the exchange or in the wallet. Empty on other networks.
       attr_reader :memo
-      # @return [String] Сколько зачислено (или будет зачислено) вам: amount_paid −
-      #   network_surcharge − commission. Сетевые расходы на сбор депозита оплачивает плательщик
-      #   отдельной строкой (network_surcharge) — из вашей суммы они НЕ вычитаются. Пусто, пока валюта
-      #   оплаты не выбрана (счёт без валюты).
+      # @return [String] How much has been (or will be) credited to you: amount_paid −
+      #   network_surcharge − commission. The network costs of sweeping the deposit are paid by the
+      #   payer as a separate line (network_surcharge) — they are NOT deducted from your amount. Empty
+      #   until the payment currency is chosen (an invoice without a currency).
       attr_reader :merchant_amount
-      # @return [String] Ваша скидка или наценка для ВЫБРАННОГО способа оплаты, в валюте оплаты: на
-      #   столько сдвинулась сумма плательщика из-за настройки по этой монете и сети. Положительное —
-      #   плательщик платит МЕНЬШЕ (скидка), отрицательное — больше (наценка). Пусто, если настройки
-      #   для метода нет.
+      # @return [String] Your discount or surcharge for the CHOSEN payment method, in the payment
+      #   currency: how much the payer's amount shifted because of the setting for this coin and
+      #   network. Positive — the payer pays LESS (discount), negative — more (surcharge). Empty if
+      #   there is no setting for the method.
       attr_reader :method_adjustment
-      # @return [Integer] Та же скидка/наценка в базисных пунктах (так она переживает переоценку
-      #   курса). Знак тот же, что в настройке скидок: ПЛЮС — скидка, МИНУС — наценка.
+      # @return [Integer] The same discount/surcharge in basis points (this way it survives a rate
+      #   re-quote). The sign is the same as in the discount setting: PLUS — a discount, MINUS — a
+      #   surcharge.
       attr_reader :method_adjustment_bps
-      # @return [String] Сеть блокчейна (например, tron).
+      # @return [String] Blockchain network (e.g. tron).
       attr_reader :network
-      # @return [String] Сетевая надбавка плательщика в валюте оплаты: стоимость сбора депозита в
-      #   выбранной сети (активация адреса, если адрес новый, плюс энергия/газ с запасом),
-      #   зафиксированная при выборе сети. Пусто до выбора сети; 0, если надбавка выключена.
+      # @return [String] The payer's network surcharge in the payment currency: the cost of sweeping
+      #   the deposit on the chosen network (address activation, if the address is new, plus
+      #   energy/gas with a margin), locked in when the network is chosen. Empty until the network is
+      #   chosen; 0 if the surcharge is disabled.
       attr_reader :network_surcharge
-      # @return [Integer] Та же надбавка в базисных пунктах от суммы к оплате (так она переживает
-      #   переоценку курса).
+      # @return [Integer] The same surcharge in basis points of the amount due (this way it survives
+      #   a rate re-quote).
       attr_reader :network_surcharge_bps
-      # @return [String] Ваш номер заказа, который вы передали при создании.
+      # @return [String] Your order number that you passed at creation.
       attr_reader :order_id
-      # @return [String] Адрес, С КОТОРОГО пришёл первый подтверждённый депозит — на аккаунт-сетях
-      #   (EVM/Tron/Solana/TON); пусто на UTXO. ⚠ Это НЕ обязательно адрес для возврата: отправителем
-      #   может быть биржа, сдача UTXO-транзакции или горячий омнибус крипто-он-рампа, если покупатель
-      #   платил картой. Прежде чем возвращать деньги сюда, смотрите payer_address_is_refundable.
+      # @return [String] The address the first confirmed deposit came FROM — on account-based
+      #   networks (EVM/Tron/Solana/TON); empty on UTXO. ⚠ This is NOT necessarily a refund address:
+      #   the sender may be an exchange, the change of a UTXO transaction, or the omnibus hot wallet
+      #   of a crypto on-ramp if the buyer paid by card. Before refunding money here, check
+      #   payer_address_is_refundable.
       attr_reader :payer_address
-      # @return [Boolean] true — payer_address принадлежит плательщику, и в /v1/payment/refund можно
-      #   опустить address (вернём на него). false — адрес возврата неизвестен (UTXO/XRP, оплата
-      #   картой через он-рамп, адрес не записан): спросите адрес у покупателя и передайте address
-      #   явно, иначе запрос будет отклонён с refund.no_address.
+      # @return [Boolean] true — payer_address belongs to the payer, and address may be omitted in
+      #   /v1/payment/refund (we refund to it). false — the refund address is unknown (UTXO/XRP, card
+      #   payment via an on-ramp, address not recorded): ask the buyer for an address and pass address
+      #   explicitly, otherwise the request is rejected with refund.no_address.
       attr_reader :payer_address_is_refundable
-      # @return [String] Сколько нужно отправить в крипте оплаты. Пусто, пока валюта оплаты не
-      #   выбрана (счёт без валюты).
+      # @return [String] How much must be sent in the payment crypto. Empty until the payment
+      #   currency is chosen (an invoice without a currency).
       attr_reader :payer_amount
-      # @return [String] Валюта, в которой платит клиент (например, USDT). Пусто у
-      #   валюто-агностичного счёта (is_multi), пока клиент не выбрал монету — валюты расчёта у него
-      #   ещё нет.
+      # @return [String] The currency the customer pays in (e.g. USDT). Empty for a
+      #   currency-agnostic invoice (is_multi) until the customer picks a coin — it has no settlement
+      #   currency yet.
       attr_reader :payer_currency
-      # @return [String] E-mail плательщика, если вы его передали.
+      # @return [String] The payer's email, if you provided it.
       attr_reader :payer_email
-      # @return [String] До какого момента действует зафиксированный payer_amount (ISO 8601; окно ~5
-      #   мин, после него страница оплаты перекотирует счёт). Пусто, когда перекотировки уже не будет:
-      #   валюта не выбрана, депозит замечен, счёт вышел из created или истёк — сумма зафиксирована
-      #   навсегда.
+      # @return [String] Until when the locked payer_amount is valid (ISO 8601; a ~5 min window,
+      #   after which the payment page re-quotes the invoice). Empty when there will be no more
+      #   re-quotes: the currency has not been chosen, a deposit has been seen, the invoice has left
+      #   created or expired — the amount is locked for good.
       attr_reader :rate_expires_at
-      # @return [Integer] Сколько подтверждений нужно для зачисления (зависит от суммы и сети).
+      # @return [Integer] How many confirmations are required for crediting (depends on the amount
+      #   and the network).
       attr_reader :required_confirmations
-      # @return [String] Статус: select (клиент выбирает валюту) | created (ждём оплату) |
-      #   confirm_check (видим оплату, ждём подтверждений; при amount_remaining > 0 — частичная, ждём
-      #   остаток) | paid (оплачено) | paid_over (переплата) | wrong_amount (недоплата, срок вышел) |
-      #   expired (просрочен) | cancelled (отменён) | under_review (поступление задержано на проверке,
-      #   разбирает оператор). Values: {Oblodai::Enums::PaymentStatus}.
+      # @return [String] Status: select (the customer is choosing a currency) | created (awaiting
+      #   payment) | confirm_check (payment seen, awaiting confirmations; with amount_remaining > 0 —
+      #   partial, awaiting the remainder) | paid (paid) | paid_over (overpaid) | wrong_amount
+      #   (underpaid, expired) | expired (expired) | cancelled (cancelled) | under_review (the deposit
+      #   is held for review, an operator is handling it). Values: {Oblodai::Enums::PaymentStatus}.
       attr_reader :status
-      # @return [Array<Oblodai::Models::PaymentTx>] Все подтверждённые переводы, которыми оплачен
-      #   счёт. Частичная оплата несколькими переводами — штатный сценарий wrong_amount; один txid
-      #   наверху — лишь последний замеченный.
+      # @return [Array<Oblodai::Models::PaymentTx>] All confirmed transfers that paid the invoice.
+      #   Partial payment by several transfers is a regular wrong_amount scenario; the single txid
+      #   above is only the last one seen.
       attr_reader :tx_list
-      # @return [String] Хеш входящей транзакции (когда замечена).
+      # @return [String] The hash of the incoming transaction (once seen).
       attr_reader :txid
-      # @return [String] Время последнего изменения (ISO 8601).
+      # @return [String] Time of the last change (ISO 8601).
       attr_reader :updated_at
-      # @return [String] Ссылка на готовую страницу оплаты.
+      # @return [String] A link to the ready-made payment page.
       attr_reader :url
-      # @return [String] Ссылка «вернуться в магазин» до оплаты.
+      # @return [String] The "back to store" link before payment.
       attr_reader :url_return
-      # @return [String] Куда перенаправить после успешной оплаты.
+      # @return [String] Where to redirect after a successful payment.
       attr_reader :url_success
-      # @return [String] Наш идентификатор платежа (используйте его в info/refund).
+      # @return [String] Our payment identifier (use it in info/refund).
       attr_reader :uuid
-      # @return [String, nil] Момент фактической оплаты — зачисление последнего подтверждённого
-      #   перевода (ISO 8601). null, пока оплата не пришла. Отличайте от updated_at: тот сдвигается
-      #   любым изменением счёта.
+      # @return [String, nil] The moment of actual payment — the crediting of the last confirmed
+      #   transfer (ISO 8601). null until the payment arrives. Not to be confused with updated_at,
+      #   which moves on any change to the invoice.
       attr_reader :paid_at
-      # @return [String, nil] Сколько возвращено от оплаченного: none, partial или full (отменённые
-      #   и неудавшиеся возвраты не считаются). Values: {Oblodai::Enums::RefundRollup}.
+      # @return [String, nil] How much of the paid amount has been refunded: none, partial or full
+      #   (cancelled and failed refunds are not counted). Values: {Oblodai::Enums::RefundRollup}.
       attr_reader :refund_status
-      # @return [Array<Oblodai::Models::PaymentRefundLine>, nil] Возвраты по этому платежу.
+      # @return [Array<Oblodai::Models::PaymentRefundLine>, nil] Refunds for this payment.
       attr_reader :refunds
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -5375,30 +5716,30 @@ module Oblodai
         pinned_network title
       ].freeze
 
-      # @return [String] Режим суммы: fixed | open | range Values: {Oblodai::Enums::AmountMode}.
+      # @return [String] Amount mode: fixed | open | range Values: {Oblodai::Enums::AmountMode}.
       attr_reader :amount_mode
-      # @return [String] Валюта цены — фиат (USD, EUR, RUB, …) или монета; список —
-      #   pricing_currencies из GET /v1/currencies
+      # @return [String] The price currency — fiat (USD, EUR, RUB, …) or a coin; the list is
+      #   pricing_currencies from GET /v1/currencies
       attr_reader :currency
-      # @return [String, nil] Сумма — для режима fixed; обязательна в этом режиме
+      # @return [String, nil] Amount — for fixed mode; required in this mode
       attr_reader :amount_fixed
-      # @return [String, nil] Описание на странице оплаты
+      # @return [String, nil] Description on the payment page
       attr_reader :description
-      # @return [Integer, nil] Срок жизни ссылки, секунд от момента создания; 0 (по умолчанию) —
-      #   ссылка бессрочная
+      # @return [Integer, nil] The link lifetime, in seconds from creation; 0 (default) — the link
+      #   never expires
       attr_reader :expires_in_seconds
-      # @return [BigDecimal, nil] Верхняя граница — для range; обязательна в этом режиме
+      # @return [BigDecimal, nil] Upper bound — for range; required in this mode
       attr_reader :max_amount
-      # @return [BigDecimal, nil] Нижняя граница: необязательный «пол» для open, обязательный
-      #   минимум для range
+      # @return [BigDecimal, nil] Lower bound: an optional "floor" for open, a required minimum for
+      #   range
       attr_reader :min_amount
-      # @return [String, nil] Валюта расчёта (монета), закреплённая за ссылкой; пусто — монету
-      #   выбирает покупатель
+      # @return [String, nil] The settlement currency (coin) pinned to the link; empty — the buyer
+      #   chooses the coin
       attr_reader :pinned_currency
-      # @return [String, nil] Сеть расчёта, закреплённая за ссылкой; пусто — сеть выбирает
-      #   покупатель
+      # @return [String, nil] The settlement network pinned to the link; empty — the buyer chooses
+      #   the network
       attr_reader :pinned_network
-      # @return [String, nil] Заголовок на странице оплаты
+      # @return [String, nil] Title on the payment page
       attr_reader :title
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -5479,39 +5820,40 @@ module Oblodai
         min_amount payments pinned_currency pinned_network title url
       ].freeze
 
-      # @return [Boolean] Ссылка принимает оплату.
+      # @return [Boolean] The link accepts payments.
       attr_reader :active
-      # @return [String] Режим суммы. Values: {Oblodai::Enums::AmountMode}.
+      # @return [String] Amount mode. Values: {Oblodai::Enums::AmountMode}.
       attr_reader :amount_mode
-      # @return [String] Когда создана (UTC).
+      # @return [String] When created (UTC).
       attr_reader :created_at
-      # @return [String] Валюта цены.
+      # @return [String] Price currency.
       attr_reader :currency
-      # @return [String] Описание на странице оплаты.
+      # @return [String] Description on the payment page.
       attr_reader :description
-      # @return [String] Подписанная ссылка на PDF-плакат с QR оплаты; пусто, когда рендер
-      #   документов не включён.
+      # @return [String] A signed link to a PDF poster with the payment QR code; empty when document
+      #   rendering is not enabled.
       attr_reader :document_url
-      # @return [String] Идентификатор ссылки.
+      # @return [String] Link id.
       attr_reader :link_id
-      # @return [Array<Oblodai::Models::PaymentLinkPayment>] Платежи по ссылке, страница по
-      #   limit/offset запроса.
+      # @return [Array<Oblodai::Models::PaymentLinkPayment>] Payments through the link, paged by the
+      #   request's limit/offset.
       attr_reader :payments
-      # @return [String] Заголовок страницы оплаты.
+      # @return [String] Payment page title.
       attr_reader :title
-      # @return [String] Публичный URL страницы оплаты; пусто, если публичный адрес не настроен.
+      # @return [String] The public URL of the payment page; empty if the public address is not
+      #   configured.
       attr_reader :url
-      # @return [BigDecimal, nil] Сумма для режима fixed.
+      # @return [BigDecimal, nil] The amount for fixed mode.
       attr_reader :amount_fixed
-      # @return [String, nil] Когда ссылка истекает (UTC); нет — бессрочная.
+      # @return [String, nil] When the link expires (UTC); absent — never expires.
       attr_reader :expires_at
-      # @return [BigDecimal, nil] Верхняя граница для range.
+      # @return [BigDecimal, nil] Upper bound for range.
       attr_reader :max_amount
-      # @return [BigDecimal, nil] Нижняя граница для open/range.
+      # @return [BigDecimal, nil] Lower bound for open/range.
       attr_reader :min_amount
-      # @return [String, nil] Закреплённая валюта оплаты.
+      # @return [String, nil] The pinned payment currency.
       attr_reader :pinned_currency
-      # @return [String, nil] Закреплённая сеть оплаты.
+      # @return [String, nil] The pinned payment network.
       attr_reader :pinned_network
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -5613,11 +5955,12 @@ module Oblodai
       # JSON names of every field this release knows.
       FIELDS = %w[limit link_id offset].freeze
 
-      # @return [String] Идентификатор платёжной ссылки.
+      # @return [String] Payment link id.
       attr_reader :link_id
-      # @return [Integer, nil] Размер страницы платежей по ссылке, 1–100; вне диапазона — 25.
+      # @return [Integer, nil] The page size for payments through the link, 1–100; out of range —
+      #   25.
       attr_reader :limit
-      # @return [Integer, nil] Смещение страницы платежей.
+      # @return [Integer, nil] The offset of the payments page.
       attr_reader :offset
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -5667,17 +6010,17 @@ module Oblodai
       # JSON names of every field this release knows.
       FIELDS = %w[amount created_at currency order_id status uuid].freeze
 
-      # @return [BigDecimal] Цена счёта в валюте цены ссылки.
+      # @return [BigDecimal] The invoice price in the link's price currency.
       attr_reader :amount
-      # @return [String] Когда создан (UTC).
+      # @return [String] When created (UTC).
       attr_reader :created_at
-      # @return [String] Валюта цены.
+      # @return [String] Price currency.
       attr_reader :currency
-      # @return [String] Статус платежа. Values: {Oblodai::Enums::PaymentStatus}.
+      # @return [String] Payment status. Values: {Oblodai::Enums::PaymentStatus}.
       attr_reader :status
-      # @return [String] Идентификатор платежа.
+      # @return [String] Payment id.
       attr_reader :uuid
-      # @return [String, nil] Номер заказа магазина, если виджет его передал.
+      # @return [String, nil] The store's order number, if the widget passed one.
       attr_reader :order_id
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -5741,25 +6084,25 @@ module Oblodai
         amount_fixed amount_mode currency description link_id max_amount min_amount pinned_currency pinned_network title
       ].freeze
 
-      # @return [String] fixed, open или range. Values: {Oblodai::Enums::AmountMode}.
+      # @return [String] fixed, open or range. Values: {Oblodai::Enums::AmountMode}.
       attr_reader :amount_mode
-      # @return [String] Валюта цены.
+      # @return [String] Price currency.
       attr_reader :currency
-      # @return [String] Описание.
+      # @return [String] Description.
       attr_reader :description
-      # @return [String] Идентификатор ссылки.
+      # @return [String] Link id.
       attr_reader :link_id
-      # @return [String] Заголовок страницы.
+      # @return [String] Page title.
       attr_reader :title
-      # @return [String, nil] Сумма для fixed.
+      # @return [String, nil] Amount for fixed.
       attr_reader :amount_fixed
-      # @return [BigDecimal, nil] Верхняя граница для range.
+      # @return [BigDecimal, nil] Upper bound for range.
       attr_reader :max_amount
-      # @return [BigDecimal, nil] Нижняя граница для open/range.
+      # @return [BigDecimal, nil] Lower bound for open/range.
       attr_reader :min_amount
-      # @return [String, nil] Закреплённая валюта оплаты.
+      # @return [String, nil] The pinned payment currency.
       attr_reader :pinned_currency
-      # @return [String, nil] Закреплённая сеть оплаты.
+      # @return [String, nil] The pinned payment network.
       attr_reader :pinned_network
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -5837,13 +6180,13 @@ module Oblodai
       # JSON names of every field this release knows.
       FIELDS = %w[document_url link_id url].freeze
 
-      # @return [String] Подписанная ссылка на PDF-плакат с QR оплаты (печать на кассу). Пусто, если
-      #   генерация документов не включена.
+      # @return [String] A signed link to a PDF poster with the payment QR code (for printing at the
+      #   till). Empty if document generation is not enabled.
       attr_reader :document_url
-      # @return [String] Идентификатор ссылки
+      # @return [String] Link id
       attr_reader :link_id
-      # @return [String] Публичный URL страницы оплаты — его вы даёте покупателю: кнопкой, в письме,
-      #   QR-кодом
+      # @return [String] The public URL of the payment page — the one you give to the buyer: as a
+      #   button, in an email, as a QR code
       attr_reader :url
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -5893,10 +6236,10 @@ module Oblodai
       # JSON names of every field this release knows.
       FIELDS = %w[active link_id].freeze
 
-      # @return [Boolean] true — ссылка принимает оплату; false — выключена (страница покажет, что
-      #   ссылка неактивна).
+      # @return [Boolean] true — the link accepts payments; false — disabled (the page will show
+      #   that the link is inactive).
       attr_reader :active
-      # @return [String] Идентификатор платёжной ссылки.
+      # @return [String] Payment link id.
       attr_reader :link_id
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -5942,9 +6285,9 @@ module Oblodai
       # JSON names of every field this release knows.
       FIELDS = %w[active link_id].freeze
 
-      # @return [Boolean] Новое состояние: true — принимает оплату.
+      # @return [Boolean] The new state: true — accepts payments.
       attr_reader :active
-      # @return [String] Идентификатор ссылки.
+      # @return [String] Link id.
       attr_reader :link_id
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -5993,36 +6336,37 @@ module Oblodai
         min_amount pinned_currency pinned_network title url
       ].freeze
 
-      # @return [Boolean] Ссылка принимает оплату.
+      # @return [Boolean] The link accepts payments.
       attr_reader :active
-      # @return [String] Режим суммы. Values: {Oblodai::Enums::AmountMode}.
+      # @return [String] Amount mode. Values: {Oblodai::Enums::AmountMode}.
       attr_reader :amount_mode
-      # @return [String] Когда создана (UTC).
+      # @return [String] When created (UTC).
       attr_reader :created_at
-      # @return [String] Валюта цены.
+      # @return [String] Price currency.
       attr_reader :currency
-      # @return [String] Описание на странице оплаты.
+      # @return [String] Description on the payment page.
       attr_reader :description
-      # @return [String] Подписанная ссылка на PDF-плакат с QR оплаты; пусто, когда рендер
-      #   документов не включён.
+      # @return [String] A signed link to a PDF poster with the payment QR code; empty when document
+      #   rendering is not enabled.
       attr_reader :document_url
-      # @return [String] Идентификатор ссылки.
+      # @return [String] Link id.
       attr_reader :link_id
-      # @return [String] Заголовок страницы оплаты.
+      # @return [String] Payment page title.
       attr_reader :title
-      # @return [String] Публичный URL страницы оплаты; пусто, если публичный адрес не настроен.
+      # @return [String] The public URL of the payment page; empty if the public address is not
+      #   configured.
       attr_reader :url
-      # @return [BigDecimal, nil] Сумма для режима fixed.
+      # @return [BigDecimal, nil] The amount for fixed mode.
       attr_reader :amount_fixed
-      # @return [String, nil] Когда ссылка истекает (UTC); нет — бессрочная.
+      # @return [String, nil] When the link expires (UTC); absent — never expires.
       attr_reader :expires_at
-      # @return [BigDecimal, nil] Верхняя граница для range.
+      # @return [BigDecimal, nil] Upper bound for range.
       attr_reader :max_amount
-      # @return [BigDecimal, nil] Нижняя граница для open/range.
+      # @return [BigDecimal, nil] Lower bound for open/range.
       attr_reader :min_amount
-      # @return [String, nil] Закреплённая валюта оплаты.
+      # @return [String, nil] The pinned payment currency.
       attr_reader :pinned_currency
-      # @return [String, nil] Закреплённая сеть оплаты.
+      # @return [String, nil] The pinned payment network.
       attr_reader :pinned_network
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -6120,9 +6464,9 @@ module Oblodai
       # JSON names of every field this release knows.
       FIELDS = %w[items paginate].freeze
 
-      # @return [Array<Oblodai::Models::PaymentLinkView>] Записи этой страницы.
+      # @return [Array<Oblodai::Models::PaymentLinkView>] The records of this page.
       attr_reader :items
-      # @return [Oblodai::Models::Pagination] Блок пагинации.
+      # @return [Oblodai::Models::Pagination] Pagination block.
       attr_reader :paginate
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -6168,15 +6512,16 @@ module Oblodai
       # JSON names of every field this release knows.
       FIELDS = %w[address image is_uri payload].freeze
 
-      # @return [String] Депозитный адрес; пусто, пока его нет.
+      # @return [String] The deposit address; empty until there is one.
       attr_reader :address
-      # @return [String] PNG QR-кода как data:-URI; "" — адреса ещё нет (монета не выбрана) или он
-      #   не платёжный (песочница).
+      # @return [String] The QR code PNG as a data: URI; "" — there is no address yet (the coin has
+      #   not been chosen) or it is not a payment address (sandbox).
       attr_reader :image
-      # @return [Boolean] true — в QR платёжный запрос с суммой (кошелёк подставит её сам); false —
-      #   только адрес, сумму плательщик вводит.
+      # @return [Boolean] true — the QR code holds a payment request with the amount (the wallet
+      #   fills it in); false — address only, the payer enters the amount.
       attr_reader :is_uri
-      # @return [String] Что закодировано в QR: платёжный URI сети с суммой или голый адрес.
+      # @return [String] What the QR code encodes: the network's payment URI with the amount, or the
+      #   bare address.
       attr_reader :payload
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -6230,19 +6575,19 @@ module Oblodai
       # JSON names of every field this release knows.
       FIELDS = %w[address amount created_at is_final status txid uuid].freeze
 
-      # @return [String] Куда возвращено.
+      # @return [String] Where the refund went.
       attr_reader :address
-      # @return [BigDecimal] Сумма возврата в монете платежа.
+      # @return [BigDecimal] The refund amount in the payment coin.
       attr_reader :amount
-      # @return [String] Когда создан (RFC 3339).
+      # @return [String] When created (RFC 3339).
       attr_reader :created_at
-      # @return [Boolean] Статус возврата окончательный.
+      # @return [Boolean] The refund status is final.
       attr_reader :is_final
-      # @return [String] Статус выплаты-возврата. Values: {Oblodai::Enums::PayoutStatus}.
+      # @return [String] The status of the refund payout. Values: {Oblodai::Enums::PayoutStatus}.
       attr_reader :status
-      # @return [String] Хэш транзакции возврата; пусто, пока не отправлен.
+      # @return [String] The refund transaction hash; empty until sent.
       attr_reader :txid
-      # @return [String] Идентификатор возврата (это выплата).
+      # @return [String] The refund id (it is a payout).
       attr_reader :uuid
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -6311,45 +6656,47 @@ module Oblodai
         order_id payer_email subtract theme to_currency url_callback url_return url_success
       ].freeze
 
-      # @return [BigDecimal] Сумма к оплате в валюте currency.
+      # @return [BigDecimal] The amount to pay in currency.
       attr_reader :amount
-      # @return [String] Код валюты цены: любой из 23 фиатов (USD, EUR, RUB, …) или любая монета
-      #   (USDT, BTC, …). У JPY и KRW ноль знаков после запятой.
+      # @return [String] The price currency code: any of the 23 fiat currencies (USD, EUR, RUB, …)
+      #   or any coin (USDT, BTC, …). JPY and KRW have zero decimal places.
       attr_reader :currency
-      # @return [Float, nil] Допуск недо/переплаты, 0–5 %. Перекрывает настройку мерчанта.
+      # @return [Float, nil] Underpayment/overpayment tolerance, 0–5 %. Overrides the merchant
+      #   setting.
       attr_reader :accuracy_payment_percent
-      # @return [String, nil] Приватные данные мерчанта, эхом в вебхуках (покупателю не видны).
+      # @return [String, nil] The merchant's private data, echoed in webhooks (not visible to the
+      #   buyer).
       attr_reader :additional_data
-      # @return [Boolean, nil] Разрешить доплату остатка.
+      # @return [Boolean, nil] Allow paying the remainder.
       attr_reader :is_payment_multiple
-      # @return [Boolean, nil] Оживить просроченный счёт по order_id вместо создания нового.
+      # @return [Boolean, nil] Revive an expired invoice by order_id instead of creating a new one.
       attr_reader :is_refresh
-      # @return [Integer, nil] Время жизни счёта в секундах, 300–43200; по умолчанию 3600. Значения
-      #   вне диапазона обрезаются к ближайшей границе.
+      # @return [Integer, nil] Invoice lifetime in seconds, 300–43200; default 3600. Out-of-range
+      #   values are clamped to the nearest bound.
       attr_reader :lifetime_seconds
-      # @return [String, nil] Сеть расчёта (напр. tron, ethereum). Необязательна — см. режимы выбора
-      #   валюты и сети.
+      # @return [String, nil] The settlement network (e.g. tron, ethereum). Optional — see the
+      #   currency and network selection modes.
       attr_reader :network
-      # @return [String, nil] Ссылка мерчанта; ключ идемпотентности. Настоятельно рекомендуется.
+      # @return [String, nil] The merchant reference; the idempotency key. Strongly recommended.
       attr_reader :order_id
-      # @return [String, nil] Email плательщика. Если задан — после оплаты на него автоматически
-      #   уходит чек; он же получатель по умолчанию у POST /v1/payment/send-email.
+      # @return [String, nil] The payer's email. If set, a receipt is sent to it automatically after
+      #   payment; it is also the default recipient for POST /v1/payment/send-email.
       attr_reader :payer_email
-      # @return [Integer, nil] Устаревшее: % сетевой наценки на плательщика (0–100); payer-facing
-      #   наценки настраиваются через discount.
+      # @return [Integer, nil] Deprecated: % network surcharge on the payer (0–100); payer-facing
+      #   surcharges are configured via discount.
       attr_reader :subtract
-      # @return [String, nil] Тема страницы оплаты: dark | light.
+      # @return [String, nil] Payment page theme: dark | light.
       attr_reader :theme
-      # @return [String, nil] Валюта расчёта — крипта, которой платят. По умолчанию = currency
-      #   (только если currency — крипта); при цене в фиате задайте явно либо опустите вместе с
+      # @return [String, nil] The settlement currency — the crypto used to pay. Defaults to currency
+      #   (only if currency is crypto); for a fiat price set it explicitly or omit it together with
       #   network.
       attr_reader :to_currency
-      # @return [String, nil] Индивидуальный webhook для этого счёта. Требует зарегистрированного
-      #   эндпоинта (POST /v1/webhooks): доставка подписывается его секретом.
+      # @return [String, nil] A per-invoice webhook. Requires a registered endpoint (POST
+      #   /v1/webhooks): the delivery is signed with its secret.
       attr_reader :url_callback
-      # @return [String, nil] Ссылка «назад в магазин» на странице оплаты.
+      # @return [String, nil] The "back to store" link on the payment page.
       attr_reader :url_return
-      # @return [String, nil] Редирект после успешной оплаты.
+      # @return [String, nil] Redirect after a successful payment.
       attr_reader :url_success
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -6453,16 +6800,16 @@ module Oblodai
       # JSON names of every field this release knows.
       FIELDS = %w[amount created_at height network txid].freeze
 
-      # @return [BigDecimal] Сумма перевода в валюте оплаты.
+      # @return [BigDecimal] The transfer amount in the payment currency.
       attr_reader :amount
-      # @return [String] Когда перевод зачислен (ISO 8601).
+      # @return [String] When the transfer was credited (ISO 8601).
       attr_reader :created_at
-      # @return [Integer] Высота блока, в котором перевод подтверждён.
+      # @return [Integer] The height of the block in which the transfer was confirmed.
       attr_reader :height
-      # @return [String] Сеть, в которой пришёл перевод. На EVM может отличаться от network счёта:
-      #   депозит зачитывается и на другой цепочке с тем же адресом.
+      # @return [String] The network the transfer arrived on. On EVM it may differ from the
+      #   invoice's network: a deposit is also credited on another chain with the same address.
       attr_reader :network
-      # @return [String] Хеш транзакции.
+      # @return [String] Transaction hash.
       attr_reader :txid
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -6534,141 +6881,153 @@ module Oblodai
         uuid
       ].freeze
 
-      # @return [String] Ваши приватные данные, которые вернутся в ответе и в вебхуке.
+      # @return [String] Your private data, returned in the response and in the webhook.
       attr_reader :additional_data
-      # @return [String] Адрес, на который клиент отправляет деньги. На XRP это классический r-адрес
-      #   ОБЩЕГО кошелька — платёж обязан нести destination_tag, иначе сеть его отклонит.
+      # @return [String] The address the customer sends money to. On XRP this is the classic
+      #   r-address of a SHARED wallet — the payment must carry destination_tag, otherwise the network
+      #   rejects it.
       attr_reader :address
-      # @return [String] Только XLM: те же реквизиты одной строкой — muxed-адрес M… (SEP-23), адрес
-      #   и memo вместе; его же кодирует QR. Пусто на остальных сетях.
+      # @return [String] XLM only: the same payment details in one string — a muxed M… address
+      #   (SEP-23), address and memo together; the QR code encodes it as well. Empty on other
+      #   networks.
       attr_reader :address_muxed
-      # @return [String] QR-код адреса как PNG data:-URI — можно сразу в <img src>. На XRP кодирует
-      #   X-address (адрес+тег одной строкой).
+      # @return [String] The address QR code as a PNG data: URI — can go straight into <img src>. On
+      #   XRP it encodes the X-address (address + tag in one string).
       attr_reader :address_qr_code
-      # @return [String] Только XRP: те же реквизиты одной строкой в формате X-address (XLS-5) —
-      #   адрес и тег вместе; его же кодирует QR. Пусто на остальных сетях.
+      # @return [String] XRP only: the same payment details in one string in X-address format
+      #   (XLS-5) — address and tag together; the QR code encodes it as well. Empty on other networks.
       attr_reader :address_xaddress
-      # @return [BigDecimal] Сумма к оплате в валюте цены (например, в USD).
+      # @return [BigDecimal] The amount to pay in the price currency (e.g. USD).
       attr_reader :amount
-      # @return [String] Сколько уже подтверждённо оплачено, в крипте оплаты; всегда строка (0, если
-      #   ничего не пришло). Пусто, пока валюта оплаты не выбрана (счёт без валюты).
+      # @return [String] How much has already been paid and confirmed, in the payment crypto; always
+      #   a string (0 if nothing has arrived). Empty until the payment currency is chosen (an invoice
+      #   without a currency).
       attr_reader :amount_paid
-      # @return [String] Сколько ещё осталось доплатить (к оплате − оплачено); 0, если хватает.
-      #   Пусто, пока валюта оплаты не выбрана (счёт без валюты).
+      # @return [String] How much is still left to pay (due − paid); 0 if enough has been paid.
+      #   Empty until the payment currency is chosen (an invoice without a currency).
       attr_reader :amount_remaining
-      # @return [String] Наша комиссия с этого платежа — УДЕРЖАННАЯ величина, в валюте оплаты
-      #   (payer_currency). Ставка счёта уже включает амортизированный фиксированный сбор — второй раз
-      #   он не берётся. ПУСТО, пока по счёту ничего не зачислено (и у валюто-агностичного счёта до
-      #   выбора монеты): нуля здесь не бывает у неоплаченного счёта — «0» читалось бы как «комиссию
-      #   не берут». У оплаченного счёта с нулевым тарифом 0 — настоящий.
+      # @return [String] Our fee on this payment — the WITHHELD amount, in the payment currency
+      #   (payer_currency). The invoice rate already includes the amortized fixed fee — it is not
+      #   charged a second time. EMPTY until anything has been credited on the invoice (and, for a
+      #   currency-agnostic invoice, until a coin is chosen): an unpaid invoice never shows zero here
+      #   — "0" would read as "no fee is charged". For a paid invoice with a zero rate, 0 is genuine.
       attr_reader :commission
-      # @return [Integer] Текущее число подтверждений входящего платежа.
+      # @return [Integer] The current number of confirmations of the incoming payment.
       attr_reader :confirmations
-      # @return [String] Время создания (ISO 8601).
+      # @return [String] Creation time (ISO 8601).
       attr_reader :created_at
-      # @return [String] Валюта цены: фиат (USD, EUR, RUB, JPY… — см. pricing_currencies) или
-      #   монета. Говорит, сколько счёт СТОИТ, а не чем за него платят (это payer_currency).
+      # @return [String] The price currency: fiat (USD, EUR, RUB, JPY… — see pricing_currencies) or
+      #   a coin. It says how much the invoice COSTS, not what it is paid with (that is
+      #   payer_currency).
       attr_reader :currency
-      # @return [String] Только XRP: числовой destination tag, который клиент ОБЯЗАН указать в
-      #   переводе (поле «тег/memo получателя» на бирже или в кошельке). Пусто на остальных сетях.
+      # @return [String] XRP only: the numeric destination tag the customer MUST specify in the
+      #   transfer (the "recipient tag/memo" field at the exchange or in the wallet). Empty on other
+      #   networks.
       attr_reader :destination_tag
-      # @return [String] Подписанная ссылка на PDF-чек этой операции — открывается без API-ключа,
-      #   можно вложить в письмо или отдать клиенту. Пусто, если генерация документов не включена.
+      # @return [String] A signed link to the PDF receipt of this operation — opens without an API
+      #   key, can be attached to an email or given to the customer. Empty if document generation is
+      #   not enabled.
       attr_reader :document_url
-      # @return [String] Курс, зафиксированный этим счётом (сколько валюты оплаты за 1 единицу
-      #   валюты цены) — по нему рассчитан payer_amount. Пусто, пока валюта не выбрана.
+      # @return [String] The rate locked in by this invoice (how much of the payment currency per 1
+      #   unit of the price currency) — payer_amount is calculated from it. Empty until the currency
+      #   is chosen.
       attr_reader :exchange_rate
-      # @return [String] Когда истекает счёт (ISO 8601, как и все временные поля).
+      # @return [String] When the invoice expires (ISO 8601, like all time fields).
       attr_reader :expired_at
-      # @return [BigDecimal] Ставка комиссии этого счёта в процентах — та, что зафиксирована в
-      #   момент создания (смена тарифа не меняет уже созданные счета). Уже включает амортизированный
-      #   фиксированный сбор. В отличие от commission известна с первой секунды и присутствует всегда.
+      # @return [BigDecimal] The fee rate of this invoice in percent — the one locked in at creation
+      #   (a pricing change does not affect invoices already created). Already includes the amortized
+      #   fixed fee. Unlike commission, it is known from the first second and is always present.
       attr_reader :fee_percent
-      # @return [Boolean] true — статус финальный, больше не изменится.
+      # @return [Boolean] true — the status is final and will not change again.
       attr_reader :is_final
-      # @return [Boolean] true — это валюто-агностичная ссылка, клиент ещё не выбрал валюту/сеть.
+      # @return [Boolean] true — this is a currency-agnostic link; the customer has not chosen the
+      #   currency/network yet.
       attr_reader :is_multi
-      # @return [Boolean] true — счёт песочницы (dev-магазина): деньги ненастоящие, в живую сверку
-      #   не включайте.
+      # @return [Boolean] true — a sandbox (dev store) invoice: the money is not real, do not
+      #   include it in live reconciliation.
       attr_reader :is_test
-      # @return [String] Только XLM (Stellar): числовой memo (тип ID), который клиент ОБЯЗАН указать
-      #   в переводе — поле «memo» на бирже или в кошельке. Пусто на остальных сетях.
+      # @return [String] XLM (Stellar) only: the numeric memo (ID type) the customer MUST specify in
+      #   the transfer — the "memo" field at the exchange or in the wallet. Empty on other networks.
       attr_reader :memo
-      # @return [String] Сколько зачислено (или будет зачислено) вам: amount_paid −
-      #   network_surcharge − commission. Сетевые расходы на сбор депозита оплачивает плательщик
-      #   отдельной строкой (network_surcharge) — из вашей суммы они НЕ вычитаются. Пусто, пока валюта
-      #   оплаты не выбрана (счёт без валюты).
+      # @return [String] How much has been (or will be) credited to you: amount_paid −
+      #   network_surcharge − commission. The network costs of sweeping the deposit are paid by the
+      #   payer as a separate line (network_surcharge) — they are NOT deducted from your amount. Empty
+      #   until the payment currency is chosen (an invoice without a currency).
       attr_reader :merchant_amount
-      # @return [String] Ваша скидка или наценка для ВЫБРАННОГО способа оплаты, в валюте оплаты: на
-      #   столько сдвинулась сумма плательщика из-за настройки по этой монете и сети. Положительное —
-      #   плательщик платит МЕНЬШЕ (скидка), отрицательное — больше (наценка). Пусто, если настройки
-      #   для метода нет.
+      # @return [String] Your discount or surcharge for the CHOSEN payment method, in the payment
+      #   currency: how much the payer's amount shifted because of the setting for this coin and
+      #   network. Positive — the payer pays LESS (discount), negative — more (surcharge). Empty if
+      #   there is no setting for the method.
       attr_reader :method_adjustment
-      # @return [Integer] Та же скидка/наценка в базисных пунктах (так она переживает переоценку
-      #   курса). Знак тот же, что в настройке скидок: ПЛЮС — скидка, МИНУС — наценка.
+      # @return [Integer] The same discount/surcharge in basis points (this way it survives a rate
+      #   re-quote). The sign is the same as in the discount setting: PLUS — a discount, MINUS — a
+      #   surcharge.
       attr_reader :method_adjustment_bps
-      # @return [String] Сеть блокчейна (например, tron).
+      # @return [String] Blockchain network (e.g. tron).
       attr_reader :network
-      # @return [String] Сетевая надбавка плательщика в валюте оплаты: стоимость сбора депозита в
-      #   выбранной сети (активация адреса, если адрес новый, плюс энергия/газ с запасом),
-      #   зафиксированная при выборе сети. Пусто до выбора сети; 0, если надбавка выключена.
+      # @return [String] The payer's network surcharge in the payment currency: the cost of sweeping
+      #   the deposit on the chosen network (address activation, if the address is new, plus
+      #   energy/gas with a margin), locked in when the network is chosen. Empty until the network is
+      #   chosen; 0 if the surcharge is disabled.
       attr_reader :network_surcharge
-      # @return [Integer] Та же надбавка в базисных пунктах от суммы к оплате (так она переживает
-      #   переоценку курса).
+      # @return [Integer] The same surcharge in basis points of the amount due (this way it survives
+      #   a rate re-quote).
       attr_reader :network_surcharge_bps
-      # @return [String] Ваш номер заказа, который вы передали при создании.
+      # @return [String] Your order number that you passed at creation.
       attr_reader :order_id
-      # @return [String] Адрес, С КОТОРОГО пришёл первый подтверждённый депозит — на аккаунт-сетях
-      #   (EVM/Tron/Solana/TON); пусто на UTXO. ⚠ Это НЕ обязательно адрес для возврата: отправителем
-      #   может быть биржа, сдача UTXO-транзакции или горячий омнибус крипто-он-рампа, если покупатель
-      #   платил картой. Прежде чем возвращать деньги сюда, смотрите payer_address_is_refundable.
+      # @return [String] The address the first confirmed deposit came FROM — on account-based
+      #   networks (EVM/Tron/Solana/TON); empty on UTXO. ⚠ This is NOT necessarily a refund address:
+      #   the sender may be an exchange, the change of a UTXO transaction, or the omnibus hot wallet
+      #   of a crypto on-ramp if the buyer paid by card. Before refunding money here, check
+      #   payer_address_is_refundable.
       attr_reader :payer_address
-      # @return [Boolean] true — payer_address принадлежит плательщику, и в /v1/payment/refund можно
-      #   опустить address (вернём на него). false — адрес возврата неизвестен (UTXO/XRP, оплата
-      #   картой через он-рамп, адрес не записан): спросите адрес у покупателя и передайте address
-      #   явно, иначе запрос будет отклонён с refund.no_address.
+      # @return [Boolean] true — payer_address belongs to the payer, and address may be omitted in
+      #   /v1/payment/refund (we refund to it). false — the refund address is unknown (UTXO/XRP, card
+      #   payment via an on-ramp, address not recorded): ask the buyer for an address and pass address
+      #   explicitly, otherwise the request is rejected with refund.no_address.
       attr_reader :payer_address_is_refundable
-      # @return [String] Сколько нужно отправить в крипте оплаты. Пусто, пока валюта оплаты не
-      #   выбрана (счёт без валюты).
+      # @return [String] How much must be sent in the payment crypto. Empty until the payment
+      #   currency is chosen (an invoice without a currency).
       attr_reader :payer_amount
-      # @return [String] Валюта, в которой платит клиент (например, USDT). Пусто у
-      #   валюто-агностичного счёта (is_multi), пока клиент не выбрал монету — валюты расчёта у него
-      #   ещё нет.
+      # @return [String] The currency the customer pays in (e.g. USDT). Empty for a
+      #   currency-agnostic invoice (is_multi) until the customer picks a coin — it has no settlement
+      #   currency yet.
       attr_reader :payer_currency
-      # @return [String] E-mail плательщика, если вы его передали.
+      # @return [String] The payer's email, if you provided it.
       attr_reader :payer_email
-      # @return [String] До какого момента действует зафиксированный payer_amount (ISO 8601; окно ~5
-      #   мин, после него страница оплаты перекотирует счёт). Пусто, когда перекотировки уже не будет:
-      #   валюта не выбрана, депозит замечен, счёт вышел из created или истёк — сумма зафиксирована
-      #   навсегда.
+      # @return [String] Until when the locked payer_amount is valid (ISO 8601; a ~5 min window,
+      #   after which the payment page re-quotes the invoice). Empty when there will be no more
+      #   re-quotes: the currency has not been chosen, a deposit has been seen, the invoice has left
+      #   created or expired — the amount is locked for good.
       attr_reader :rate_expires_at
-      # @return [Integer] Сколько подтверждений нужно для зачисления (зависит от суммы и сети).
+      # @return [Integer] How many confirmations are required for crediting (depends on the amount
+      #   and the network).
       attr_reader :required_confirmations
-      # @return [String] Статус: select (клиент выбирает валюту) | created (ждём оплату) |
-      #   confirm_check (видим оплату, ждём подтверждений; при amount_remaining > 0 — частичная, ждём
-      #   остаток) | paid (оплачено) | paid_over (переплата) | wrong_amount (недоплата, срок вышел) |
-      #   expired (просрочен) | cancelled (отменён) | under_review (поступление задержано на проверке,
-      #   разбирает оператор). Values: {Oblodai::Enums::PaymentStatus}.
+      # @return [String] Status: select (the customer is choosing a currency) | created (awaiting
+      #   payment) | confirm_check (payment seen, awaiting confirmations; with amount_remaining > 0 —
+      #   partial, awaiting the remainder) | paid (paid) | paid_over (overpaid) | wrong_amount
+      #   (underpaid, expired) | expired (expired) | cancelled (cancelled) | under_review (the deposit
+      #   is held for review, an operator is handling it). Values: {Oblodai::Enums::PaymentStatus}.
       attr_reader :status
-      # @return [Array<Oblodai::Models::PaymentTx>] Все подтверждённые переводы, которыми оплачен
-      #   счёт. Частичная оплата несколькими переводами — штатный сценарий wrong_amount; один txid
-      #   наверху — лишь последний замеченный.
+      # @return [Array<Oblodai::Models::PaymentTx>] All confirmed transfers that paid the invoice.
+      #   Partial payment by several transfers is a regular wrong_amount scenario; the single txid
+      #   above is only the last one seen.
       attr_reader :tx_list
-      # @return [String] Хеш входящей транзакции (когда замечена).
+      # @return [String] The hash of the incoming transaction (once seen).
       attr_reader :txid
-      # @return [String] Время последнего изменения (ISO 8601).
+      # @return [String] Time of the last change (ISO 8601).
       attr_reader :updated_at
-      # @return [String] Ссылка на готовую страницу оплаты.
+      # @return [String] A link to the ready-made payment page.
       attr_reader :url
-      # @return [String] Ссылка «вернуться в магазин» до оплаты.
+      # @return [String] The "back to store" link before payment.
       attr_reader :url_return
-      # @return [String] Куда перенаправить после успешной оплаты.
+      # @return [String] Where to redirect after a successful payment.
       attr_reader :url_success
-      # @return [String] Наш идентификатор платежа (используйте его в info/refund).
+      # @return [String] Our payment identifier (use it in info/refund).
       attr_reader :uuid
-      # @return [String, nil] Момент фактической оплаты — зачисление последнего подтверждённого
-      #   перевода (ISO 8601). null, пока оплата не пришла. Отличайте от updated_at: тот сдвигается
-      #   любым изменением счёта.
+      # @return [String, nil] The moment of actual payment — the crediting of the last confirmed
+      #   transfer (ISO 8601). null until the payment arrives. Not to be confused with updated_at,
+      #   which moves on any change to the invoice.
       attr_reader :paid_at
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -6882,9 +7241,9 @@ module Oblodai
       # JSON names of every field this release knows.
       FIELDS = %w[items paginate].freeze
 
-      # @return [Array<Oblodai::Models::PaymentView>] Записи этой страницы.
+      # @return [Array<Oblodai::Models::PaymentView>] The records of this page.
       attr_reader :items
-      # @return [Oblodai::Models::Pagination] Блок пагинации.
+      # @return [Oblodai::Models::Pagination] Pagination block.
       attr_reader :paginate
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -6923,10 +7282,10 @@ module Oblodai
       end
     end
 
-    # Приходит, когда платёж переходит в paid, paid_over, wrong_amount, expired или under_review, и
-    # когда откатывается из них (реорганизация сети). Текущий статус — любой из словаря — можно
-    # запросить заново: POST /v1/payment/resend. Сверять с заказом по order_id/uuid, с блокчейном —
-    # по txid и network.
+    # Sent when a payment moves to paid, paid_over, wrong_amount, expired or under_review, and when
+    # it rolls back from them (a chain reorganization). The current status — any value from the
+    # vocabulary — can be requested again: POST /v1/payment/resend. Match it to the order by
+    # order_id/uuid and to the blockchain by txid and network.
     class PaymentWebhook < Generated::Model
       # JSON names of the fields the API always sends.
       REQUIRED = %w[
@@ -6939,47 +7298,50 @@ module Oblodai
         payer_amount payer_currency payment_amount sequence status test txid type uuid
       ].freeze
 
-      # @return [String] Ваши данные, переданные при создании платежа, как есть.
+      # @return [String] Your data passed when creating the payment, as is.
       attr_reader :additional_data
-      # @return [BigDecimal] Сумма счёта в валюте currency.
+      # @return [BigDecimal] The invoice amount in currency.
       attr_reader :amount
-      # @return [String] Валюта счёта.
+      # @return [String] Invoice currency.
       attr_reader :currency
-      # @return [String] Когда событие произошло, UTC с миллисекундами (ISO 8601).
+      # @return [String] When the event happened, UTC with milliseconds (ISO 8601).
       attr_reader :event_at
-      # @return [Boolean] true — статус финальный, дальше платёж не изменится.
+      # @return [Boolean] true — the status is final, the payment will not change any further.
       attr_reader :is_final
-      # @return [String] Сеть, в которой пришли деньги.
+      # @return [String] The network the money arrived on.
       attr_reader :network
-      # @return [String] Ваш order_id платежа.
+      # @return [String] Your order_id for the payment.
       attr_reader :order_id
-      # @return [String] Адрес, с которого пришёл платёж (пусто, если неизвестен). Возвращать на
-      #   него можно только при payer_address_is_refundable = true.
+      # @return [String] The address the payment came from (empty if unknown). Refunding to it is
+      #   allowed only when payer_address_is_refundable = true.
       attr_reader :payer_address
-      # @return [Boolean] true — payer_address принадлежит плательщику и годится как адрес возврата;
-      #   false — это адрес биржи, провайдера карты или сдачи, возвращать на него нельзя.
+      # @return [Boolean] true — payer_address belongs to the payer and is usable as a refund
+      #   address; false — it is an exchange, card provider or change address, refunding to it is not
+      #   allowed.
       attr_reader :payer_address_is_refundable
-      # @return [BigDecimal] Сколько плательщик должен был заплатить в валюте payer_currency.
+      # @return [BigDecimal] How much the payer was supposed to pay, in payer_currency.
       attr_reader :payer_amount
-      # @return [String] Валюта, в которой платит плательщик.
+      # @return [String] The currency the payer pays in.
       attr_reader :payer_currency
-      # @return [BigDecimal] Сколько фактически получено (подтверждено), в валюте payer_currency.
+      # @return [BigDecimal] How much was actually received (confirmed), in payer_currency.
       attr_reader :payment_amount
-      # @return [Integer] Глобальный номер события: в пределах одного объекта больший номер новее,
-      #   меньший — опоздавшая доставка, её нужно отбросить. У репетиции (test: true) всегда 0.
+      # @return [Integer] The global event number: within one object a higher number is newer, a
+      #   lower one is a late delivery and must be discarded. Always 0 on a rehearsal (test: true).
       attr_reader :sequence
-      # @return [String] Статус платежа — тот же литерал, что в /v1/payment/info и фильтре истории.
-      #   Values: {Oblodai::Enums::PaymentStatus}.
+      # @return [String] The payment status — the same literal as in /v1/payment/info and the
+      #   history filter. Values: {Oblodai::Enums::PaymentStatus}.
       attr_reader :status
-      # @return [String] Хеш транзакции, которой пришёл платёж (пусто, пока платежа нет).
+      # @return [String] The hash of the transaction the payment arrived with (empty until there is
+      #   a payment).
       attr_reader :txid
-      # @return [String] Вид события: payment | payout | wallet | conversion — какое тело пришло.
+      # @return [String] Event kind: payment | payout | wallet | conversion — which body arrived.
       attr_reader :type
-      # @return [String] Идентификатор платежа.
+      # @return [String] Payment id.
       attr_reader :uuid
-      # @return [Boolean, nil] Есть только у репетиции (/v1/test-webhook/*,
-      #   /v1/payment/testing-webhook) и всегда true — внутри подписи. Боевое событие этого поля не
-      #   несёт никогда: тело с test: true обработчик обязан игнорировать, даже если подпись верна.
+      # @return [Boolean, nil] Present only on a rehearsal (/v1/test-webhook/*,
+      #   /v1/payment/testing-webhook) and always true — inside the signature. A live event never
+      #   carries this field: your handler must ignore a body with test: true even if the signature is
+      #   valid.
       attr_reader :test
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -7089,13 +7451,12 @@ module Oblodai
       # JSON names of every field this release knows.
       FIELDS = %w[on_error payouts].freeze
 
-      # @return [Array<Oblodai::Models::PayoutRequest>] Массив от 1 до 5000 элементов — те же поля,
-      #   что у POST /v1/payout; order_id у каждого элемента обязателен и служит ключом
-      #   идемпотентности: повтор вернёт уже созданную выплату.
+      # @return [Array<Oblodai::Models::PayoutRequest>] An array of 1 to 5000 items — the same
+      #   fields as in POST /v1/payout; order_id is required on each item and serves as the
+      #   idempotency key: a retry returns the payout already created.
       attr_reader :payouts
-      # @return [String, nil] Что делать при ошибке элемента: continue (по умолчанию) — обрабатывать
-      #   остальные; stop — прекратить обработку после первой ошибки. Values:
-      #   {Oblodai::Enums::BatchOnError}.
+      # @return [String, nil] What to do when an item fails: continue (default) — process the rest;
+      #   stop — stop processing after the first error. Values: {Oblodai::Enums::BatchOnError}.
       attr_reader :on_error
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -7141,14 +7502,14 @@ module Oblodai
       # JSON names of every field this release knows.
       FIELDS = %w[amount currency is_subtract network].freeze
 
-      # @return [BigDecimal] Сумма выплаты, строкой.
+      # @return [BigDecimal] The payout amount, as a string.
       attr_reader :amount
-      # @return [String] Актив выплаты (USDT, BTC, …).
+      # @return [String] Payout asset (USDT, BTC, …).
       attr_reader :currency
-      # @return [Boolean, nil] true — комиссия списывается с баланса поверх суммы (получатель
-      #   получит ровно amount); false — из суммы выплаты.
+      # @return [Boolean, nil] true — the fee is debited from the balance on top of the amount (the
+      #   recipient gets exactly amount); false — from the payout amount.
       attr_reader :is_subtract
-      # @return [String, nil] Сеть выплаты; обязательна, если актив живёт в нескольких сетях.
+      # @return [String, nil] Payout network; required if the asset lives on several networks.
       attr_reader :network
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -7202,22 +7563,22 @@ module Oblodai
       # JSON names of every field this release knows.
       FIELDS = %w[amount commission currency fee_bearer fee_type network payer_amount].freeze
 
-      # @return [String] Актив выплаты.
+      # @return [String] Payout asset.
       attr_reader :currency
-      # @return [String] Кто платит комиссию: gateway, merchant или recipient. Values:
+      # @return [String] Who pays the fee: gateway, merchant or recipient. Values:
       #   {Oblodai::Enums::PayoutFeeBearer}.
       attr_reader :fee_bearer
-      # @return [String] exact — комиссия договорная (шлюз её берёт на себя); estimated — оценка
-      #   оракула. Values: {Oblodai::Enums::FeeType}.
+      # @return [String] exact — the fee is contractual (the gateway absorbs it); estimated — an
+      #   oracle estimate. Values: {Oblodai::Enums::FeeType}.
       attr_reader :fee_type
-      # @return [String] Сеть — как пришла в запросе.
+      # @return [String] The network — as it came in the request.
       attr_reader :network
-      # @return [BigDecimal, nil] Сколько спишется с баланса; null — неизвестно (комиссию не
-      #   оценить).
+      # @return [BigDecimal, nil] How much will be debited from the balance; null — unknown (the fee
+      #   cannot be estimated).
       attr_reader :amount
-      # @return [BigDecimal, nil] Сетевая комиссия; null — не оценить сейчас.
+      # @return [BigDecimal, nil] Network fee; null — cannot be estimated right now.
       attr_reader :commission
-      # @return [BigDecimal, nil] Сколько получит адрес; null — неизвестно.
+      # @return [BigDecimal, nil] How much the address will receive; null — unknown.
       attr_reader :payer_amount
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -7283,16 +7644,16 @@ module Oblodai
       # JSON names of every field this release knows.
       FIELDS = %w[claimable expires_at passcode_required status title].freeze
 
-      # @return [Boolean] Получить можно сейчас: ссылка оплачена и не истекла.
+      # @return [Boolean] Can be claimed now: the link is funded and has not expired.
       attr_reader :claimable
-      # @return [String] До какого момента ссылку можно получить (UTC).
+      # @return [String] Until when the link can be claimed (UTC).
       attr_reader :expires_at
-      # @return [Boolean] Всегда true: суммы и сеть покажутся после кода в заголовке
-      #   X-Claim-Passcode.
+      # @return [Boolean] Always true: amounts and network are shown after the passcode in the
+      #   X-Claim-Passcode header.
       attr_reader :passcode_required
-      # @return [String] Состояние ссылки. Values: {Oblodai::Enums::PayoutLinkStatus}.
+      # @return [String] Link state. Values: {Oblodai::Enums::PayoutLinkStatus}.
       attr_reader :status
-      # @return [String] Заголовок от отправителя.
+      # @return [String] Title from the sender.
       attr_reader :title
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -7354,32 +7715,32 @@ module Oblodai
         amount claimable commission currency expires_at fee_bearer fee_type network note payer_amount status title
       ].freeze
 
-      # @return [BigDecimal] Сумма ссылки — обещание получателю.
+      # @return [BigDecimal] The link amount — a promise to the recipient.
       attr_reader :amount
-      # @return [Boolean] Получить можно сейчас: ссылка оплачена и не истекла.
+      # @return [Boolean] Can be claimed now: the link is funded and has not expired.
       attr_reader :claimable
-      # @return [String] Актив выплаты.
+      # @return [String] Payout asset.
       attr_reader :currency
-      # @return [String] До какого момента ссылку можно получить (UTC).
+      # @return [String] Until when the link can be claimed (UTC).
       attr_reader :expires_at
-      # @return [String] Кто платит сетевую комиссию. Values: {Oblodai::Enums::PayoutLinkFeeBearer}.
+      # @return [String] Who pays the network fee. Values: {Oblodai::Enums::PayoutLinkFeeBearer}.
       attr_reader :fee_bearer
-      # @return [String] exact — комиссия зафиксирована; estimated — оценка по текущей сети. Values:
-      #   {Oblodai::Enums::FeeType}.
+      # @return [String] exact — the fee is fixed; estimated — an estimate based on the current
+      #   network. Values: {Oblodai::Enums::FeeType}.
       attr_reader :fee_type
-      # @return [String] Сеть выплаты.
+      # @return [String] Payout network.
       attr_reader :network
-      # @return [String] Сообщение от отправителя.
+      # @return [String] Message from the sender.
       attr_reader :note
-      # @return [String] Состояние ссылки. Values: {Oblodai::Enums::PayoutLinkStatus}.
+      # @return [String] Link state. Values: {Oblodai::Enums::PayoutLinkStatus}.
       attr_reader :status
-      # @return [String] Заголовок от отправителя.
+      # @return [String] Title from the sender.
       attr_reader :title
-      # @return [BigDecimal, nil] Сетевая комиссия; null — оценить сейчас нельзя (ноль означал бы
-      #   бесплатное получение).
+      # @return [BigDecimal, nil] Network fee; null — cannot be estimated right now (zero would mean
+      #   the claim is free).
       attr_reader :commission
-      # @return [BigDecimal, nil] Сколько дойдёт получателю; null — сказать нельзя (комиссия не
-      #   оценена или съела сумму).
+      # @return [BigDecimal, nil] How much will reach the recipient; null — cannot be said (the fee
+      #   was not estimated or ate the amount).
       attr_reader :payer_amount
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -7465,29 +7826,28 @@ module Oblodai
       # JSON names of every field this release knows.
       FIELDS = %w[address amount commission currency fee_bearer fee_type network payer_amount payout_id status].freeze
 
-      # @return [String] Адрес получателя.
+      # @return [String] Recipient address.
       attr_reader :address
-      # @return [BigDecimal] Сумма ссылки — обещание получателю.
+      # @return [BigDecimal] The link amount — a promise to the recipient.
       attr_reader :amount
-      # @return [String] Актив выплаты.
+      # @return [String] Payout asset.
       attr_reader :currency
-      # @return [String] Кто платит сетевую комиссию. Values: {Oblodai::Enums::PayoutLinkFeeBearer}.
+      # @return [String] Who pays the network fee. Values: {Oblodai::Enums::PayoutLinkFeeBearer}.
       attr_reader :fee_bearer
-      # @return [String] exact — комиссия зафиксирована; estimated — оценка по текущей сети. Values:
-      #   {Oblodai::Enums::FeeType}.
+      # @return [String] exact — the fee is fixed; estimated — an estimate based on the current
+      #   network. Values: {Oblodai::Enums::FeeType}.
       attr_reader :fee_type
-      # @return [String] Сеть выплаты.
+      # @return [String] Payout network.
       attr_reader :network
-      # @return [String] Выплата получателю.
+      # @return [String] The payout to the recipient.
       attr_reader :payout_id
-      # @return [String] Состояние ссылки после получения. Values:
-      #   {Oblodai::Enums::PayoutLinkStatus}.
+      # @return [String] The link state after the claim. Values: {Oblodai::Enums::PayoutLinkStatus}.
       attr_reader :status
-      # @return [BigDecimal, nil] Сетевая комиссия; null — оценить сейчас нельзя (ноль означал бы
-      #   бесплатное получение).
+      # @return [BigDecimal, nil] Network fee; null — cannot be estimated right now (zero would mean
+      #   the claim is free).
       attr_reader :commission
-      # @return [BigDecimal, nil] Сколько дойдёт получателю; null — сказать нельзя (комиссия не
-      #   оценена или съела сумму).
+      # @return [BigDecimal, nil] How much will reach the recipient; null — cannot be said (the fee
+      #   was not estimated or ate the amount).
       attr_reader :payer_amount
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -7565,9 +7925,11 @@ module Oblodai
       # JSON names of every field this release knows.
       FIELDS = %w[configured fee_on_recipient].freeze
 
-      # @return [Boolean] true — проект задал настройку сам; false — действует умолчание шлюза.
+      # @return [Boolean] true — the project set this setting itself; false — the gateway default
+      #   applies.
       attr_reader :configured
-      # @return [Boolean] Действующее значение: настройка проекта, а без неё — умолчание шлюза.
+      # @return [Boolean] The effective value: the project setting, or the gateway default if there
+      #   is none.
       attr_reader :fee_on_recipient
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -7621,65 +7983,68 @@ module Oblodai
         uuid
       ].freeze
 
-      # @return [String] Адрес получателя.
+      # @return [String] Recipient address.
       attr_reader :address
-      # @return [BigDecimal] Сумма выплаты в валюте currency, списанная с вашего баланса.
+      # @return [BigDecimal] The payout amount in currency, debited from your balance.
       attr_reader :amount
-      # @return [Boolean] true — выплата ждёт подтверждения (внутренние сценарии; по API-ключу
-      #   всегда false).
+      # @return [Boolean] true — the payout is awaiting approval (internal scenarios; always false
+      #   with an API key).
       attr_reader :approval_required
-      # @return [BigDecimal] Удержанная сетевая комиссия, в валюте выплаты. 0 — комиссию поглотил
-      #   шлюз.
+      # @return [BigDecimal] The withheld network fee, in the payout currency. 0 — the gateway
+      #   absorbed the fee.
       attr_reader :commission
-      # @return [String] Время создания (ISO 8601).
+      # @return [String] Creation time (ISO 8601).
       attr_reader :created_at
-      # @return [String] Код валюты выплаты.
+      # @return [String] Payout currency code.
       attr_reader :currency
-      # @return [String] Подписанная ссылка на PDF-чек этой операции — открывается без API-ключа,
-      #   можно вложить в письмо или отдать получателю. Пусто, если генерация документов не включена.
+      # @return [String] A signed link to the PDF receipt of this operation — opens without an API
+      #   key, can be attached to an email or given to the recipient. Empty if document generation is
+      #   not enabled.
       attr_reader :document_url
-      # @return [String] Кто заплатил сетевую комиссию: gateway — шлюз поглотил её (commission = 0);
-      #   merchant — сумма списания увеличена на комиссию, получатель получает запрошенное целиком
-      #   (is_subtract=true, выплатная ссылка с fee_bearer=merchant); recipient — комиссия удержана из
-      #   выплаты, получателю приходит меньше запрошенного. Values: {Oblodai::Enums::PayoutFeeBearer}.
+      # @return [String] Who paid the network fee: gateway — the gateway absorbed it (commission =
+      #   0); merchant — the debit amount was increased by the fee, the recipient gets the full
+      #   requested amount (is_subtract=true, a payout link with fee_bearer=merchant); recipient — the
+      #   fee was withheld from the payout, the recipient gets less than requested. Values:
+      #   {Oblodai::Enums::PayoutFeeBearer}.
       attr_reader :fee_bearer
-      # @return [Boolean] true — статус финальный (confirmed / failed / cancelled).
+      # @return [Boolean] true — the status is final (confirmed / failed / cancelled).
       attr_reader :is_final
-      # @return [Boolean] true — это возврат платежа, а не обычная выплата.
+      # @return [Boolean] true — this is a payment refund, not a regular payout.
       attr_reader :is_refund
-      # @return [String] Тег/мемо назначения, переданный при создании (TON Jetton, memo-биржи).
-      #   Пусто — без мемо.
+      # @return [String] The destination tag/memo passed at creation (TON Jetton, exchange memos).
+      #   Empty — no memo.
       attr_reader :memo
-      # @return [String] Сеть блокчейна.
+      # @return [String] Blockchain network.
       attr_reader :network
-      # @return [BigDecimal] Сколько реально уходит получателю на адрес: amount − commission.
+      # @return [BigDecimal] How much actually goes to the recipient's address: amount − commission.
       attr_reader :payer_amount
-      # @return [String] api (через интеграцию) | manual (из кабинета). Values:
+      # @return [String] api (via the integration) | manual (from the dashboard). Values:
       #   {Oblodai::Enums::PayoutSource}.
       attr_reader :source
-      # @return [String] Статус выплаты: pending (создана, ждёт) | approved (одобрена) |
-      #   awaiting_cosign (ждёт второй подписи) | broadcasting (отправляется) | sent (отправлена, ждёт
-      #   подтверждений) | confirmed (подтверждена — готово) | failed | cancelled. Значение можно
-      #   передать обратно в фильтр истории как есть. Values: {Oblodai::Enums::PayoutStatus}.
+      # @return [String] Payout status: pending (created, waiting) | approved (approved) |
+      #   awaiting_cosign (waiting for the second signature) | broadcasting (being broadcast) | sent
+      #   (sent, awaiting confirmations) | confirmed (confirmed — done) | failed | cancelled. The
+      #   value can be passed back to the history filter as is. Values:
+      #   {Oblodai::Enums::PayoutStatus}.
       attr_reader :status
-      # @return [String] Хеш транзакции в блокчейне (появляется после отправки).
+      # @return [String] The blockchain transaction hash (appears after sending).
       attr_reader :txid
-      # @return [String] Время последнего изменения (ISO 8601).
+      # @return [String] Time of the last change (ISO 8601).
       attr_reader :updated_at
-      # @return [String] Идентификатор выплаты.
+      # @return [String] Payout id.
       attr_reader :uuid
-      # @return [String, nil] Причина сбоя выплаты человеческим текстом; null — сбоя нет.
+      # @return [String, nil] The payout failure reason as human-readable text; null — no failure.
       attr_reader :error
-      # @return [String, nil] Машинный код причины; null — сбоя нет.
+      # @return [String, nil] The machine reason code; null — no failure.
       attr_reader :error_code
-      # @return [String, nil] Ваш номер (reference) выплаты. У возврата — null: возврат не имеет
-      #   вашего идентификатора, см. payment_order_id.
+      # @return [String, nil] Your payout number (reference). null for a refund: a refund has no
+      #   identifier of yours, see payment_order_id.
       attr_reader :order_id
-      # @return [String, nil] Ваш order_id платежа, по которому сделан возврат (null у обычной
-      #   выплаты). У возврата собственного order_id нет — он приходит null, а сверять возврат с
-      #   заказом нужно по этому полю.
+      # @return [String, nil] Your order_id of the payment that was refunded (null for a regular
+      #   payout). A refund has no order_id of its own — it comes as null, so match a refund to an
+      #   order by this field.
       attr_reader :payment_order_id
-      # @return [String, nil] Идентификатор возвращаемого платежа (null, если это не возврат).
+      # @return [String, nil] The id of the payment being refunded (null if this is not a refund).
       attr_reader :refund_for
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -7815,64 +8180,67 @@ module Oblodai
         is_refund memo network order_id payer_amount payment_order_id refund_for source status txid updated_at uuid
       ].freeze
 
-      # @return [String] Адрес получателя.
+      # @return [String] Recipient address.
       attr_reader :address
-      # @return [BigDecimal] Сумма выплаты в валюте currency, списанная с вашего баланса.
+      # @return [BigDecimal] The payout amount in currency, debited from your balance.
       attr_reader :amount
-      # @return [Boolean] true — выплата ждёт подтверждения (внутренние сценарии; по API-ключу
-      #   всегда false).
+      # @return [Boolean] true — the payout is awaiting approval (internal scenarios; always false
+      #   with an API key).
       attr_reader :approval_required
-      # @return [BigDecimal] Удержанная сетевая комиссия, в валюте выплаты. 0 — комиссию поглотил
-      #   шлюз.
+      # @return [BigDecimal] The withheld network fee, in the payout currency. 0 — the gateway
+      #   absorbed the fee.
       attr_reader :commission
-      # @return [String] Время создания (ISO 8601).
+      # @return [String] Creation time (ISO 8601).
       attr_reader :created_at
-      # @return [String] Код валюты выплаты.
+      # @return [String] Payout currency code.
       attr_reader :currency
-      # @return [String] Подписанная ссылка на PDF-чек этой операции — открывается без API-ключа,
-      #   можно вложить в письмо или отдать получателю. Пусто, если генерация документов не включена.
+      # @return [String] A signed link to the PDF receipt of this operation — opens without an API
+      #   key, can be attached to an email or given to the recipient. Empty if document generation is
+      #   not enabled.
       attr_reader :document_url
-      # @return [String] Кто заплатил сетевую комиссию: gateway — шлюз поглотил её (commission = 0);
-      #   merchant — сумма списания увеличена на комиссию, получатель получает запрошенное целиком
-      #   (is_subtract=true, выплатная ссылка с fee_bearer=merchant); recipient — комиссия удержана из
-      #   выплаты, получателю приходит меньше запрошенного. Values: {Oblodai::Enums::PayoutFeeBearer}.
+      # @return [String] Who paid the network fee: gateway — the gateway absorbed it (commission =
+      #   0); merchant — the debit amount was increased by the fee, the recipient gets the full
+      #   requested amount (is_subtract=true, a payout link with fee_bearer=merchant); recipient — the
+      #   fee was withheld from the payout, the recipient gets less than requested. Values:
+      #   {Oblodai::Enums::PayoutFeeBearer}.
       attr_reader :fee_bearer
-      # @return [Boolean] true — статус финальный (confirmed / failed / cancelled).
+      # @return [Boolean] true — the status is final (confirmed / failed / cancelled).
       attr_reader :is_final
-      # @return [Boolean] true — это возврат платежа, а не обычная выплата.
+      # @return [Boolean] true — this is a payment refund, not a regular payout.
       attr_reader :is_refund
-      # @return [String] Тег/мемо назначения, переданный при создании (TON Jetton, memo-биржи).
-      #   Пусто — без мемо.
+      # @return [String] The destination tag/memo passed at creation (TON Jetton, exchange memos).
+      #   Empty — no memo.
       attr_reader :memo
-      # @return [String] Сеть блокчейна.
+      # @return [String] Blockchain network.
       attr_reader :network
-      # @return [BigDecimal] Сколько реально уходит получателю на адрес: amount − commission.
+      # @return [BigDecimal] How much actually goes to the recipient's address: amount − commission.
       attr_reader :payer_amount
-      # @return [String] api (через интеграцию) | manual (из кабинета). Values:
+      # @return [String] api (via the integration) | manual (from the dashboard). Values:
       #   {Oblodai::Enums::PayoutSource}.
       attr_reader :source
-      # @return [String] Статус выплаты: pending (создана, ждёт) | approved (одобрена) |
-      #   awaiting_cosign (ждёт второй подписи) | broadcasting (отправляется) | sent (отправлена, ждёт
-      #   подтверждений) | confirmed (подтверждена — готово) | failed | cancelled. Значение можно
-      #   передать обратно в фильтр истории как есть. Values: {Oblodai::Enums::PayoutStatus}.
+      # @return [String] Payout status: pending (created, waiting) | approved (approved) |
+      #   awaiting_cosign (waiting for the second signature) | broadcasting (being broadcast) | sent
+      #   (sent, awaiting confirmations) | confirmed (confirmed — done) | failed | cancelled. The
+      #   value can be passed back to the history filter as is. Values:
+      #   {Oblodai::Enums::PayoutStatus}.
       attr_reader :status
-      # @return [String] Хеш транзакции в блокчейне (появляется после отправки).
+      # @return [String] The blockchain transaction hash (appears after sending).
       attr_reader :txid
-      # @return [String] Время последнего изменения (ISO 8601).
+      # @return [String] Time of the last change (ISO 8601).
       attr_reader :updated_at
-      # @return [String] Идентификатор выплаты.
+      # @return [String] Payout id.
       attr_reader :uuid
-      # @return [Hash{String => Object}, nil] Конверсия, сделанная по пути выплаты; нет ключа —
-      #   конверсии не было.
+      # @return [Hash{String => Object}, nil] The conversion performed on the payout path; no key —
+      #   there was no conversion.
       attr_reader :convert
-      # @return [String, nil] Ваш номер (reference) выплаты. У возврата — null: возврат не имеет
-      #   вашего идентификатора, см. payment_order_id.
+      # @return [String, nil] Your payout number (reference). null for a refund: a refund has no
+      #   identifier of yours, see payment_order_id.
       attr_reader :order_id
-      # @return [String, nil] Ваш order_id платежа, по которому сделан возврат (null у обычной
-      #   выплаты). У возврата собственного order_id нет — он приходит null, а сверять возврат с
-      #   заказом нужно по этому полю.
+      # @return [String, nil] Your order_id of the payment that was refunded (null for a regular
+      #   payout). A refund has no order_id of its own — it comes as null, so match a refund to an
+      #   order by this field.
       attr_reader :payment_order_id
-      # @return [String, nil] Идентификатор возвращаемого платежа (null, если это не возврат).
+      # @return [String, nil] The id of the payment being refunded (null if this is not a refund).
       attr_reader :refund_for
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -7998,36 +8366,38 @@ module Oblodai
       # JSON names of every field this release knows.
       FIELDS = %w[amount currency email expires_in_seconds fee_bearer network note passcode reference title].freeze
 
-      # @return [BigDecimal] Сумма в currency, строкой; больше нуля
+      # @return [BigDecimal] The amount in currency, as a string; greater than zero
       attr_reader :amount
-      # @return [String] Крипто-актив выплаты (USDT, BTC, …); фиат невозможен
+      # @return [String] The payout crypto asset (USDT, BTC, …); fiat is not possible
       attr_reader :currency
-      # @return [String] Сеть выплаты получателю (tron, bitcoin, …)
+      # @return [String] The network of the payout to the recipient (tron, bitcoin, …)
       attr_reader :network
-      # @return [String] Ваш ключ дедупликации ссылки, уникальный на мерчанта: повтор с тем же
-      #   reference не зарезервирует деньги второй раз. В одиночном POST /v1/payout/link необязателен
-      #   — без него ключом становится заголовок Idempotency-Key, а без обоих запрос отвергается
-      #   (payoutlink.idempotency_required). В пачке POST /v1/payout/link/batch обязателен у каждой
-      #   ссылки: Idempotency-Key пачки на элементы не переносится
+      # @return [String] Your deduplication key for the link, unique per merchant: a retry with the
+      #   same reference will not reserve the money a second time. Optional in a single POST
+      #   /v1/payout/link — without it the Idempotency-Key header becomes the key, and without both
+      #   the request is rejected (payoutlink.idempotency_required). Required on every link in a POST
+      #   /v1/payout/link/batch: the batch's Idempotency-Key is not carried over to the items
       attr_reader :reference
-      # @return [String, nil] Если задан — получателю уходит письмо с кнопкой «Получить средства»;
-      #   сбой доставки не отменяет создание ссылки
+      # @return [String, nil] If set, the recipient gets an email with a "Claim funds" button; a
+      #   delivery failure does not cancel the link creation
       attr_reader :email
-      # @return [Integer, nil] Срок жизни ссылки в секундах, клампится в диапазон 3600–2592000
-      #   (час–30 суток); без поля или при 0 ссылка живёт 1 час, а не максимум — задавайте явно
+      # @return [Integer, nil] The link lifetime in seconds, clamped to the range 3600–2592000 (an
+      #   hour to 30 days); without the field or at 0 the link lives 1 hour, not the maximum — set it
+      #   explicitly
       attr_reader :expires_in_seconds
-      # @return [String, nil] Кто платит сетевую комиссию: "recipient" (по умолчанию — вычитается из
-      #   суммы, получателю придёт меньше) или "merchant" (резервируется сумма плюс комиссия,
-      #   получателю придёт ровно amount) Values: {Oblodai::Enums::PayoutLinkFeeBearer}.
+      # @return [String, nil] Who pays the network fee: "recipient" (default — deducted from the
+      #   amount, the recipient gets less) or "merchant" (the amount plus the fee is reserved, the
+      #   recipient gets exactly amount) Values: {Oblodai::Enums::PayoutLinkFeeBearer}.
       attr_reader :fee_bearer
-      # @return [String, nil] Сообщение получателю (видно на странице получения и в письме)
+      # @return [String, nil] A message to the recipient (visible on the claim page and in the
+      #   email)
       attr_reader :note
-      # @return [String, nil] Код получения — второй фактор к ссылке: "auto" — сгенерируем и вернём
-      #   ОДИН раз в ответе, либо свой (6–64 видимых символа), пусто — без кода. Код передавайте
-      #   получателю ОТДЕЛЬНЫМ от ссылки каналом (в письмо он не кладётся); после 10 неверных вводов
-      #   ссылка запирается.
+      # @return [String, nil] Claim passcode — a second factor for the link: "auto" — we generate it
+      #   and return it ONCE in the response, or your own (6–64 visible characters), empty — no
+      #   passcode. Give the passcode to the recipient over a channel SEPARATE from the link (it is
+      #   not included in the email); after 10 wrong attempts the link is locked.
       attr_reader :passcode
-      # @return [String, nil] Заголовок — виден получателю на странице получения
+      # @return [String, nil] Title — visible to the recipient on the claim page
       attr_reader :title
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -8105,9 +8475,9 @@ module Oblodai
       # JSON names of every field this release knows.
       FIELDS = ["items"].freeze
 
-      # @return [Array<Oblodai::Models::PayoutLinkBatchItem>] До 500 ссылок за вызов; каждая
-      #   проходит или падает независимо, ответ выровнен по индексам запроса. reference обязателен у
-      #   каждой.
+      # @return [Array<Oblodai::Models::PayoutLinkBatchItem>] Up to 500 links per call; each
+      #   succeeds or fails independently, the response is aligned with the request indices. reference
+      #   is required on each.
       attr_reader :items
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -8149,8 +8519,8 @@ module Oblodai
       # JSON names of every field this release knows.
       FIELDS = ["items"].freeze
 
-      # @return [Array<Oblodai::Models::PayoutLinkBatchResultItemsItem>] Элементы в порядке запроса;
-      #   result — ответ одиночного POST /v1/payout/link.
+      # @return [Array<Oblodai::Models::PayoutLinkBatchResultItemsItem>] Items in request order;
+      #   result — the response of a single POST /v1/payout/link.
       attr_reader :items
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -8192,19 +8562,20 @@ module Oblodai
       # JSON names of every field this release knows.
       FIELDS = %w[error_code http_status idx message ok order_id result].freeze
 
-      # @return [Integer] Номер элемента в запросе.
+      # @return [Integer] The item's number in the request.
       attr_reader :idx
-      # @return [Boolean] Элемент выполнен.
+      # @return [Boolean] The item was executed.
       attr_reader :ok
-      # @return [String, nil] Машинный код отказа; есть при ok=false.
+      # @return [String, nil] The machine code of the rejection; present when ok=false.
       attr_reader :error_code
-      # @return [Integer, nil] HTTP-статус, которым ответил бы одиночный вызов; есть при ok=false.
+      # @return [Integer, nil] The HTTP status a single call would have returned; present when
+      #   ok=false.
       attr_reader :http_status
-      # @return [String, nil] Текст отказа; есть при ok=false.
+      # @return [String, nil] The rejection text; present when ok=false.
       attr_reader :message
-      # @return [String, nil] order_id элемента, если он был в запросе.
+      # @return [String, nil] The item's order_id, if it was in the request.
       attr_reader :order_id
-      # @return [Oblodai::Models::PayoutLinkCreated, nil] Результат одиночного вызова; есть при
+      # @return [Oblodai::Models::PayoutLinkCreated, nil] The result of a single call; present when
       #   ok=true.
       attr_reader :result
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
@@ -8271,11 +8642,11 @@ module Oblodai
       # JSON names of every field this release knows.
       FIELDS = %w[claim_token lang].freeze
 
-      # @return [String] Секрет получения из ответа создания выплатной ссылки. Хранится только хешем
-      #   и повторно не выдаётся — чек можно напечатать, лишь пока токен у вас.
+      # @return [String] The claim secret from the payout link creation response. Stored only as a
+      #   hash and not issued again — the cheque can be printed only while you still have the token.
       attr_reader :claim_token
-      # @return [String, nil] Язык документа — один из 41 поддерживаемого кода (en по умолчанию);
-      #   полный список — в ошибке document.unknown_lang.
+      # @return [String, nil] Document language — one of the 41 supported codes (en by default); the
+      #   full list is in the document.unknown_lang error.
       attr_reader :lang
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -8327,52 +8698,52 @@ module Oblodai
         fee_type link_id network note passcode passcode_protected payer_amount payout_id reference status title
       ].freeze
 
-      # @return [BigDecimal] Сумма ссылки — обещание получателю.
+      # @return [BigDecimal] The link amount — a promise to the recipient.
       attr_reader :amount
-      # @return [String] Секрет ссылки получения; выдаётся один раз и хранится только хешем.
+      # @return [String] The claim link secret; issued once and stored only as a hash.
       attr_reader :claim_token
-      # @return [String] Страница получения; пусто, если публичный адрес не настроен.
+      # @return [String] The claim page; empty if the public address is not configured.
       attr_reader :claim_url
-      # @return [String] Когда создана (UTC).
+      # @return [String] When created (UTC).
       attr_reader :created_at
-      # @return [String] Актив выплаты.
+      # @return [String] Payout asset.
       attr_reader :currency
-      # @return [String] До какого момента ссылку можно получить (UTC).
+      # @return [String] Until when the link can be claimed (UTC).
       attr_reader :expires_at
-      # @return [String] Кто платит сетевую комиссию. Values: {Oblodai::Enums::PayoutLinkFeeBearer}.
+      # @return [String] Who pays the network fee. Values: {Oblodai::Enums::PayoutLinkFeeBearer}.
       attr_reader :fee_bearer
-      # @return [String] exact — комиссия зафиксирована; estimated — оценка по текущей сети. Values:
-      #   {Oblodai::Enums::FeeType}.
+      # @return [String] exact — the fee is fixed; estimated — an estimate based on the current
+      #   network. Values: {Oblodai::Enums::FeeType}.
       attr_reader :fee_type
-      # @return [String] Идентификатор ссылки.
+      # @return [String] Link id.
       attr_reader :link_id
-      # @return [String] Сеть выплаты.
+      # @return [String] Payout network.
       attr_reader :network
-      # @return [String] Сообщение получателю.
+      # @return [String] Message to the recipient.
       attr_reader :note
-      # @return [Boolean] Получение требует кода.
+      # @return [Boolean] Claiming requires a passcode.
       attr_reader :passcode_protected
-      # @return [String] Состояние ссылки. Values: {Oblodai::Enums::PayoutLinkStatus}.
+      # @return [String] Link state. Values: {Oblodai::Enums::PayoutLinkStatus}.
       attr_reader :status
-      # @return [String] Заголовок, видный получателю.
+      # @return [String] Title visible to the recipient.
       attr_reader :title
-      # @return [String, nil] Пачка, в которой создана ссылка.
+      # @return [String, nil] The batch in which the link was created.
       attr_reader :batch_id
-      # @return [String, nil] Адрес, который указал получатель.
+      # @return [String, nil] The address the recipient specified.
       attr_reader :claim_address
-      # @return [BigDecimal, nil] Сетевая комиссия; null — оценить сейчас нельзя (ноль означал бы
-      #   бесплатное получение).
+      # @return [BigDecimal, nil] Network fee; null — cannot be estimated right now (zero would mean
+      #   the claim is free).
       attr_reader :commission
-      # @return [String, nil] Адрес, на который ушло письмо получателю.
+      # @return [String, nil] The address the email to the recipient was sent to.
       attr_reader :email
-      # @return [String, nil] Сгенерированный код получения (passcode=auto); выдаётся один раз.
+      # @return [String, nil] The generated claim passcode (passcode=auto); issued once.
       attr_reader :passcode
-      # @return [BigDecimal, nil] Сколько дойдёт получателю; null — сказать нельзя (комиссия не
-      #   оценена или съела сумму).
+      # @return [BigDecimal, nil] How much will reach the recipient; null — cannot be said (the fee
+      #   was not estimated or ate the amount).
       attr_reader :payer_amount
-      # @return [String, nil] Выплата, порождённая получением; есть у полученной ссылки.
+      # @return [String, nil] The payout created by the claim; present on a claimed link.
       attr_reader :payout_id
-      # @return [String, nil] Ваш ключ дедупликации.
+      # @return [String, nil] Your deduplication key.
       attr_reader :reference
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -8498,7 +8869,7 @@ module Oblodai
       # JSON names of every field this release knows.
       FIELDS = ["link_id"].freeze
 
-      # @return [String] Идентификатор выплатной ссылки (link_id из ответа создания).
+      # @return [String] The payout link id (link_id from the creation response).
       attr_reader :link_id
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -8540,36 +8911,38 @@ module Oblodai
       # JSON names of every field this release knows.
       FIELDS = %w[amount currency email expires_in_seconds fee_bearer network note passcode reference title].freeze
 
-      # @return [BigDecimal] Сумма в currency, строкой; больше нуля
+      # @return [BigDecimal] The amount in currency, as a string; greater than zero
       attr_reader :amount
-      # @return [String] Крипто-актив выплаты (USDT, BTC, …); фиат невозможен
+      # @return [String] The payout crypto asset (USDT, BTC, …); fiat is not possible
       attr_reader :currency
-      # @return [String] Сеть выплаты получателю (tron, bitcoin, …)
+      # @return [String] The network of the payout to the recipient (tron, bitcoin, …)
       attr_reader :network
-      # @return [String, nil] Если задан — получателю уходит письмо с кнопкой «Получить средства»;
-      #   сбой доставки не отменяет создание ссылки
+      # @return [String, nil] If set, the recipient gets an email with a "Claim funds" button; a
+      #   delivery failure does not cancel the link creation
       attr_reader :email
-      # @return [Integer, nil] Срок жизни ссылки в секундах, клампится в диапазон 3600–2592000
-      #   (час–30 суток); без поля или при 0 ссылка живёт 1 час, а не максимум — задавайте явно
+      # @return [Integer, nil] The link lifetime in seconds, clamped to the range 3600–2592000 (an
+      #   hour to 30 days); without the field or at 0 the link lives 1 hour, not the maximum — set it
+      #   explicitly
       attr_reader :expires_in_seconds
-      # @return [String, nil] Кто платит сетевую комиссию: "recipient" (по умолчанию — вычитается из
-      #   суммы, получателю придёт меньше) или "merchant" (резервируется сумма плюс комиссия,
-      #   получателю придёт ровно amount) Values: {Oblodai::Enums::PayoutLinkFeeBearer}.
+      # @return [String, nil] Who pays the network fee: "recipient" (default — deducted from the
+      #   amount, the recipient gets less) or "merchant" (the amount plus the fee is reserved, the
+      #   recipient gets exactly amount) Values: {Oblodai::Enums::PayoutLinkFeeBearer}.
       attr_reader :fee_bearer
-      # @return [String, nil] Сообщение получателю (видно на странице получения и в письме)
+      # @return [String, nil] A message to the recipient (visible on the claim page and in the
+      #   email)
       attr_reader :note
-      # @return [String, nil] Код получения — второй фактор к ссылке: "auto" — сгенерируем и вернём
-      #   ОДИН раз в ответе, либо свой (6–64 видимых символа), пусто — без кода. Код передавайте
-      #   получателю ОТДЕЛЬНЫМ от ссылки каналом (в письмо он не кладётся); после 10 неверных вводов
-      #   ссылка запирается.
+      # @return [String, nil] Claim passcode — a second factor for the link: "auto" — we generate it
+      #   and return it ONCE in the response, or your own (6–64 visible characters), empty — no
+      #   passcode. Give the passcode to the recipient over a channel SEPARATE from the link (it is
+      #   not included in the email); after 10 wrong attempts the link is locked.
       attr_reader :passcode
-      # @return [String, nil] Ваш ключ дедупликации ссылки, уникальный на мерчанта: повтор с тем же
-      #   reference не зарезервирует деньги второй раз. В одиночном POST /v1/payout/link необязателен
-      #   — без него ключом становится заголовок Idempotency-Key, а без обоих запрос отвергается
-      #   (payoutlink.idempotency_required). В пачке POST /v1/payout/link/batch обязателен у каждой
-      #   ссылки: Idempotency-Key пачки на элементы не переносится
+      # @return [String, nil] Your deduplication key for the link, unique per merchant: a retry with
+      #   the same reference will not reserve the money a second time. Optional in a single POST
+      #   /v1/payout/link — without it the Idempotency-Key header becomes the key, and without both
+      #   the request is rejected (payoutlink.idempotency_required). Required on every link in a POST
+      #   /v1/payout/link/batch: the batch's Idempotency-Key is not carried over to the items
       attr_reader :reference
-      # @return [String, nil] Заголовок — виден получателю на странице получения
+      # @return [String, nil] Title — visible to the recipient on the claim page
       attr_reader :title
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -8653,46 +9026,46 @@ module Oblodai
         network note passcode_protected payer_amount payout_id reference status title
       ].freeze
 
-      # @return [BigDecimal] Сумма ссылки — обещание получателю.
+      # @return [BigDecimal] The link amount — a promise to the recipient.
       attr_reader :amount
-      # @return [String] Когда создана (UTC).
+      # @return [String] When created (UTC).
       attr_reader :created_at
-      # @return [String] Актив выплаты.
+      # @return [String] Payout asset.
       attr_reader :currency
-      # @return [String] До какого момента ссылку можно получить (UTC).
+      # @return [String] Until when the link can be claimed (UTC).
       attr_reader :expires_at
-      # @return [String] Кто платит сетевую комиссию. Values: {Oblodai::Enums::PayoutLinkFeeBearer}.
+      # @return [String] Who pays the network fee. Values: {Oblodai::Enums::PayoutLinkFeeBearer}.
       attr_reader :fee_bearer
-      # @return [String] exact — комиссия зафиксирована; estimated — оценка по текущей сети. Values:
-      #   {Oblodai::Enums::FeeType}.
+      # @return [String] exact — the fee is fixed; estimated — an estimate based on the current
+      #   network. Values: {Oblodai::Enums::FeeType}.
       attr_reader :fee_type
-      # @return [String] Идентификатор ссылки.
+      # @return [String] Link id.
       attr_reader :link_id
-      # @return [String] Сеть выплаты.
+      # @return [String] Payout network.
       attr_reader :network
-      # @return [String] Сообщение получателю.
+      # @return [String] Message to the recipient.
       attr_reader :note
-      # @return [Boolean] Получение требует кода.
+      # @return [Boolean] Claiming requires a passcode.
       attr_reader :passcode_protected
-      # @return [String] Состояние ссылки. Values: {Oblodai::Enums::PayoutLinkStatus}.
+      # @return [String] Link state. Values: {Oblodai::Enums::PayoutLinkStatus}.
       attr_reader :status
-      # @return [String] Заголовок, видный получателю.
+      # @return [String] Title visible to the recipient.
       attr_reader :title
-      # @return [String, nil] Пачка, в которой создана ссылка.
+      # @return [String, nil] The batch in which the link was created.
       attr_reader :batch_id
-      # @return [String, nil] Адрес, который указал получатель.
+      # @return [String, nil] The address the recipient specified.
       attr_reader :claim_address
-      # @return [BigDecimal, nil] Сетевая комиссия; null — оценить сейчас нельзя (ноль означал бы
-      #   бесплатное получение).
+      # @return [BigDecimal, nil] Network fee; null — cannot be estimated right now (zero would mean
+      #   the claim is free).
       attr_reader :commission
-      # @return [String, nil] Адрес, на который ушло письмо получателю.
+      # @return [String, nil] The address the email to the recipient was sent to.
       attr_reader :email
-      # @return [BigDecimal, nil] Сколько дойдёт получателю; null — сказать нельзя (комиссия не
-      #   оценена или съела сумму).
+      # @return [BigDecimal, nil] How much will reach the recipient; null — cannot be said (the fee
+      #   was not estimated or ate the amount).
       attr_reader :payer_amount
-      # @return [String, nil] Выплата, порождённая получением; есть у полученной ссылки.
+      # @return [String, nil] The payout created by the claim; present on a claimed link.
       attr_reader :payout_id
-      # @return [String, nil] Ваш ключ дедупликации.
+      # @return [String, nil] Your deduplication key.
       attr_reader :reference
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -8806,9 +9179,9 @@ module Oblodai
       # JSON names of every field this release knows.
       FIELDS = %w[items paginate].freeze
 
-      # @return [Array<Oblodai::Models::PayoutLinkView>] Записи этой страницы.
+      # @return [Array<Oblodai::Models::PayoutLinkView>] The records of this page.
       attr_reader :items
-      # @return [Oblodai::Models::Pagination] Блок пагинации.
+      # @return [Oblodai::Models::Pagination] Pagination block.
       attr_reader :paginate
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -8854,28 +9227,28 @@ module Oblodai
       # JSON names of every field this release knows.
       FIELDS = %w[address amount currency from_currency is_subtract memo network order_id source url_callback].freeze
 
-      # @return [String] Адрес получателя.
+      # @return [String] Recipient address.
       attr_reader :address
-      # @return [BigDecimal] Сумма выплаты в валюте currency.
+      # @return [BigDecimal] The payout amount in currency.
       attr_reader :amount
-      # @return [String] Код валюты (например USDT).
+      # @return [String] Currency code (e.g. USDT).
       attr_reader :currency
-      # @return [String] Ваш номер выплаты; ключ идемпотентности.
+      # @return [String] Your payout number; the idempotency key.
       attr_reader :order_id
-      # @return [String, nil] Профинансировать выплату конвертацией баланса. Только USDT → currency.
+      # @return [String, nil] Fund the payout by converting balance. USDT → currency only.
       attr_reader :from_currency
-      # @return [Boolean, nil] Кто платит сетевую комиссию: true — с баланса списывается amount+fee,
-      #   получатель получает amount; false — получатель получает amount-fee; не передано — fee-config
-      #   проекта.
+      # @return [Boolean, nil] Who pays the network fee: true — amount+fee is debited from the
+      #   balance, the recipient gets amount; false — the recipient gets amount-fee; omitted — the
+      #   project's fee-config.
       attr_reader :is_subtract
-      # @return [String, nil] Тег/мемо назначения (TON Jetton). Максимум 120 символов.
+      # @return [String, nil] Destination tag/memo (TON Jetton). At most 120 characters.
       attr_reader :memo
-      # @return [String, nil] Сеть (tron, ethereum, …). Обязательна для монет с несколькими сетями.
+      # @return [String, nil] Network (tron, ethereum, …). Required for coins with several networks.
       attr_reader :network
-      # @return [String, nil] Метка происхождения: api (по умолчанию) или manual.
+      # @return [String, nil] The origin label: api (default) or manual.
       attr_reader :source
-      # @return [String, nil] Свой URL вебхука для этой выплаты (проходит SSRF-проверку). Требует
-      #   зарегистрированного эндпоинта (POST /v1/webhooks): доставка подписывается его секретом.
+      # @return [String, nil] Your own webhook URL for this payout (passes the SSRF check). Requires
+      #   a registered endpoint (POST /v1/webhooks): the delivery is signed with its secret.
       attr_reader :url_callback
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -8953,28 +9326,28 @@ module Oblodai
       # JSON names of every field this release knows.
       FIELDS = %w[address amount currency from_currency is_subtract memo network order_id source url_callback].freeze
 
-      # @return [String] Адрес получателя.
+      # @return [String] Recipient address.
       attr_reader :address
-      # @return [BigDecimal] Сумма выплаты в валюте currency.
+      # @return [BigDecimal] The payout amount in currency.
       attr_reader :amount
-      # @return [String] Код валюты (например USDT).
+      # @return [String] Currency code (e.g. USDT).
       attr_reader :currency
-      # @return [String, nil] Профинансировать выплату конвертацией баланса. Только USDT → currency.
+      # @return [String, nil] Fund the payout by converting balance. USDT → currency only.
       attr_reader :from_currency
-      # @return [Boolean, nil] Кто платит сетевую комиссию: true — с баланса списывается amount+fee,
-      #   получатель получает amount; false — получатель получает amount-fee; не передано — fee-config
-      #   проекта.
+      # @return [Boolean, nil] Who pays the network fee: true — amount+fee is debited from the
+      #   balance, the recipient gets amount; false — the recipient gets amount-fee; omitted — the
+      #   project's fee-config.
       attr_reader :is_subtract
-      # @return [String, nil] Тег/мемо назначения (TON Jetton). Максимум 120 символов.
+      # @return [String, nil] Destination tag/memo (TON Jetton). At most 120 characters.
       attr_reader :memo
-      # @return [String, nil] Сеть (tron, ethereum, …). Обязательна для монет с несколькими сетями.
+      # @return [String, nil] Network (tron, ethereum, …). Required for coins with several networks.
       attr_reader :network
-      # @return [String, nil] Ваш номер выплаты; ключ идемпотентности.
+      # @return [String, nil] Your payout number; the idempotency key.
       attr_reader :order_id
-      # @return [String, nil] Метка происхождения: api (по умолчанию) или manual.
+      # @return [String, nil] The origin label: api (default) or manual.
       attr_reader :source
-      # @return [String, nil] Свой URL вебхука для этой выплаты (проходит SSRF-проверку). Требует
-      #   зарегистрированного эндпоинта (POST /v1/webhooks): доставка подписывается его секретом.
+      # @return [String, nil] Your own webhook URL for this payout (passes the SSRF check). Requires
+      #   a registered endpoint (POST /v1/webhooks): the delivery is signed with its secret.
       attr_reader :url_callback
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -9052,24 +9425,26 @@ module Oblodai
       # JSON names of every field this release knows.
       FIELDS = %w[amount commission currency fee_bearer funded_by maturity_note network payer_amount valid].freeze
 
-      # @return [BigDecimal] Сколько спишется с баланса.
+      # @return [BigDecimal] How much will be debited from the balance.
       attr_reader :amount
-      # @return [BigDecimal] Сетевая комиссия.
+      # @return [BigDecimal] Network fee.
       attr_reader :commission
-      # @return [String] Валюта выплаты.
+      # @return [String] Payout currency.
       attr_reader :currency
-      # @return [String] Кто платит сетевую комиссию. Values: {Oblodai::Enums::PayoutFeeBearer}.
+      # @return [String] Who pays the network fee. Values: {Oblodai::Enums::PayoutFeeBearer}.
       attr_reader :fee_bearer
-      # @return [String] Что именно проверено по балансу и что проверится при исполнении.
+      # @return [String] What exactly was checked against the balance and what will be checked at
+      #   execution.
       attr_reader :maturity_note
-      # @return [String] Сеть выплаты в каноническом написании.
+      # @return [String] The payout network in canonical spelling.
       attr_reader :network
-      # @return [BigDecimal] Сколько дойдёт получателю.
+      # @return [BigDecimal] How much will reach the recipient.
       attr_reader :payer_amount
-      # @return [Boolean] Всегда true: не прошедшая проверка отвечает ошибкой с кодом причины.
+      # @return [Boolean] Always true: a failed check responds with an error carrying the reason
+      #   code.
       attr_reader :valid
-      # @return [String, nil] Валюта, конвертацией которой профинансируется выплата (from_currency);
-      #   есть только у такой выплаты.
+      # @return [String, nil] The currency whose conversion funds the payout (from_currency);
+      #   present only on such a payout.
       attr_reader :funded_by
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -9149,61 +9524,64 @@ module Oblodai
         network order_id payer_amount payment_order_id refund_for source status txid updated_at uuid
       ].freeze
 
-      # @return [String] Адрес получателя.
+      # @return [String] Recipient address.
       attr_reader :address
-      # @return [BigDecimal] Сумма выплаты в валюте currency, списанная с вашего баланса.
+      # @return [BigDecimal] The payout amount in currency, debited from your balance.
       attr_reader :amount
-      # @return [Boolean] true — выплата ждёт подтверждения (внутренние сценарии; по API-ключу
-      #   всегда false).
+      # @return [Boolean] true — the payout is awaiting approval (internal scenarios; always false
+      #   with an API key).
       attr_reader :approval_required
-      # @return [BigDecimal] Удержанная сетевая комиссия, в валюте выплаты. 0 — комиссию поглотил
-      #   шлюз.
+      # @return [BigDecimal] The withheld network fee, in the payout currency. 0 — the gateway
+      #   absorbed the fee.
       attr_reader :commission
-      # @return [String] Время создания (ISO 8601).
+      # @return [String] Creation time (ISO 8601).
       attr_reader :created_at
-      # @return [String] Код валюты выплаты.
+      # @return [String] Payout currency code.
       attr_reader :currency
-      # @return [String] Подписанная ссылка на PDF-чек этой операции — открывается без API-ключа,
-      #   можно вложить в письмо или отдать получателю. Пусто, если генерация документов не включена.
+      # @return [String] A signed link to the PDF receipt of this operation — opens without an API
+      #   key, can be attached to an email or given to the recipient. Empty if document generation is
+      #   not enabled.
       attr_reader :document_url
-      # @return [String] Кто заплатил сетевую комиссию: gateway — шлюз поглотил её (commission = 0);
-      #   merchant — сумма списания увеличена на комиссию, получатель получает запрошенное целиком
-      #   (is_subtract=true, выплатная ссылка с fee_bearer=merchant); recipient — комиссия удержана из
-      #   выплаты, получателю приходит меньше запрошенного. Values: {Oblodai::Enums::PayoutFeeBearer}.
+      # @return [String] Who paid the network fee: gateway — the gateway absorbed it (commission =
+      #   0); merchant — the debit amount was increased by the fee, the recipient gets the full
+      #   requested amount (is_subtract=true, a payout link with fee_bearer=merchant); recipient — the
+      #   fee was withheld from the payout, the recipient gets less than requested. Values:
+      #   {Oblodai::Enums::PayoutFeeBearer}.
       attr_reader :fee_bearer
-      # @return [Boolean] true — статус финальный (confirmed / failed / cancelled).
+      # @return [Boolean] true — the status is final (confirmed / failed / cancelled).
       attr_reader :is_final
-      # @return [Boolean] true — это возврат платежа, а не обычная выплата.
+      # @return [Boolean] true — this is a payment refund, not a regular payout.
       attr_reader :is_refund
-      # @return [String] Тег/мемо назначения, переданный при создании (TON Jetton, memo-биржи).
-      #   Пусто — без мемо.
+      # @return [String] The destination tag/memo passed at creation (TON Jetton, exchange memos).
+      #   Empty — no memo.
       attr_reader :memo
-      # @return [String] Сеть блокчейна.
+      # @return [String] Blockchain network.
       attr_reader :network
-      # @return [BigDecimal] Сколько реально уходит получателю на адрес: amount − commission.
+      # @return [BigDecimal] How much actually goes to the recipient's address: amount − commission.
       attr_reader :payer_amount
-      # @return [String] api (через интеграцию) | manual (из кабинета). Values:
+      # @return [String] api (via the integration) | manual (from the dashboard). Values:
       #   {Oblodai::Enums::PayoutSource}.
       attr_reader :source
-      # @return [String] Статус выплаты: pending (создана, ждёт) | approved (одобрена) |
-      #   awaiting_cosign (ждёт второй подписи) | broadcasting (отправляется) | sent (отправлена, ждёт
-      #   подтверждений) | confirmed (подтверждена — готово) | failed | cancelled. Значение можно
-      #   передать обратно в фильтр истории как есть. Values: {Oblodai::Enums::PayoutStatus}.
+      # @return [String] Payout status: pending (created, waiting) | approved (approved) |
+      #   awaiting_cosign (waiting for the second signature) | broadcasting (being broadcast) | sent
+      #   (sent, awaiting confirmations) | confirmed (confirmed — done) | failed | cancelled. The
+      #   value can be passed back to the history filter as is. Values:
+      #   {Oblodai::Enums::PayoutStatus}.
       attr_reader :status
-      # @return [String] Хеш транзакции в блокчейне (появляется после отправки).
+      # @return [String] The blockchain transaction hash (appears after sending).
       attr_reader :txid
-      # @return [String] Время последнего изменения (ISO 8601).
+      # @return [String] Time of the last change (ISO 8601).
       attr_reader :updated_at
-      # @return [String] Идентификатор выплаты.
+      # @return [String] Payout id.
       attr_reader :uuid
-      # @return [String, nil] Ваш номер (reference) выплаты. У возврата — null: возврат не имеет
-      #   вашего идентификатора, см. payment_order_id.
+      # @return [String, nil] Your payout number (reference). null for a refund: a refund has no
+      #   identifier of yours, see payment_order_id.
       attr_reader :order_id
-      # @return [String, nil] Ваш order_id платежа, по которому сделан возврат (null у обычной
-      #   выплаты). У возврата собственного order_id нет — он приходит null, а сверять возврат с
-      #   заказом нужно по этому полю.
+      # @return [String, nil] Your order_id of the payment that was refunded (null for a regular
+      #   payout). A refund has no order_id of its own — it comes as null, so match a refund to an
+      #   order by this field.
       attr_reader :payment_order_id
-      # @return [String, nil] Идентификатор возвращаемого платежа (null, если это не возврат).
+      # @return [String, nil] The id of the payment being refunded (null if this is not a refund).
       attr_reader :refund_for
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -9325,9 +9703,9 @@ module Oblodai
       # JSON names of every field this release knows.
       FIELDS = %w[items paginate].freeze
 
-      # @return [Array<Oblodai::Models::PayoutView>] Записи этой страницы.
+      # @return [Array<Oblodai::Models::PayoutView>] The records of this page.
       attr_reader :items
-      # @return [Oblodai::Models::Pagination] Блок пагинации.
+      # @return [Oblodai::Models::Pagination] Pagination block.
       attr_reader :paginate
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -9366,9 +9744,9 @@ module Oblodai
       end
     end
 
-    # Приходит на каждом переходе выплаты. Тело — тот же объект, что отвечают ручки выплат. Возврат
-    # платежа — это выплата с is_refund = true: его события тоже payout.*, сверять с платежом по
-    # refund_for и payment_order_id.
+    # Sent on every payout transition. The body is the same object the payout endpoints return. A
+    # payment refund is a payout with is_refund = true: its events are payout.* as well; match it to
+    # the payment by refund_for and payment_order_id.
     class PayoutWebhook < Generated::Model
       # JSON names of the fields the API always sends.
       REQUIRED = %w[
@@ -9383,72 +9761,76 @@ module Oblodai
         updated_at uuid
       ].freeze
 
-      # @return [String] Адрес получателя.
+      # @return [String] Recipient address.
       attr_reader :address
-      # @return [BigDecimal] Сумма выплаты в валюте currency, списанная с вашего баланса.
+      # @return [BigDecimal] The payout amount in currency, debited from your balance.
       attr_reader :amount
-      # @return [Boolean] true — выплата ждёт подтверждения (внутренние сценарии; по API-ключу
-      #   всегда false).
+      # @return [Boolean] true — the payout is awaiting approval (internal scenarios; always false
+      #   with an API key).
       attr_reader :approval_required
-      # @return [BigDecimal] Удержанная сетевая комиссия, в валюте выплаты. 0 — комиссию поглотил
-      #   шлюз.
+      # @return [BigDecimal] The withheld network fee, in the payout currency. 0 — the gateway
+      #   absorbed the fee.
       attr_reader :commission
-      # @return [String] Время создания (ISO 8601).
+      # @return [String] Creation time (ISO 8601).
       attr_reader :created_at
-      # @return [String] Код валюты выплаты.
+      # @return [String] Payout currency code.
       attr_reader :currency
-      # @return [String] Подписанная ссылка на PDF-чек этой операции — открывается без API-ключа,
-      #   можно вложить в письмо или отдать получателю. Пусто, если генерация документов не включена.
+      # @return [String] A signed link to the PDF receipt of this operation — opens without an API
+      #   key, can be attached to an email or given to the recipient. Empty if document generation is
+      #   not enabled.
       attr_reader :document_url
-      # @return [String] Когда событие произошло, UTC с миллисекундами (ISO 8601).
+      # @return [String] When the event happened, UTC with milliseconds (ISO 8601).
       attr_reader :event_at
-      # @return [String] Кто заплатил сетевую комиссию: gateway — шлюз поглотил её (commission = 0);
-      #   merchant — сумма списания увеличена на комиссию, получатель получает запрошенное целиком
-      #   (is_subtract=true, выплатная ссылка с fee_bearer=merchant); recipient — комиссия удержана из
-      #   выплаты, получателю приходит меньше запрошенного. Values: {Oblodai::Enums::PayoutFeeBearer}.
+      # @return [String] Who paid the network fee: gateway — the gateway absorbed it (commission =
+      #   0); merchant — the debit amount was increased by the fee, the recipient gets the full
+      #   requested amount (is_subtract=true, a payout link with fee_bearer=merchant); recipient — the
+      #   fee was withheld from the payout, the recipient gets less than requested. Values:
+      #   {Oblodai::Enums::PayoutFeeBearer}.
       attr_reader :fee_bearer
-      # @return [Boolean] true — статус финальный (confirmed / failed / cancelled).
+      # @return [Boolean] true — the status is final (confirmed / failed / cancelled).
       attr_reader :is_final
-      # @return [Boolean] true — это возврат платежа, а не обычная выплата.
+      # @return [Boolean] true — this is a payment refund, not a regular payout.
       attr_reader :is_refund
-      # @return [String] Тег/мемо назначения, переданный при создании (TON Jetton, memo-биржи).
-      #   Пусто — без мемо.
+      # @return [String] The destination tag/memo passed at creation (TON Jetton, exchange memos).
+      #   Empty — no memo.
       attr_reader :memo
-      # @return [String] Сеть блокчейна.
+      # @return [String] Blockchain network.
       attr_reader :network
-      # @return [BigDecimal] Сколько реально уходит получателю на адрес: amount − commission.
+      # @return [BigDecimal] How much actually goes to the recipient's address: amount − commission.
       attr_reader :payer_amount
-      # @return [Integer] Глобальный номер события: в пределах одного объекта больший номер новее,
-      #   меньший — опоздавшая доставка, её нужно отбросить. У репетиции (test: true) всегда 0.
+      # @return [Integer] The global event number: within one object a higher number is newer, a
+      #   lower one is a late delivery and must be discarded. Always 0 on a rehearsal (test: true).
       attr_reader :sequence
-      # @return [String] api (через интеграцию) | manual (из кабинета). Values:
+      # @return [String] api (via the integration) | manual (from the dashboard). Values:
       #   {Oblodai::Enums::PayoutSource}.
       attr_reader :source
-      # @return [String] Статус выплаты: pending (создана, ждёт) | approved (одобрена) |
-      #   awaiting_cosign (ждёт второй подписи) | broadcasting (отправляется) | sent (отправлена, ждёт
-      #   подтверждений) | confirmed (подтверждена — готово) | failed | cancelled. Значение можно
-      #   передать обратно в фильтр истории как есть. Values: {Oblodai::Enums::PayoutStatus}.
+      # @return [String] Payout status: pending (created, waiting) | approved (approved) |
+      #   awaiting_cosign (waiting for the second signature) | broadcasting (being broadcast) | sent
+      #   (sent, awaiting confirmations) | confirmed (confirmed — done) | failed | cancelled. The
+      #   value can be passed back to the history filter as is. Values:
+      #   {Oblodai::Enums::PayoutStatus}.
       attr_reader :status
-      # @return [String] Хеш транзакции в блокчейне (появляется после отправки).
+      # @return [String] The blockchain transaction hash (appears after sending).
       attr_reader :txid
-      # @return [String] Вид события: payment | payout | wallet | conversion — какое тело пришло.
+      # @return [String] Event kind: payment | payout | wallet | conversion — which body arrived.
       attr_reader :type
-      # @return [String] Время последнего изменения (ISO 8601).
+      # @return [String] Time of the last change (ISO 8601).
       attr_reader :updated_at
-      # @return [String] Идентификатор выплаты.
+      # @return [String] Payout id.
       attr_reader :uuid
-      # @return [String, nil] Ваш номер (reference) выплаты. У возврата — null: возврат не имеет
-      #   вашего идентификатора, см. payment_order_id.
+      # @return [String, nil] Your payout number (reference). null for a refund: a refund has no
+      #   identifier of yours, see payment_order_id.
       attr_reader :order_id
-      # @return [String, nil] Ваш order_id платежа, по которому сделан возврат (null у обычной
-      #   выплаты). У возврата собственного order_id нет — он приходит null, а сверять возврат с
-      #   заказом нужно по этому полю.
+      # @return [String, nil] Your order_id of the payment that was refunded (null for a regular
+      #   payout). A refund has no order_id of its own — it comes as null, so match a refund to an
+      #   order by this field.
       attr_reader :payment_order_id
-      # @return [String, nil] Идентификатор возвращаемого платежа (null, если это не возврат).
+      # @return [String, nil] The id of the payment being refunded (null if this is not a refund).
       attr_reader :refund_for
-      # @return [Boolean, nil] Есть только у репетиции (/v1/test-webhook/*,
-      #   /v1/payment/testing-webhook) и всегда true — внутри подписи. Боевое событие этого поля не
-      #   несёт никогда: тело с test: true обработчик обязан игнорировать, даже если подпись верна.
+      # @return [Boolean, nil] Present only on a rehearsal (/v1/test-webhook/*,
+      #   /v1/payment/testing-webhook) and always true — inside the signature. A live event never
+      #   carries this field: your handler must ignore a body with test: true even if the signature is
+      #   valid.
       attr_reader :test
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -9586,11 +9968,11 @@ module Oblodai
       # JSON names of every field this release knows.
       FIELDS = %w[currency decimals fiat].freeze
 
-      # @return [String] Код для поля currency при создании счёта.
+      # @return [String] The code for the currency field when creating an invoice.
       attr_reader :currency
-      # @return [Integer] Знаков после запятой.
+      # @return [Integer] Decimal places.
       attr_reader :decimals
-      # @return [Boolean] Фиат: счёт в нём выставляется, но оплачивается монетой.
+      # @return [Boolean] Fiat: an invoice can be priced in it, but is paid with a coin.
       attr_reader :fiat
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -9650,100 +10032,109 @@ module Oblodai
         payer_currency rate_expires_at required_confirmations status txid updated_at url url_return url_success uuid
       ].freeze
 
-      # @return [String] Адрес, на который клиент отправляет деньги. На XRP это классический r-адрес
-      #   ОБЩЕГО кошелька — платёж обязан нести destination_tag, иначе сеть его отклонит.
+      # @return [String] The address the customer sends money to. On XRP this is the classic
+      #   r-address of a SHARED wallet — the payment must carry destination_tag, otherwise the network
+      #   rejects it.
       attr_reader :address
-      # @return [String] Только XLM: те же реквизиты одной строкой — muxed-адрес M… (SEP-23), адрес
-      #   и memo вместе; его же кодирует QR. Пусто на остальных сетях.
+      # @return [String] XLM only: the same payment details in one string — a muxed M… address
+      #   (SEP-23), address and memo together; the QR code encodes it as well. Empty on other
+      #   networks.
       attr_reader :address_muxed
-      # @return [String] QR-код адреса как PNG data:-URI — можно сразу в <img src>. На XRP кодирует
-      #   X-address (адрес+тег одной строкой).
+      # @return [String] The address QR code as a PNG data: URI — can go straight into <img src>. On
+      #   XRP it encodes the X-address (address + tag in one string).
       attr_reader :address_qr_code
-      # @return [String] Только XRP: те же реквизиты одной строкой в формате X-address (XLS-5) —
-      #   адрес и тег вместе; его же кодирует QR. Пусто на остальных сетях.
+      # @return [String] XRP only: the same payment details in one string in X-address format
+      #   (XLS-5) — address and tag together; the QR code encodes it as well. Empty on other networks.
       attr_reader :address_xaddress
-      # @return [BigDecimal] Сумма к оплате в валюте цены (например, в USD).
+      # @return [BigDecimal] The amount to pay in the price currency (e.g. USD).
       attr_reader :amount
-      # @return [String] Сколько уже подтверждённо оплачено, в крипте оплаты; всегда строка (0, если
-      #   ничего не пришло). Пусто, пока валюта оплаты не выбрана (счёт без валюты).
+      # @return [String] How much has already been paid and confirmed, in the payment crypto; always
+      #   a string (0 if nothing has arrived). Empty until the payment currency is chosen (an invoice
+      #   without a currency).
       attr_reader :amount_paid
-      # @return [String] Сколько ещё осталось доплатить (к оплате − оплачено); 0, если хватает.
-      #   Пусто, пока валюта оплаты не выбрана (счёт без валюты).
+      # @return [String] How much is still left to pay (due − paid); 0 if enough has been paid.
+      #   Empty until the payment currency is chosen (an invoice without a currency).
       attr_reader :amount_remaining
-      # @return [Integer] Текущее число подтверждений входящего платежа.
+      # @return [Integer] The current number of confirmations of the incoming payment.
       attr_reader :confirmations
-      # @return [String] Время создания (ISO 8601).
+      # @return [String] Creation time (ISO 8601).
       attr_reader :created_at
-      # @return [String] Валюта цены: фиат (USD, EUR, RUB, JPY… — см. pricing_currencies) или
-      #   монета. Говорит, сколько счёт СТОИТ, а не чем за него платят (это payer_currency).
+      # @return [String] The price currency: fiat (USD, EUR, RUB, JPY… — see pricing_currencies) or
+      #   a coin. It says how much the invoice COSTS, not what it is paid with (that is
+      #   payer_currency).
       attr_reader :currency
-      # @return [String] Только XRP: числовой destination tag, который клиент ОБЯЗАН указать в
-      #   переводе (поле «тег/memo получателя» на бирже или в кошельке). Пусто на остальных сетях.
+      # @return [String] XRP only: the numeric destination tag the customer MUST specify in the
+      #   transfer (the "recipient tag/memo" field at the exchange or in the wallet). Empty on other
+      #   networks.
       attr_reader :destination_tag
-      # @return [String] Когда истекает счёт (ISO 8601, как и все временные поля).
+      # @return [String] When the invoice expires (ISO 8601, like all time fields).
       attr_reader :expired_at
-      # @return [Boolean] Можно ли сейчас оплатить картой через он-рамп.
+      # @return [Boolean] Whether paying by card via an on-ramp is possible right now.
       attr_reader :fiat_purchase_available
-      # @return [Boolean] true — статус финальный, больше не изменится.
+      # @return [Boolean] true — the status is final and will not change again.
       attr_reader :is_final
-      # @return [Boolean] true — это валюто-агностичная ссылка, клиент ещё не выбрал валюту/сеть.
+      # @return [Boolean] true — this is a currency-agnostic link; the customer has not chosen the
+      #   currency/network yet.
       attr_reader :is_multi
-      # @return [String] Только XLM (Stellar): числовой memo (тип ID), который клиент ОБЯЗАН указать
-      #   в переводе — поле «memo» на бирже или в кошельке. Пусто на остальных сетях.
+      # @return [String] XLM (Stellar) only: the numeric memo (ID type) the customer MUST specify in
+      #   the transfer — the "memo" field at the exchange or in the wallet. Empty on other networks.
       attr_reader :memo
-      # @return [String] Ваша скидка или наценка для ВЫБРАННОГО способа оплаты, в валюте оплаты: на
-      #   столько сдвинулась сумма плательщика из-за настройки по этой монете и сети. Положительное —
-      #   плательщик платит МЕНЬШЕ (скидка), отрицательное — больше (наценка). Пусто, если настройки
-      #   для метода нет.
+      # @return [String] Your discount or surcharge for the CHOSEN payment method, in the payment
+      #   currency: how much the payer's amount shifted because of the setting for this coin and
+      #   network. Positive — the payer pays LESS (discount), negative — more (surcharge). Empty if
+      #   there is no setting for the method.
       attr_reader :method_adjustment
-      # @return [Integer] Та же скидка/наценка в базисных пунктах (так она переживает переоценку
-      #   курса). Знак тот же, что в настройке скидок: ПЛЮС — скидка, МИНУС — наценка.
+      # @return [Integer] The same discount/surcharge in basis points (this way it survives a rate
+      #   re-quote). The sign is the same as in the discount setting: PLUS — a discount, MINUS — a
+      #   surcharge.
       attr_reader :method_adjustment_bps
-      # @return [String] Сеть блокчейна (например, tron).
+      # @return [String] Blockchain network (e.g. tron).
       attr_reader :network
-      # @return [String] Сетевая надбавка плательщика в валюте оплаты: стоимость сбора депозита в
-      #   выбранной сети (активация адреса, если адрес новый, плюс энергия/газ с запасом),
-      #   зафиксированная при выборе сети. Пусто до выбора сети; 0, если надбавка выключена.
+      # @return [String] The payer's network surcharge in the payment currency: the cost of sweeping
+      #   the deposit on the chosen network (address activation, if the address is new, plus
+      #   energy/gas with a margin), locked in when the network is chosen. Empty until the network is
+      #   chosen; 0 if the surcharge is disabled.
       attr_reader :network_surcharge
-      # @return [Integer] Та же надбавка в базисных пунктах от суммы к оплате (так она переживает
-      #   переоценку курса).
+      # @return [Integer] The same surcharge in basis points of the amount due (this way it survives
+      #   a rate re-quote).
       attr_reader :network_surcharge_bps
-      # @return [String] Ваш номер заказа, который вы передали при создании.
+      # @return [String] Your order number that you passed at creation.
       attr_reader :order_id
-      # @return [String] Сколько нужно отправить в крипте оплаты. Пусто, пока валюта оплаты не
-      #   выбрана (счёт без валюты).
+      # @return [String] How much must be sent in the payment crypto. Empty until the payment
+      #   currency is chosen (an invoice without a currency).
       attr_reader :payer_amount
-      # @return [String] Валюта, в которой платит клиент (например, USDT). Пусто у
-      #   валюто-агностичного счёта (is_multi), пока клиент не выбрал монету — валюты расчёта у него
-      #   ещё нет.
+      # @return [String] The currency the customer pays in (e.g. USDT). Empty for a
+      #   currency-agnostic invoice (is_multi) until the customer picks a coin — it has no settlement
+      #   currency yet.
       attr_reader :payer_currency
-      # @return [String] До какого момента действует зафиксированный payer_amount (ISO 8601; окно ~5
-      #   мин, после него страница оплаты перекотирует счёт). Пусто, когда перекотировки уже не будет:
-      #   валюта не выбрана, депозит замечен, счёт вышел из created или истёк — сумма зафиксирована
-      #   навсегда.
+      # @return [String] Until when the locked payer_amount is valid (ISO 8601; a ~5 min window,
+      #   after which the payment page re-quotes the invoice). Empty when there will be no more
+      #   re-quotes: the currency has not been chosen, a deposit has been seen, the invoice has left
+      #   created or expired — the amount is locked for good.
       attr_reader :rate_expires_at
-      # @return [Integer] Сколько подтверждений нужно для зачисления (зависит от суммы и сети).
+      # @return [Integer] How many confirmations are required for crediting (depends on the amount
+      #   and the network).
       attr_reader :required_confirmations
-      # @return [String] Статус: select (клиент выбирает валюту) | created (ждём оплату) |
-      #   confirm_check (видим оплату, ждём подтверждений; при amount_remaining > 0 — частичная, ждём
-      #   остаток) | paid (оплачено) | paid_over (переплата) | wrong_amount (недоплата, срок вышел) |
-      #   expired (просрочен) | cancelled (отменён) | under_review (поступление задержано на проверке,
-      #   разбирает оператор). Values: {Oblodai::Enums::PaymentStatus}.
+      # @return [String] Status: select (the customer is choosing a currency) | created (awaiting
+      #   payment) | confirm_check (payment seen, awaiting confirmations; with amount_remaining > 0 —
+      #   partial, awaiting the remainder) | paid (paid) | paid_over (overpaid) | wrong_amount
+      #   (underpaid, expired) | expired (expired) | cancelled (cancelled) | under_review (the deposit
+      #   is held for review, an operator is handling it). Values: {Oblodai::Enums::PaymentStatus}.
       attr_reader :status
-      # @return [String] Хеш входящей транзакции (когда замечена).
+      # @return [String] The hash of the incoming transaction (once seen).
       attr_reader :txid
-      # @return [String] Время последнего изменения (ISO 8601).
+      # @return [String] Time of the last change (ISO 8601).
       attr_reader :updated_at
-      # @return [String] Ссылка на готовую страницу оплаты.
+      # @return [String] A link to the ready-made payment page.
       attr_reader :url
-      # @return [String] Ссылка «вернуться в магазин» до оплаты.
+      # @return [String] The "back to store" link before payment.
       attr_reader :url_return
-      # @return [String] Куда перенаправить после успешной оплаты.
+      # @return [String] Where to redirect after a successful payment.
       attr_reader :url_success
-      # @return [String] Наш идентификатор платежа (используйте его в info/refund).
+      # @return [String] Our payment identifier (use it in info/refund).
       attr_reader :uuid
-      # @return [Array<Oblodai::Models::AcceptedMethod>, nil] Способы оплаты, из которых выбирает
-      #   покупатель; есть только у счёта в статусе select.
+      # @return [Array<Oblodai::Models::AcceptedMethod>, nil] The payment methods the buyer chooses
+      #   from; present only on an invoice in status select.
       attr_reader :accepted
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -9927,95 +10318,104 @@ module Oblodai
         required_confirmations status txid updated_at url url_return url_success uuid
       ].freeze
 
-      # @return [String] Адрес, на который клиент отправляет деньги. На XRP это классический r-адрес
-      #   ОБЩЕГО кошелька — платёж обязан нести destination_tag, иначе сеть его отклонит.
+      # @return [String] The address the customer sends money to. On XRP this is the classic
+      #   r-address of a SHARED wallet — the payment must carry destination_tag, otherwise the network
+      #   rejects it.
       attr_reader :address
-      # @return [String] Только XLM: те же реквизиты одной строкой — muxed-адрес M… (SEP-23), адрес
-      #   и memo вместе; его же кодирует QR. Пусто на остальных сетях.
+      # @return [String] XLM only: the same payment details in one string — a muxed M… address
+      #   (SEP-23), address and memo together; the QR code encodes it as well. Empty on other
+      #   networks.
       attr_reader :address_muxed
-      # @return [String] QR-код адреса как PNG data:-URI — можно сразу в <img src>. На XRP кодирует
-      #   X-address (адрес+тег одной строкой).
+      # @return [String] The address QR code as a PNG data: URI — can go straight into <img src>. On
+      #   XRP it encodes the X-address (address + tag in one string).
       attr_reader :address_qr_code
-      # @return [String] Только XRP: те же реквизиты одной строкой в формате X-address (XLS-5) —
-      #   адрес и тег вместе; его же кодирует QR. Пусто на остальных сетях.
+      # @return [String] XRP only: the same payment details in one string in X-address format
+      #   (XLS-5) — address and tag together; the QR code encodes it as well. Empty on other networks.
       attr_reader :address_xaddress
-      # @return [BigDecimal] Сумма к оплате в валюте цены (например, в USD).
+      # @return [BigDecimal] The amount to pay in the price currency (e.g. USD).
       attr_reader :amount
-      # @return [String] Сколько уже подтверждённо оплачено, в крипте оплаты; всегда строка (0, если
-      #   ничего не пришло). Пусто, пока валюта оплаты не выбрана (счёт без валюты).
+      # @return [String] How much has already been paid and confirmed, in the payment crypto; always
+      #   a string (0 if nothing has arrived). Empty until the payment currency is chosen (an invoice
+      #   without a currency).
       attr_reader :amount_paid
-      # @return [String] Сколько ещё осталось доплатить (к оплате − оплачено); 0, если хватает.
-      #   Пусто, пока валюта оплаты не выбрана (счёт без валюты).
+      # @return [String] How much is still left to pay (due − paid); 0 if enough has been paid.
+      #   Empty until the payment currency is chosen (an invoice without a currency).
       attr_reader :amount_remaining
-      # @return [Integer] Текущее число подтверждений входящего платежа.
+      # @return [Integer] The current number of confirmations of the incoming payment.
       attr_reader :confirmations
-      # @return [String] Время создания (ISO 8601).
+      # @return [String] Creation time (ISO 8601).
       attr_reader :created_at
-      # @return [String] Валюта цены: фиат (USD, EUR, RUB, JPY… — см. pricing_currencies) или
-      #   монета. Говорит, сколько счёт СТОИТ, а не чем за него платят (это payer_currency).
+      # @return [String] The price currency: fiat (USD, EUR, RUB, JPY… — see pricing_currencies) or
+      #   a coin. It says how much the invoice COSTS, not what it is paid with (that is
+      #   payer_currency).
       attr_reader :currency
-      # @return [String] Только XRP: числовой destination tag, который клиент ОБЯЗАН указать в
-      #   переводе (поле «тег/memo получателя» на бирже или в кошельке). Пусто на остальных сетях.
+      # @return [String] XRP only: the numeric destination tag the customer MUST specify in the
+      #   transfer (the "recipient tag/memo" field at the exchange or in the wallet). Empty on other
+      #   networks.
       attr_reader :destination_tag
-      # @return [String] Когда истекает счёт (ISO 8601, как и все временные поля).
+      # @return [String] When the invoice expires (ISO 8601, like all time fields).
       attr_reader :expired_at
-      # @return [Boolean] true — статус финальный, больше не изменится.
+      # @return [Boolean] true — the status is final and will not change again.
       attr_reader :is_final
-      # @return [Boolean] true — это валюто-агностичная ссылка, клиент ещё не выбрал валюту/сеть.
+      # @return [Boolean] true — this is a currency-agnostic link; the customer has not chosen the
+      #   currency/network yet.
       attr_reader :is_multi
-      # @return [String] Только XLM (Stellar): числовой memo (тип ID), который клиент ОБЯЗАН указать
-      #   в переводе — поле «memo» на бирже или в кошельке. Пусто на остальных сетях.
+      # @return [String] XLM (Stellar) only: the numeric memo (ID type) the customer MUST specify in
+      #   the transfer — the "memo" field at the exchange or in the wallet. Empty on other networks.
       attr_reader :memo
-      # @return [String] Ваша скидка или наценка для ВЫБРАННОГО способа оплаты, в валюте оплаты: на
-      #   столько сдвинулась сумма плательщика из-за настройки по этой монете и сети. Положительное —
-      #   плательщик платит МЕНЬШЕ (скидка), отрицательное — больше (наценка). Пусто, если настройки
-      #   для метода нет.
+      # @return [String] Your discount or surcharge for the CHOSEN payment method, in the payment
+      #   currency: how much the payer's amount shifted because of the setting for this coin and
+      #   network. Positive — the payer pays LESS (discount), negative — more (surcharge). Empty if
+      #   there is no setting for the method.
       attr_reader :method_adjustment
-      # @return [Integer] Та же скидка/наценка в базисных пунктах (так она переживает переоценку
-      #   курса). Знак тот же, что в настройке скидок: ПЛЮС — скидка, МИНУС — наценка.
+      # @return [Integer] The same discount/surcharge in basis points (this way it survives a rate
+      #   re-quote). The sign is the same as in the discount setting: PLUS — a discount, MINUS — a
+      #   surcharge.
       attr_reader :method_adjustment_bps
-      # @return [String] Сеть блокчейна (например, tron).
+      # @return [String] Blockchain network (e.g. tron).
       attr_reader :network
-      # @return [String] Сетевая надбавка плательщика в валюте оплаты: стоимость сбора депозита в
-      #   выбранной сети (активация адреса, если адрес новый, плюс энергия/газ с запасом),
-      #   зафиксированная при выборе сети. Пусто до выбора сети; 0, если надбавка выключена.
+      # @return [String] The payer's network surcharge in the payment currency: the cost of sweeping
+      #   the deposit on the chosen network (address activation, if the address is new, plus
+      #   energy/gas with a margin), locked in when the network is chosen. Empty until the network is
+      #   chosen; 0 if the surcharge is disabled.
       attr_reader :network_surcharge
-      # @return [Integer] Та же надбавка в базисных пунктах от суммы к оплате (так она переживает
-      #   переоценку курса).
+      # @return [Integer] The same surcharge in basis points of the amount due (this way it survives
+      #   a rate re-quote).
       attr_reader :network_surcharge_bps
-      # @return [String] Ваш номер заказа, который вы передали при создании.
+      # @return [String] Your order number that you passed at creation.
       attr_reader :order_id
-      # @return [String] Сколько нужно отправить в крипте оплаты. Пусто, пока валюта оплаты не
-      #   выбрана (счёт без валюты).
+      # @return [String] How much must be sent in the payment crypto. Empty until the payment
+      #   currency is chosen (an invoice without a currency).
       attr_reader :payer_amount
-      # @return [String] Валюта, в которой платит клиент (например, USDT). Пусто у
-      #   валюто-агностичного счёта (is_multi), пока клиент не выбрал монету — валюты расчёта у него
-      #   ещё нет.
+      # @return [String] The currency the customer pays in (e.g. USDT). Empty for a
+      #   currency-agnostic invoice (is_multi) until the customer picks a coin — it has no settlement
+      #   currency yet.
       attr_reader :payer_currency
-      # @return [String] До какого момента действует зафиксированный payer_amount (ISO 8601; окно ~5
-      #   мин, после него страница оплаты перекотирует счёт). Пусто, когда перекотировки уже не будет:
-      #   валюта не выбрана, депозит замечен, счёт вышел из created или истёк — сумма зафиксирована
-      #   навсегда.
+      # @return [String] Until when the locked payer_amount is valid (ISO 8601; a ~5 min window,
+      #   after which the payment page re-quotes the invoice). Empty when there will be no more
+      #   re-quotes: the currency has not been chosen, a deposit has been seen, the invoice has left
+      #   created or expired — the amount is locked for good.
       attr_reader :rate_expires_at
-      # @return [Integer] Сколько подтверждений нужно для зачисления (зависит от суммы и сети).
+      # @return [Integer] How many confirmations are required for crediting (depends on the amount
+      #   and the network).
       attr_reader :required_confirmations
-      # @return [String] Статус: select (клиент выбирает валюту) | created (ждём оплату) |
-      #   confirm_check (видим оплату, ждём подтверждений; при amount_remaining > 0 — частичная, ждём
-      #   остаток) | paid (оплачено) | paid_over (переплата) | wrong_amount (недоплата, срок вышел) |
-      #   expired (просрочен) | cancelled (отменён) | under_review (поступление задержано на проверке,
-      #   разбирает оператор). Values: {Oblodai::Enums::PaymentStatus}.
+      # @return [String] Status: select (the customer is choosing a currency) | created (awaiting
+      #   payment) | confirm_check (payment seen, awaiting confirmations; with amount_remaining > 0 —
+      #   partial, awaiting the remainder) | paid (paid) | paid_over (overpaid) | wrong_amount
+      #   (underpaid, expired) | expired (expired) | cancelled (cancelled) | under_review (the deposit
+      #   is held for review, an operator is handling it). Values: {Oblodai::Enums::PaymentStatus}.
       attr_reader :status
-      # @return [String] Хеш входящей транзакции (когда замечена).
+      # @return [String] The hash of the incoming transaction (once seen).
       attr_reader :txid
-      # @return [String] Время последнего изменения (ISO 8601).
+      # @return [String] Time of the last change (ISO 8601).
       attr_reader :updated_at
-      # @return [String] Ссылка на готовую страницу оплаты.
+      # @return [String] A link to the ready-made payment page.
       attr_reader :url
-      # @return [String] Ссылка «вернуться в магазин» до оплаты.
+      # @return [String] The "back to store" link before payment.
       attr_reader :url_return
-      # @return [String] Куда перенаправить после успешной оплаты.
+      # @return [String] Where to redirect after a successful payment.
       attr_reader :url_success
-      # @return [String] Наш идентификатор платежа (используйте его в info/refund).
+      # @return [String] Our payment identifier (use it in info/refund).
       attr_reader :uuid
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -10181,7 +10581,7 @@ module Oblodai
       # JSON names of every field this release knows.
       FIELDS = ["address"].freeze
 
-      # @return [String] Произвольный адрес для рендера в QR-код (PNG как data:-URI).
+      # @return [String] An arbitrary address to render into a QR code (PNG as a data: URI).
       attr_reader :address
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -10223,17 +10623,18 @@ module Oblodai
       # JSON names of every field this release knows.
       FIELDS = %w[code earnings_by_asset link referred_count tier_bps week].freeze
 
-      # @return [String] Реферальный код мерчанта.
+      # @return [String] The merchant's referral code.
       attr_reader :code
-      # @return [Hash{String => String}] Заработано по активам, десятичными строками.
+      # @return [Hash{String => String}] Earned per asset, as decimal strings.
       attr_reader :earnings_by_asset
-      # @return [String] Реферальная ссылка (или сам код, если публичный адрес не настроен).
+      # @return [String] The referral link (or the code itself if the public address is not
+      #   configured).
       attr_reader :link
-      # @return [Integer] Сколько мерчантов приглашено.
+      # @return [Integer] How many merchants have been invited.
       attr_reader :referred_count
-      # @return [Array<Integer>] Доля нашей комиссии по месяцам, в базисных пунктах.
+      # @return [Array<Integer>] The share of our fee by month, in basis points.
       attr_reader :tier_bps
-      # @return [Oblodai::Models::ReferralWeek] То же за скользящие 7 дней.
+      # @return [Oblodai::Models::ReferralWeek] The same over a rolling 7 days.
       attr_reader :week
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -10295,9 +10696,9 @@ module Oblodai
       # JSON names of every field this release knows.
       FIELDS = %w[earnings_by_asset referred_count].freeze
 
-      # @return [Hash{String => String}] Заработано за 7 дней по активам, десятичными строками.
+      # @return [Hash{String => String}] Earned over 7 days per asset, as decimal strings.
       attr_reader :earnings_by_asset
-      # @return [Integer] Приглашено за 7 дней.
+      # @return [Integer] Invited over 7 days.
       attr_reader :referred_count
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -10343,23 +10744,24 @@ module Oblodai
       # JSON names of every field this release knows.
       FIELDS = %w[address amount from_currency network order_id reference uuid].freeze
 
-      # @return [String] Необязательный ключ идемпотентности возврата: различает два разных возврата
-      #   с одинаковыми (платёж, адрес, сумма); повтор с тем же значением дедуплицируется. Это не
-      #   order_id.
+      # @return [String] An optional refund idempotency key: distinguishes two different refunds
+      #   with the same (payment, address, amount); a retry with the same value is deduplicated. This
+      #   is not order_id.
       attr_reader :reference
-      # @return [String, nil] Адрес назначения возврата. По умолчанию — payer_address платежа;
-      #   обязателен только для Bitcoin/UTXO.
+      # @return [String, nil] Refund destination address. Defaults to the payment's payer_address;
+      #   required only for Bitcoin/UTXO.
       attr_reader :address
-      # @return [BigDecimal, nil] Частичная сумма. По умолчанию — вся полученная.
+      # @return [BigDecimal, nil] A partial amount. Defaults to the full received amount.
       attr_reader :amount
-      # @return [String, nil] Профинансировать возврат конвертацией баланса: только USDT → валюта
-      #   платежа. Нужен, когда монета платежа уже сведена автообменом.
+      # @return [String, nil] Fund the refund by converting balance: USDT → the payment currency
+      #   only. Needed when the payment coin has already been converted by auto-exchange.
       attr_reader :from_currency
-      # @return [String, nil] Сеть.
+      # @return [String, nil] Network.
       attr_reader :network
-      # @return [String, nil] Ваша ссылка на заказ платежа. Нужен uuid или order_id.
+      # @return [String, nil] Your order reference of the payment. Either uuid or order_id is
+      #   required.
       attr_reader :order_id
-      # @return [String, nil] Идентификатор платежа. Нужен uuid или order_id.
+      # @return [String, nil] Payment id. Either uuid or order_id is required.
       attr_reader :uuid
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -10425,13 +10827,12 @@ module Oblodai
       # JSON names of every field this release knows.
       FIELDS = %w[on_error refunds].freeze
 
-      # @return [Array<Oblodai::Models::RefundBatchItem>] Массив от 1 до 5000 элементов — те же
-      #   поля, что у POST /v1/payment/refund; у каждого элемента обязательны reference (ключ
-      #   идемпотентности) и uuid либо order_id платежа.
+      # @return [Array<Oblodai::Models::RefundBatchItem>] An array of 1 to 5000 items — the same
+      #   fields as in POST /v1/payment/refund; each item requires reference (the idempotency key) and
+      #   the payment's uuid or order_id.
       attr_reader :refunds
-      # @return [String, nil] Что делать при ошибке элемента: continue (по умолчанию) — обрабатывать
-      #   остальные; stop — прекратить обработку после первой ошибки. Values:
-      #   {Oblodai::Enums::BatchOnError}.
+      # @return [String, nil] What to do when an item fails: continue (default) — process the rest;
+      #   stop — stop processing after the first error. Values: {Oblodai::Enums::BatchOnError}.
       attr_reader :on_error
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -10477,9 +10878,11 @@ module Oblodai
       # JSON names of every field this release knows.
       FIELDS = %w[configured fee_on_customer].freeze
 
-      # @return [Boolean] true — проект задал настройку сам; false — действует умолчание шлюза.
+      # @return [Boolean] true — the project set this setting itself; false — the gateway default
+      #   applies.
       attr_reader :configured
-      # @return [Boolean] Действующее значение: настройка проекта, а без неё — умолчание шлюза.
+      # @return [Boolean] The effective value: the project setting, or the gateway default if there
+      #   is none.
       attr_reader :fee_on_customer
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -10525,23 +10928,24 @@ module Oblodai
       # JSON names of every field this release knows.
       FIELDS = %w[address amount from_currency network order_id reference uuid].freeze
 
-      # @return [String, nil] Адрес назначения возврата. По умолчанию — payer_address платежа;
-      #   обязателен только для Bitcoin/UTXO.
+      # @return [String, nil] Refund destination address. Defaults to the payment's payer_address;
+      #   required only for Bitcoin/UTXO.
       attr_reader :address
-      # @return [BigDecimal, nil] Частичная сумма. По умолчанию — вся полученная.
+      # @return [BigDecimal, nil] A partial amount. Defaults to the full received amount.
       attr_reader :amount
-      # @return [String, nil] Профинансировать возврат конвертацией баланса: только USDT → валюта
-      #   платежа. Нужен, когда монета платежа уже сведена автообменом.
+      # @return [String, nil] Fund the refund by converting balance: USDT → the payment currency
+      #   only. Needed when the payment coin has already been converted by auto-exchange.
       attr_reader :from_currency
-      # @return [String, nil] Сеть.
+      # @return [String, nil] Network.
       attr_reader :network
-      # @return [String, nil] Ваша ссылка на заказ платежа. Нужен uuid или order_id.
+      # @return [String, nil] Your order reference of the payment. Either uuid or order_id is
+      #   required.
       attr_reader :order_id
-      # @return [String, nil] Необязательный ключ идемпотентности возврата: различает два разных
-      #   возврата с одинаковыми (платёж, адрес, сумма); повтор с тем же значением дедуплицируется.
-      #   Это не order_id.
+      # @return [String, nil] An optional refund idempotency key: distinguishes two different
+      #   refunds with the same (payment, address, amount); a retry with the same value is
+      #   deduplicated. This is not order_id.
       attr_reader :reference
-      # @return [String, nil] Идентификатор платежа. Нужен uuid или order_id.
+      # @return [String, nil] Payment id. Either uuid or order_id is required.
       attr_reader :uuid
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -10607,7 +11011,7 @@ module Oblodai
       # JSON names of every field this release knows.
       FIELDS = ["url"].freeze
 
-      # @return [String] HTTPS-URL коллбэка. SSRF-проверка: приватные и локальные адреса запрещены.
+      # @return [String] HTTPS callback URL. SSRF check: private and local addresses are forbidden.
       attr_reader :url
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -10649,12 +11053,12 @@ module Oblodai
       # JSON names of every field this release knows.
       FIELDS = %w[endpoint_id secret url].freeze
 
-      # @return [String] Идентификатор эндпоинта.
+      # @return [String] Endpoint id.
       attr_reader :endpoint_id
-      # @return [String] Зарегистрированный URL коллбэка.
+      # @return [String] The registered callback URL.
       attr_reader :url
-      # @return [String, nil] Секрет подписи — только в ответе на ПЕРВУЮ регистрацию, показывается
-      #   один раз; при смене URL его нет (потеряли — перевыпустите: /v1/webhooks/rotate-secret).
+      # @return [String, nil] The signing secret — only in the response to the FIRST registration,
+      #   shown once; absent when the URL changes (lost it? reissue it: /v1/webhooks/rotate-secret).
       attr_reader :secret
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -10704,7 +11108,7 @@ module Oblodai
       # JSON names of every field this release knows.
       FIELDS = ["delivery_id"].freeze
 
-      # @return [String] Идентификатор доставки из GET /v1/sandbox/webhooks.
+      # @return [String] The delivery id from GET /v1/sandbox/webhooks.
       attr_reader :delivery_id
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -10746,9 +11150,9 @@ module Oblodai
       # JSON names of every field this release knows.
       FIELDS = %w[delivery_id ok].freeze
 
-      # @return [String] Идентификатор доставки, как передан.
+      # @return [String] The delivery id, as passed.
       attr_reader :delivery_id
-      # @return [Boolean] Всегда true: доставка поставлена в очередь; иначе — ошибка.
+      # @return [Boolean] Always true: the delivery has been queued; otherwise — an error.
       attr_reader :ok
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -10794,7 +11198,7 @@ module Oblodai
       # JSON names of every field this release knows.
       FIELDS = ["id"].freeze
 
-      # @return [String] Идентификатор доставки из журнала (POST /v1/webhooks/deliveries).
+      # @return [String] The delivery id from the log (POST /v1/webhooks/deliveries).
       attr_reader :id
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -10836,13 +11240,13 @@ module Oblodai
       # JSON names of every field this release knows.
       FIELDS = %w[id ok status].freeze
 
-      # @return [String] Идентификатор доставки.
+      # @return [String] Delivery id.
       attr_reader :id
-      # @return [Boolean] true — этот вызов вернул доставку в очередь; false — она уже была в
-      #   очереди или доставлена (повтор вызова ничего не меняет).
+      # @return [Boolean] true — this call re-queued the delivery; false — it was already queued or
+      #   delivered (repeating the call changes nothing).
       attr_reader :ok
-      # @return [String] Статус доставки после вызова: pending — снова в очереди; delivered — уже
-      #   доставлена, повторять нечего. Values: {Oblodai::Enums::WebhookDeliveryStatus}.
+      # @return [String] The delivery status after the call: pending — queued again; delivered —
+      #   already delivered, nothing to repeat. Values: {Oblodai::Enums::WebhookDeliveryStatus}.
       attr_reader :status
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -10892,14 +11296,14 @@ module Oblodai
       # JSON names of every field this release knows.
       FIELDS = %w[balances_zeroed invoices_cancelled payout_links_cancelled payout_links_left].freeze
 
-      # @return [Integer] Сколько балансов (по активам) обнулено компенсирующей проводкой.
+      # @return [Integer] How many balances (per asset) were zeroed by a compensating posting.
       attr_reader :balances_zeroed
-      # @return [Integer] Сколько открытых счетов отменено.
+      # @return [Integer] How many open invoices were cancelled.
       attr_reader :invoices_cancelled
-      # @return [Integer] Сколько профинансированных выплатных ссылок отменено (резерв вернулся до
-      #   обнуления).
+      # @return [Integer] How many funded payout links were cancelled (the reserve was returned
+      #   before zeroing).
       attr_reader :payout_links_cancelled
-      # @return [Integer] Сколько профинансированных ссылок отменить не удалось — их резерв остался.
+      # @return [Integer] How many funded links could not be cancelled — their reserve remains.
       attr_reader :payout_links_left
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -10953,15 +11357,15 @@ module Oblodai
       # JSON names of every field this release knows.
       FIELDS = %w[amount_kept currency order_id payment_uuid resolution].freeze
 
-      # @return [String] Сколько оставлено мерчанту — всё, что пришло.
+      # @return [String] How much was left to the merchant — everything that arrived.
       attr_reader :amount_kept
-      # @return [String] Валюта оплаты.
+      # @return [String] Payment currency.
       attr_reader :currency
-      # @return [String] Номер заказа мерчанта.
+      # @return [String] The merchant's order number.
       attr_reader :order_id
-      # @return [String] Идентификатор платежа.
+      # @return [String] Payment id.
       attr_reader :payment_uuid
-      # @return [String] Принятое решение: accepted.
+      # @return [String] The decision taken: accepted.
       attr_reader :resolution
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -11025,63 +11429,66 @@ module Oblodai
         network order_id payer_amount payment_order_id refund_for resolution source status txid updated_at uuid
       ].freeze
 
-      # @return [String] Адрес получателя.
+      # @return [String] Recipient address.
       attr_reader :address
-      # @return [BigDecimal] Сумма выплаты в валюте currency, списанная с вашего баланса.
+      # @return [BigDecimal] The payout amount in currency, debited from your balance.
       attr_reader :amount
-      # @return [Boolean] true — выплата ждёт подтверждения (внутренние сценарии; по API-ключу
-      #   всегда false).
+      # @return [Boolean] true — the payout is awaiting approval (internal scenarios; always false
+      #   with an API key).
       attr_reader :approval_required
-      # @return [BigDecimal] Удержанная сетевая комиссия, в валюте выплаты. 0 — комиссию поглотил
-      #   шлюз.
+      # @return [BigDecimal] The withheld network fee, in the payout currency. 0 — the gateway
+      #   absorbed the fee.
       attr_reader :commission
-      # @return [String] Время создания (ISO 8601).
+      # @return [String] Creation time (ISO 8601).
       attr_reader :created_at
-      # @return [String] Код валюты выплаты.
+      # @return [String] Payout currency code.
       attr_reader :currency
-      # @return [String] Подписанная ссылка на PDF-чек этой операции — открывается без API-ключа,
-      #   можно вложить в письмо или отдать получателю. Пусто, если генерация документов не включена.
+      # @return [String] A signed link to the PDF receipt of this operation — opens without an API
+      #   key, can be attached to an email or given to the recipient. Empty if document generation is
+      #   not enabled.
       attr_reader :document_url
-      # @return [String] Кто заплатил сетевую комиссию: gateway — шлюз поглотил её (commission = 0);
-      #   merchant — сумма списания увеличена на комиссию, получатель получает запрошенное целиком
-      #   (is_subtract=true, выплатная ссылка с fee_bearer=merchant); recipient — комиссия удержана из
-      #   выплаты, получателю приходит меньше запрошенного. Values: {Oblodai::Enums::PayoutFeeBearer}.
+      # @return [String] Who paid the network fee: gateway — the gateway absorbed it (commission =
+      #   0); merchant — the debit amount was increased by the fee, the recipient gets the full
+      #   requested amount (is_subtract=true, a payout link with fee_bearer=merchant); recipient — the
+      #   fee was withheld from the payout, the recipient gets less than requested. Values:
+      #   {Oblodai::Enums::PayoutFeeBearer}.
       attr_reader :fee_bearer
-      # @return [Boolean] true — статус финальный (confirmed / failed / cancelled).
+      # @return [Boolean] true — the status is final (confirmed / failed / cancelled).
       attr_reader :is_final
-      # @return [Boolean] true — это возврат платежа, а не обычная выплата.
+      # @return [Boolean] true — this is a payment refund, not a regular payout.
       attr_reader :is_refund
-      # @return [String] Тег/мемо назначения, переданный при создании (TON Jetton, memo-биржи).
-      #   Пусто — без мемо.
+      # @return [String] The destination tag/memo passed at creation (TON Jetton, exchange memos).
+      #   Empty — no memo.
       attr_reader :memo
-      # @return [String] Сеть блокчейна.
+      # @return [String] Blockchain network.
       attr_reader :network
-      # @return [BigDecimal] Сколько реально уходит получателю на адрес: amount − commission.
+      # @return [BigDecimal] How much actually goes to the recipient's address: amount − commission.
       attr_reader :payer_amount
-      # @return [String] Принятое решение: refunded.
+      # @return [String] The decision taken: refunded.
       attr_reader :resolution
-      # @return [String] api (через интеграцию) | manual (из кабинета). Values:
+      # @return [String] api (via the integration) | manual (from the dashboard). Values:
       #   {Oblodai::Enums::PayoutSource}.
       attr_reader :source
-      # @return [String] Статус выплаты: pending (создана, ждёт) | approved (одобрена) |
-      #   awaiting_cosign (ждёт второй подписи) | broadcasting (отправляется) | sent (отправлена, ждёт
-      #   подтверждений) | confirmed (подтверждена — готово) | failed | cancelled. Значение можно
-      #   передать обратно в фильтр истории как есть. Values: {Oblodai::Enums::PayoutStatus}.
+      # @return [String] Payout status: pending (created, waiting) | approved (approved) |
+      #   awaiting_cosign (waiting for the second signature) | broadcasting (being broadcast) | sent
+      #   (sent, awaiting confirmations) | confirmed (confirmed — done) | failed | cancelled. The
+      #   value can be passed back to the history filter as is. Values:
+      #   {Oblodai::Enums::PayoutStatus}.
       attr_reader :status
-      # @return [String] Хеш транзакции в блокчейне (появляется после отправки).
+      # @return [String] The blockchain transaction hash (appears after sending).
       attr_reader :txid
-      # @return [String] Время последнего изменения (ISO 8601).
+      # @return [String] Time of the last change (ISO 8601).
       attr_reader :updated_at
-      # @return [String] Идентификатор выплаты.
+      # @return [String] Payout id.
       attr_reader :uuid
-      # @return [String, nil] Ваш номер (reference) выплаты. У возврата — null: возврат не имеет
-      #   вашего идентификатора, см. payment_order_id.
+      # @return [String, nil] Your payout number (reference). null for a refund: a refund has no
+      #   identifier of yours, see payment_order_id.
       attr_reader :order_id
-      # @return [String, nil] Ваш order_id платежа, по которому сделан возврат (null у обычной
-      #   выплаты). У возврата собственного order_id нет — он приходит null, а сверять возврат с
-      #   заказом нужно по этому полю.
+      # @return [String, nil] Your order_id of the payment that was refunded (null for a regular
+      #   payout). A refund has no order_id of its own — it comes as null, so match a refund to an
+      #   order by this field.
       attr_reader :payment_order_id
-      # @return [String, nil] Идентификатор возвращаемого платежа (null, если это не возврат).
+      # @return [String, nil] The id of the payment being refunded (null if this is not a refund).
       attr_reader :refund_for
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -11207,19 +11614,20 @@ module Oblodai
       # JSON names of every field this release knows.
       FIELDS = %w[action address network order_id reference uuid].freeze
 
-      # @return [String] accept — принять частичную оплату, refund — вернуть плательщику.
+      # @return [String] accept — accept the partial payment, refund — return it to the payer.
       attr_reader :action
-      # @return [String, nil] Только для refund: адрес возврата. По умолчанию — записанный
-      #   payer_address платежа; если он пуст (Bitcoin/UTXO), адрес обязателен, иначе
+      # @return [String, nil] Only for refund: the refund address. Defaults to the payment's
+      #   recorded payer_address; if that is empty (Bitcoin/UTXO), the address is required, otherwise
       #   refund.no_address.
       attr_reader :address
-      # @return [String, nil] Только для refund: сеть возврата, по умолчанию — сеть платежа.
+      # @return [String, nil] Only for refund: the refund network, defaults to the payment's
+      #   network.
       attr_reader :network
-      # @return [String, nil] Ваш идентификатор платежа.
+      # @return [String, nil] Your payment identifier.
       attr_reader :order_id
-      # @return [String, nil] Только для refund: ваш ключ дедупликации возврата.
+      # @return [String, nil] Only for refund: your refund deduplication key.
       attr_reader :reference
-      # @return [String, nil] UUID платежа. Нужен uuid или order_id.
+      # @return [String, nil] Payment UUID. Either uuid or order_id is required.
       attr_reader :uuid
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -11281,14 +11689,14 @@ module Oblodai
       # JSON names of every field this release knows.
       FIELDS = %w[endpoint_id previous_secret_valid_until secret url].freeze
 
-      # @return [String] Идентификатор эндпоинта.
+      # @return [String] Endpoint id.
       attr_reader :endpoint_id
-      # @return [String] До этого момента доставки дополнительно подписываются старым секретом
+      # @return [String] Until this moment deliveries are additionally signed with the old secret
       #   (X-Webhook-Signature-Prev), RFC 3339 UTC.
       attr_reader :previous_secret_valid_until
-      # @return [String] Новый секрет подписи — показывается только здесь.
+      # @return [String] The new signing secret — shown only here.
       attr_reader :secret
-      # @return [String] URL коллбэка.
+      # @return [String] Callback URL.
       attr_reader :url
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -11342,23 +11750,23 @@ module Oblodai
       # JSON names of every field this release knows.
       FIELDS = %w[attempts created_at event_type id last_error payload status updated_at url].freeze
 
-      # @return [Integer] Сделано попыток.
+      # @return [Integer] Attempts made.
       attr_reader :attempts
-      # @return [String] Когда поставлена, RFC 3339 UTC.
+      # @return [String] When queued, RFC 3339 UTC.
       attr_reader :created_at
-      # @return [String] Событие в теле.
+      # @return [String] The event in the body.
       attr_reader :event_type
-      # @return [String] Идентификатор доставки (для replay).
+      # @return [String] Delivery id (for replay).
       attr_reader :id
-      # @return [String] Ошибка последней попытки; пусто, если её не было.
+      # @return [String] The error of the last attempt; empty if there was none.
       attr_reader :last_error
-      # @return [Object] Тело вебхука ровно так, как оно подписано и отправлено.
+      # @return [Object] The webhook body exactly as it was signed and sent.
       attr_reader :payload
-      # @return [String] Состояние доставки. Values: {Oblodai::Enums::WebhookDeliveryStatus}.
+      # @return [String] Delivery state. Values: {Oblodai::Enums::WebhookDeliveryStatus}.
       attr_reader :status
-      # @return [String] Последнее изменение, RFC 3339 UTC.
+      # @return [String] Last change, RFC 3339 UTC.
       attr_reader :updated_at
-      # @return [String] Куда доставляется.
+      # @return [String] Where it is delivered.
       attr_reader :url
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -11432,9 +11840,9 @@ module Oblodai
       # JSON names of every field this release knows.
       FIELDS = %w[items paginate].freeze
 
-      # @return [Array<Oblodai::Models::SandboxDelivery>] Записи этой страницы.
+      # @return [Array<Oblodai::Models::SandboxDelivery>] The records of this page.
       attr_reader :items
-      # @return [Oblodai::Models::Pagination] Блок пагинации.
+      # @return [Oblodai::Models::Pagination] Pagination block.
       attr_reader :paginate
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -11480,13 +11888,14 @@ module Oblodai
       # JSON names of every field this release knows.
       FIELDS = %w[api_key created merchant_id project_id].freeze
 
-      # @return [Oblodai::Models::OnboardKey] Ключ API мерчанта.
+      # @return [Oblodai::Models::OnboardKey] The merchant's API key.
       attr_reader :api_key
-      # @return [Boolean] true — dev store создан сейчас; false — уже был, секрет ключа пуст.
+      # @return [Boolean] true — the dev store was created just now; false — it already existed, the
+      #   key secret is empty.
       attr_reader :created
-      # @return [String] Мерчант.
+      # @return [String] Merchant.
       attr_reader :merchant_id
-      # @return [String] Первый проект мерчанта.
+      # @return [String] The merchant's first project.
       attr_reader :project_id
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -11540,11 +11949,11 @@ module Oblodai
       # JSON names of every field this release knows.
       FIELDS = %w[email order_id uuid].freeze
 
-      # @return [String, nil] Кому отправить. По умолчанию — payer_email, заданный у платежа.
+      # @return [String, nil] Whom to send to. Defaults to the payer_email set on the payment.
       attr_reader :email
-      # @return [String, nil] Ваша ссылка на заказ.
+      # @return [String, nil] Your order reference.
       attr_reader :order_id
-      # @return [String, nil] Идентификатор платежа в Oblodai. Нужен uuid или order_id.
+      # @return [String, nil] The payment id in Oblodai. Either uuid or order_id is required.
       attr_reader :uuid
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -11594,11 +12003,11 @@ module Oblodai
       # JSON names of every field this release knows.
       FIELDS = %w[email ok uuid].freeze
 
-      # @return [String] Кому ушло письмо.
+      # @return [String] Who the email was sent to.
       attr_reader :email
-      # @return [Boolean] Письмо поставлено в очередь отправки; неудача отвечает ошибкой.
+      # @return [Boolean] The email has been queued for sending; a failure responds with an error.
       attr_reader :ok
-      # @return [String] Идентификатор платежа.
+      # @return [String] Payment id.
       attr_reader :uuid
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -11648,10 +12057,10 @@ module Oblodai
       # JSON names of every field this release knows.
       FIELDS = %w[accuracy_percent enabled].freeze
 
-      # @return [Boolean] Включить/выключить допуск
+      # @return [Boolean] Enable/disable the tolerance
       attr_reader :enabled
-      # @return [Integer, nil] Допуск в процентах, 1–5. Обязателен при enabled: true; при enabled:
-      #   false игнорируется (сбрасывается в 0). Кэп 5 %
+      # @return [Integer, nil] Tolerance in percent, 1–5. Required when enabled: true; ignored
+      #   (reset to 0) when enabled: false. Capped at 5 %
       attr_reader :accuracy_percent
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -11697,22 +12106,24 @@ module Oblodai
       # JSON names of every field this release knows.
       FIELDS = %w[enabled min_amount mode sources target].freeze
 
-      # @return [String] Монета, в которую сводится выручка (стейбл). Проверяется на возможность
-      #   ликвидации при сохранении.
+      # @return [String] The coin revenue is converted into (a stablecoin). Checked for liquidity on
+      #   save.
       attr_reader :target
-      # @return [Boolean, nil] Выключатель приказа целиком. Не передан — считается включённым.
+      # @return [Boolean, nil] The master switch for the whole order. If omitted, it is considered
+      #   enabled.
       attr_reader :enabled
-      # @return [String, nil] Пол одной конвертации в долларах, десятичной строкой; пусто —
-      #   умолчание процесса ($10). Ниже него спред съедает больше, чем сводит.
+      # @return [String, nil] The floor for a single conversion in dollars, as a decimal string;
+      #   empty — the process default ($10). Below it the spread eats more than the conversion is
+      #   worth.
       attr_reader :min_amount
-      # @return [String, nil] Режим зачисления: "economy" — заявка в партию казначейской ликвидации,
-      #   зачисляется факт исполнения (комиссия минимальная); "instant" — мгновенно по спред-курсу. Не
-      #   передан — instant: автообмен включают ради мгновенного зачисления, а ждать партию —
-      #   осознанный выбор. Иное значение — 400 request.invalid_mode. Values:
+      # @return [String, nil] The crediting mode: "economy" — an order in a treasury liquidation
+      #   batch, the actual execution is credited (minimal fee); "instant" — immediately at the spread
+      #   rate. Omitted — instant: auto-exchange is enabled for instant crediting, and waiting for a
+      #   batch is a deliberate choice. Any other value — 400 request.invalid_mode. Values:
       #   {Oblodai::Enums::AutoConvertMode}.
       attr_reader :mode
-      # @return [Array<String>, nil] Монеты, которые сводить. Пусто — приказ есть, но не включён ни
-      #   для чего.
+      # @return [Array<String>, nil] The coins to convert. Empty — the order exists but is not
+      #   enabled for anything.
       attr_reader :sources
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -11770,9 +12181,9 @@ module Oblodai
       # JSON names of every field this release knows.
       FIELDS = %w[overpay underpay].freeze
 
-      # @return [Boolean] Возвращать излишек при переплате (paid_over)
+      # @return [Boolean] Refund the excess of an overpayment (paid_over)
       attr_reader :overpay
-      # @return [Boolean] Возвращать средства при истёкшей недоплате (wrong_amount)
+      # @return [Boolean] Refund the funds of an expired underpayment (wrong_amount)
       attr_reader :underpay
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -11818,11 +12229,11 @@ module Oblodai
       # JSON names of every field this release knows.
       FIELDS = %w[currency discount_percent network].freeze
 
-      # @return [Integer] Процент, от -99 до 99. Плюс — скидка, минус — наценка
+      # @return [Integer] Percent, from -99 to 99. Plus — a discount, minus — a surcharge
       attr_reader :discount_percent
-      # @return [String, nil] Валюта. Пусто = глобальный дефолт для всех монет
+      # @return [String, nil] Currency. Empty = the global default for all coins
       attr_reader :currency
-      # @return [String, nil] Сеть. Пусто = любая сеть данной валюты
+      # @return [String, nil] Network. Empty = any network of the given currency
       attr_reader :network
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -11872,9 +12283,9 @@ module Oblodai
       # JSON names of every field this release knows.
       FIELDS = ["payer_pays_percent"].freeze
 
-      # @return [Integer] Доля НАШЕЙ комиссии, которую платит покупатель: 0 — платит мерчант (как
-      #   сейчас), 100 — платит покупатель, счёт выставляется с наценкой. Действует на счета,
-      #   созданные ПОСЛЕ изменения.
+      # @return [Integer] The share of OUR fee paid by the buyer: 0 — the merchant pays (as now),
+      #   100 — the buyer pays, the invoice is issued with a markup. Applies to invoices created AFTER
+      #   the change.
       attr_reader :payer_pays_percent
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -11916,8 +12327,8 @@ module Oblodai
       # JSON names of every field this release knows.
       FIELDS = ["fee_on_recipient"].freeze
 
-      # @return [Boolean] true — сетевую комиссию платит получатель (получает меньше); false —
-      #   комиссию несёт мерчант
+      # @return [Boolean] true — the network fee is paid by the recipient (who receives less); false
+      #   — the merchant bears the fee
       attr_reader :fee_on_recipient
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -11959,8 +12370,8 @@ module Oblodai
       # JSON names of every field this release knows.
       FIELDS = ["fee_on_customer"].freeze
 
-      # @return [Boolean] true — клиент получает net (комиссию платит клиент); false — мерчант
-      #   платит комиссию, клиент получает gross
+      # @return [Boolean] true — the customer receives net (the customer pays the fee); false — the
+      #   merchant pays the fee, the customer receives gross
       attr_reader :fee_on_customer
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -12002,8 +12413,8 @@ module Oblodai
       # JSON names of every field this release knows.
       FIELDS = ["active"].freeze
 
-      # @return [Boolean, nil] true — доставка возобновляется, false — прекращается (очередь по
-      #   этому проекту больше не наполняется).
+      # @return [Boolean, nil] true — delivery resumes, false — it stops (the queue for this project
+      #   is no longer filled).
       attr_reader :active
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -12045,7 +12456,7 @@ module Oblodai
       # JSON names of every field this release knows.
       FIELDS = ["active"].freeze
 
-      # @return [Boolean] Включена ли теперь доставка.
+      # @return [Boolean] Whether delivery is now enabled.
       attr_reader :active
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -12087,17 +12498,16 @@ module Oblodai
       # JSON names of every field this release knows.
       FIELDS = %w[amount confirmations invoice_id txid].freeze
 
-      # @return [String] UUID тестового счёта, который «оплачивается».
+      # @return [String] The UUID of the test invoice being "paid".
       attr_reader :invoice_id
-      # @return [String, nil] Сумма в валюте счёта; пусто — оплатить ровно сколько нужно, иное —
-      #   способ получить недо/переплату.
+      # @return [String, nil] The amount in the invoice currency; empty — pay exactly the amount
+      #   due, anything else — a way to produce an under/overpayment.
       attr_reader :amount
-      # @return [Integer, nil] С каким числом подтверждений пришёл депозит; 0 — полностью
-      #   подтверждён; меньше требуемого — способ проверить переход pending→confirmed (повторите тот
-      #   же txid с большим числом).
+      # @return [Integer, nil] The number of confirmations the deposit arrived with; 0 — fully
+      #   confirmed; fewer than required — a way to test the pending→confirmed transition (repeat the
+      #   same txid with a higher number).
       attr_reader :confirmations
-      # @return [String, nil] Повтор того же txid проверяет вашу идемпотентность; пусто — новый
-      #   txid.
+      # @return [String, nil] Repeating the same txid tests your idempotency; empty — a new txid.
       attr_reader :txid
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -12151,14 +12561,15 @@ module Oblodai
       # JSON names of every field this release knows.
       FIELDS = %w[amount confirmations invoice_id txid].freeze
 
-      # @return [BigDecimal] Сумма депозита в валюте счёта.
+      # @return [BigDecimal] The deposit amount in the invoice currency.
       attr_reader :amount
-      # @return [Integer] С каким числом подтверждений депозит отдан конвейеру.
+      # @return [Integer] The number of confirmations with which the deposit was handed to the
+      #   pipeline.
       attr_reader :confirmations
-      # @return [String] Оплачиваемый тестовый счёт.
+      # @return [String] The test invoice being paid.
       attr_reader :invoice_id
-      # @return [String] Транзакция депозита (с префиксом песочницы); повтор того же txid проверяет
-      #   вашу идемпотентность.
+      # @return [String] The deposit transaction (with a sandbox prefix); repeating the same txid
+      #   tests your idempotency.
       attr_reader :txid
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -12212,11 +12623,11 @@ module Oblodai
       # JSON names of every field this release knows.
       FIELDS = %w[contact evidence origin].freeze
 
-      # @return [String] Откуда средства.
+      # @return [String] Where the funds come from.
       attr_reader :origin
-      # @return [String, nil] Как связаться для уточнений.
+      # @return [String, nil] How to get in touch for clarifications.
       attr_reader :contact
-      # @return [String, nil] Чем подтверждается: ссылки на выписки, идентификаторы транзакций.
+      # @return [String, nil] What supports it: links to statements, transaction ids.
       attr_reader :evidence
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -12266,9 +12677,10 @@ module Oblodai
       # JSON names of every field this release knows.
       FIELDS = %w[accepted status].freeze
 
-      # @return [Boolean] Анкета принята к рассмотрению; это не решение о разблокировке.
+      # @return [Boolean] The questionnaire has been accepted for review; this is not a decision to
+      #   unblock.
       attr_reader :accepted
-      # @return [String] Статус анкеты после приёма — completed. Values:
+      # @return [String] The questionnaire status after acceptance — completed. Values:
       #   {Oblodai::Enums::SoFStatus}.
       attr_reader :status
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
@@ -12315,9 +12727,9 @@ module Oblodai
       # JSON names of every field this release knows.
       FIELDS = %w[expired status].freeze
 
-      # @return [Boolean] Срок ссылки вышел — анкету уже не принять.
+      # @return [Boolean] The link has expired — the questionnaire can no longer be accepted.
       attr_reader :expired
-      # @return [String] Статус анкеты. Values: {Oblodai::Enums::SoFStatus}.
+      # @return [String] Questionnaire status. Values: {Oblodai::Enums::SoFStatus}.
       attr_reader :status
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -12363,8 +12775,8 @@ module Oblodai
       # JSON names of every field this release knows.
       FIELDS = ["refund_hold_seconds"].freeze
 
-      # @return [Integer, nil] На сколько секунд откладывать расчёт по сплитам; диапазон 0–7776000
-      #   (до 90 суток). 0 — отправлять доли сразу: риск невозможности возврата берёте на себя.
+      # @return [Integer, nil] How many seconds to defer split settlement; range 0–7776000 (up to 90
+      #   days). 0 — send shares immediately: you bear the risk of being unable to refund.
       attr_reader :refund_hold_seconds
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -12406,8 +12818,8 @@ module Oblodai
       # JSON names of every field this release knows.
       FIELDS = ["refund_hold_seconds"].freeze
 
-      # @return [Integer] На сколько секунд откладывается расчёт по сплитам после оплаты; 0 — доли
-      #   уходят сразу.
+      # @return [Integer] How many seconds split settlement is deferred after payment; 0 — shares
+      #   are sent immediately.
       attr_reader :refund_hold_seconds
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -12449,9 +12861,9 @@ module Oblodai
       # JSON names of every field this release knows.
       FIELDS = ["enabled"].freeze
 
-      # @return [Boolean, nil] Разрешить другим мерчантам направлять доли сплитов на ваш баланс.
-      #   true — включить приём, false — выключить (новые правила на вас перестанут создаваться; уже
-      #   созданные продолжают исполняться).
+      # @return [Boolean, nil] Allow other merchants to route split shares to your balance. true —
+      #   enable receiving, false — disable (new rules targeting you can no longer be created;
+      #   existing ones keep executing).
       attr_reader :enabled
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -12493,7 +12905,7 @@ module Oblodai
       # JSON names of every field this release knows.
       FIELDS = ["enabled"].freeze
 
-      # @return [Boolean] true — другие мерчанты могут направлять доли на ваш баланс.
+      # @return [Boolean] true — other merchants may route shares to your balance.
       attr_reader :enabled
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -12535,9 +12947,9 @@ module Oblodai
       # JSON names of every field this release knows.
       FIELDS = %w[percent rule_id].freeze
 
-      # @return [BigDecimal] Сохранённая доля в процентах, два знака после точки.
+      # @return [BigDecimal] The saved share in percent, two digits after the point.
       attr_reader :percent
-      # @return [String] Идентификатор правила.
+      # @return [String] Rule id.
       attr_reader :rule_id
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -12583,7 +12995,7 @@ module Oblodai
       # JSON names of every field this release knows.
       FIELDS = ["rule_id"].freeze
 
-      # @return [String] Идентификатор правила из POST /v1/split/rule или списка.
+      # @return [String] The rule id from POST /v1/split/rule or the list.
       attr_reader :rule_id
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -12625,7 +13037,7 @@ module Oblodai
       # JSON names of every field this release knows.
       FIELDS = ["ok"].freeze
 
-      # @return [Boolean] Правило удалено; неудача отвечает ошибкой.
+      # @return [Boolean] The rule has been deleted; a failure responds with an error.
       attr_reader :ok
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -12667,19 +13079,19 @@ module Oblodai
       # JSON names of every field this release knows.
       FIELDS = %w[address merchant_id network note percent].freeze
 
-      # @return [String] Доля от каждого платежа, строкой: "10" = 10 %, "2.5" = 2.5 %. Больше 0 и не
-      #   больше 100, шаг 0.01 %; сумма всех правил не может превышать 100 %.
+      # @return [String] The share of each payment, as a string: "10" = 10 %, "2.5" = 2.5 %. Greater
+      #   than 0 and at most 100, in steps of 0.01 %; the sum of all rules cannot exceed 100 %.
       attr_reader :percent
-      # @return [String, nil] Внешний криптоадрес партнёра; доля уходит реальной транзакцией в
-      #   блокчейне — необратимо. Ровно один вариант получателя: либо address+network, либо
+      # @return [String, nil] The partner's external crypto address; the share is sent as a real
+      #   on-chain transaction — irreversibly. Exactly one recipient option: either address+network or
       #   merchant_id.
       attr_reader :address
-      # @return [String, nil] Идентификатор мерчанта-партнёра внутри Oblodai; доля движется по
-      #   внутреннему учёту и при возврате отзывается обратно.
+      # @return [String, nil] The id of the partner merchant within Oblodai; the share moves within
+      #   internal accounting and is clawed back on refund.
       attr_reader :merchant_id
-      # @return [String, nil] Сеть адреса. Обязательна вместе с address.
+      # @return [String, nil] The address network. Required together with address.
       attr_reader :network
-      # @return [String, nil] Комментарий для себя (виден в списке правил).
+      # @return [String, nil] A note for yourself (visible in the rule list).
       attr_reader :note
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -12737,22 +13149,22 @@ module Oblodai
       # JSON names of every field this release knows.
       FIELDS = %w[active address merchant_id network note percent reversible rule_id].freeze
 
-      # @return [Boolean] Правило действует.
+      # @return [Boolean] The rule is active.
       attr_reader :active
-      # @return [String] Комментарий из создания.
+      # @return [String] The note from creation.
       attr_reader :note
-      # @return [BigDecimal] Доля от каждого платежа в процентах.
+      # @return [BigDecimal] The share of each payment, in percent.
       attr_reader :percent
-      # @return [Boolean] true — доля движется по внутреннему учёту и отзывается при возврате; false
-      #   — уходит в блокчейн необратимо.
+      # @return [Boolean] true — the share moves within internal accounting and is clawed back on
+      #   refund; false — it goes on-chain irreversibly.
       attr_reader :reversible
-      # @return [String] Идентификатор правила.
+      # @return [String] Rule id.
       attr_reader :rule_id
-      # @return [String, nil] Внешний адрес партнёра; есть у внешнего получателя.
+      # @return [String, nil] The partner's external address; present for an external recipient.
       attr_reader :address
-      # @return [String, nil] Мерчант-партнёр внутри Oblodai; есть у внутреннего получателя.
+      # @return [String, nil] A partner merchant within Oblodai; present for an internal recipient.
       attr_reader :merchant_id
-      # @return [String, nil] Сеть внешнего адреса; есть у внешнего получателя.
+      # @return [String, nil] The external address's network; present for an external recipient.
       attr_reader :network
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -12822,9 +13234,9 @@ module Oblodai
       # JSON names of every field this release knows.
       FIELDS = %w[items paginate].freeze
 
-      # @return [Array<Oblodai::Models::SplitRuleView>] Записи этой страницы.
+      # @return [Array<Oblodai::Models::SplitRuleView>] The records of this page.
       attr_reader :items
-      # @return [Oblodai::Models::Pagination] Блок пагинации.
+      # @return [Oblodai::Models::Pagination] Pagination block.
       attr_reader :paginate
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -12873,37 +13285,37 @@ module Oblodai
         uuid
       ].freeze
 
-      # @return [String] Постоянный адрес для пополнений. На XRP — классический r-адрес ОБЩЕГО
-      #   кошелька; пополнение обязано нести destination_tag. На XLM — G-адрес; пополнение обязано
-      #   нести memo.
+      # @return [String] A permanent deposit address. On XRP — the classic r-address of a SHARED
+      #   wallet; a deposit must carry destination_tag. On XLM — a G-address; a deposit must carry
+      #   memo.
       attr_reader :address
-      # @return [Boolean] true — кошелёк заблокирован: пополнения на этот адрес НЕ зачисляются
-      #   (уходят в карантин оператору, без вебхука и без автовозврата). Публиковать такой адрес
-      #   нельзя.
+      # @return [Boolean] true — the wallet is blocked: deposits to this address are NOT credited
+      #   (they go to operator quarantine, with no webhook and no auto-refund). Do not publish such an
+      #   address.
       attr_reader :blocked
-      # @return [String] Валюта пополнений.
+      # @return [String] Deposit currency.
       attr_reader :currency
-      # @return [String] Подписанная ссылка на PDF-справку о реквизитах. Пусто, когда рендер
-      #   документов выключен.
+      # @return [String] A signed link to the PDF payment details certificate. Empty when document
+      #   rendering is disabled.
       attr_reader :document_url
-      # @return [String] Сеть блокчейна.
+      # @return [String] Blockchain network.
       attr_reader :network
-      # @return [String] Ваш идентификатор клиента, за которым закреплён адрес (часть тройки
-      #   идемпотентности currency+network+order_id).
+      # @return [String] Your customer identifier the address is assigned to (part of the
+      #   currency+network+order_id idempotency triple).
       attr_reader :order_id
-      # @return [String] Зарезервировано (обычно пусто).
+      # @return [String] Reserved (usually empty).
       attr_reader :url
-      # @return [String] Идентификатор статического кошелька.
+      # @return [String] Static wallet id.
       attr_reader :uuid
-      # @return [String, nil] Только XLM: адрес и memo одной строкой (muxed M…, SEP-23).
+      # @return [String, nil] XLM only: address and memo in one string (muxed M…, SEP-23).
       attr_reader :address_muxed
-      # @return [String, nil] Только XRP: адрес и тег одной строкой (X-address, XLS-5).
+      # @return [String, nil] XRP only: address and tag in one string (X-address, XLS-5).
       attr_reader :address_xaddress
-      # @return [String, nil] Только XRP: числовой destination tag этого кошелька — клиент обязан
-      #   указывать его в каждом переводе.
+      # @return [String, nil] XRP only: this wallet's numeric destination tag — the customer must
+      #   specify it in every transfer.
       attr_reader :destination_tag
-      # @return [String, nil] Только XLM: числовой memo (тип ID) этого кошелька — клиент обязан
-      #   указывать его в каждом переводе.
+      # @return [String, nil] XLM only: this wallet's numeric memo (ID type) — the customer must
+      #   specify it in every transfer.
       attr_reader :memo
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -12989,9 +13401,9 @@ module Oblodai
       # JSON names of every field this release knows.
       FIELDS = %w[amount asset].freeze
 
-      # @return [BigDecimal] Сумма в единицах монеты.
+      # @return [BigDecimal] The amount in coin units.
       attr_reader :amount
-      # @return [String] Монета оплаты.
+      # @return [String] Payment coin.
       attr_reader :asset
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -13037,9 +13449,9 @@ module Oblodai
       # JSON names of every field this release knows.
       FIELDS = %w[from to].freeze
 
-      # @return [String] Начало окна, включительно (RFC 3339).
+      # @return [String] Start of the window, inclusive (RFC 3339).
       attr_reader :from
-      # @return [String] Конец окна, не включительно (RFC 3339).
+      # @return [String] End of the window, exclusive (RFC 3339).
       attr_reader :to
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -13085,11 +13497,12 @@ module Oblodai
       # JSON names of every field this release knows.
       FIELDS = %w[pending_payouts turnover].freeze
 
-      # @return [Integer] Выплат в работе прямо сейчас (статус не финальный), без возвратов; от окна
-      #   не зависит.
+      # @return [Integer] Payouts in progress right now (non-final status), excluding refunds;
+      #   independent of the window.
       attr_reader :pending_payouts
-      # @return [Array<Oblodai::Models::SummaryAmount>] Оборот окна: оплаченное по оплаченным счетам
-      #   (paid, paid_over), созданным в окне, — по монете оплаты, по алфавиту. Пусто — оплат не было.
+      # @return [Array<Oblodai::Models::SummaryAmount>] Turnover for the window: amounts paid on
+      #   paid invoices (paid, paid_over) created within the window — per payment coin,
+      #   alphabetically. Empty — there were no payments.
       attr_reader :turnover
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -13135,20 +13548,20 @@ module Oblodai
       # JSON names of every field this release knows.
       FIELDS = %w[currency network order_id status url_callback uuid].freeze
 
-      # @return [String] Куда отправить пробное тело
+      # @return [String] Where to send the sample body
       attr_reader :url_callback
-      # @return [String, nil] Валюта в теле
+      # @return [String, nil] Currency in the body
       attr_reader :currency
-      # @return [String, nil] Сеть в теле
+      # @return [String, nil] Network in the body
       attr_reader :network
-      # @return [String, nil] Ваш order_id, который попадёт в пробное тело события
+      # @return [String, nil] Your order_id placed in the sample event body
       attr_reader :order_id
-      # @return [String, nil] Статус в теле — только те, с которыми боевой вебхук этого вида
-      #   действительно приходит (кошелёк — только paid); иначе 400 webhook.bad_status. По умолчанию
-      #   paid (для выплаты — confirmed, для конвертации — completed)
+      # @return [String, nil] The status in the body — only those with which a live webhook of this
+      #   kind actually arrives (wallet — paid only); otherwise 400 webhook.bad_status. Default paid
+      #   (for a payout — confirmed, for a conversion — completed)
       attr_reader :status
-      # @return [String, nil] UUID объекта (платежа, кошелька или выплаты), который попадёт в
-      #   пробное тело события
+      # @return [String, nil] The UUID of the object (payment, wallet or payout) placed in the
+      #   sample event body
       attr_reader :uuid
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -13210,11 +13623,11 @@ module Oblodai
       # JSON names of every field this release knows.
       FIELDS = %w[ok signed status_code].freeze
 
-      # @return [Boolean] Всегда true: тело доставлено.
+      # @return [Boolean] Always true: the body was delivered.
       attr_reader :ok
-      # @return [Boolean] Тело подписано секретом endpoint'а проекта.
+      # @return [Boolean] The body is signed with the project endpoint's secret.
       attr_reader :signed
-      # @return [Integer] HTTP-статус, которым ответил ваш endpoint.
+      # @return [Integer] The HTTP status your endpoint responded with.
       attr_reader :status_code
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -13264,11 +13677,11 @@ module Oblodai
       # JSON names of every field this release knows.
       FIELDS = %w[status url].freeze
 
-      # @return [String, nil] Статус в теле. По умолчанию paid
+      # @return [String, nil] The status in the body. Default paid
       attr_reader :status
-      # @return [String, nil] Куда отправить пробное тело. Не передан — доставка уходит на
-      #   зарегистрированный endpoint проекта; без endpoint — ошибка webhook.no_endpoint. Подпись —
-      #   секретом endpoint'а проекта, в том числе при явном url
+      # @return [String, nil] Where to send the sample body. If omitted, the delivery goes to the
+      #   project's registered endpoint; without an endpoint — the webhook.no_endpoint error. Signed
+      #   with the project endpoint's secret, including when url is given explicitly
       attr_reader :url
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -13314,17 +13727,17 @@ module Oblodai
       # JSON names of every field this release knows.
       FIELDS = %w[duration_ms error ok signed status_code url].freeze
 
-      # @return [Integer] Сколько длилась доставка, мс.
+      # @return [Integer] How long the delivery took, ms.
       attr_reader :duration_ms
-      # @return [Boolean] Доставка состоялась (endpoint ответил, любым статусом).
+      # @return [Boolean] The delivery took place (the endpoint responded, with any status).
       attr_reader :ok
-      # @return [Boolean] Тело подписано секретом endpoint'а проекта.
+      # @return [Boolean] The body is signed with the project endpoint's secret.
       attr_reader :signed
-      # @return [String] Куда ушло пробное тело.
+      # @return [String] Where the sample body was sent.
       attr_reader :url
-      # @return [String, nil] Почему доставка не состоялась; только при ok=false.
+      # @return [String, nil] Why the delivery did not take place; only when ok=false.
       attr_reader :error
-      # @return [Integer, nil] HTTP-статус ответа endpoint'а; только при ok=true.
+      # @return [Integer, nil] The HTTP status returned by the endpoint; only when ok=true.
       attr_reader :status_code
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -13386,15 +13799,15 @@ module Oblodai
       # JSON names of every field this release knows.
       FIELDS = %w[amount currency order_id to_user_id].freeze
 
-      # @return [BigDecimal] Сумма перевода в currency.
+      # @return [BigDecimal] The transfer amount in currency.
       attr_reader :amount
-      # @return [String] Код валюты (криптовалюта).
+      # @return [String] Currency code (cryptocurrency).
       attr_reader :currency
-      # @return [String] Ключ идемпотентности: повтор с тем же order_id — no-op; в батче переводов
-      #   обязателен.
+      # @return [String] Idempotency key: a retry with the same order_id is a no-op; required in a
+      #   transfer batch.
       attr_reader :order_id
-      # @return [String] Платформенный user id получателя (UUID, не username); username резолвится в
-      #   id через публичный профиль кабинета /public/users/{username}.
+      # @return [String] The recipient's platform user id (a UUID, not a username); a username is
+      #   resolved to an id via the dashboard's public profile /public/users/{username}.
       attr_reader :to_user_id
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -13448,13 +13861,12 @@ module Oblodai
       # JSON names of every field this release knows.
       FIELDS = %w[on_error transfers].freeze
 
-      # @return [Array<Oblodai::Models::TransferBatchItem>] Массив от 1 до 5000 элементов — те же
-      #   поля, что у POST /v1/transfer/to-user; у каждого элемента обязательны order_id (ключ
-      #   идемпотентности) и to_user_id (UUID пользователя).
+      # @return [Array<Oblodai::Models::TransferBatchItem>] An array of 1 to 5000 items — the same
+      #   fields as in POST /v1/transfer/to-user; each item requires order_id (the idempotency key)
+      #   and to_user_id (the user's UUID).
       attr_reader :transfers
-      # @return [String, nil] Что делать при ошибке элемента: continue (по умолчанию) — обрабатывать
-      #   остальные; stop — прекратить обработку после первой ошибки. Values:
-      #   {Oblodai::Enums::BatchOnError}.
+      # @return [String, nil] What to do when an item fails: continue (default) — process the rest;
+      #   stop — stop processing after the first error. Values: {Oblodai::Enums::BatchOnError}.
       attr_reader :on_error
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -13500,12 +13912,12 @@ module Oblodai
       # JSON names of every field this release knows.
       FIELDS = %w[amount currency order_id].freeze
 
-      # @return [BigDecimal] Сумма перевода в currency.
+      # @return [BigDecimal] The transfer amount in currency.
       attr_reader :amount
-      # @return [String] Код валюты (криптовалюта).
+      # @return [String] Currency code (cryptocurrency).
       attr_reader :currency
-      # @return [String, nil] Ключ идемпотентности: повтор с тем же order_id — no-op. Настоятельно
-      #   передавайте всегда, иначе повтор запроса при сетевом таймауте создаст второй перевод.
+      # @return [String, nil] Idempotency key: a retry with the same order_id is a no-op. Always
+      #   pass it, otherwise retrying the request after a network timeout creates a second transfer.
       attr_reader :order_id
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -13555,15 +13967,15 @@ module Oblodai
       # JSON names of every field this release knows.
       FIELDS = %w[amount currency document_url to_user_id uuid].freeze
 
-      # @return [BigDecimal] Сумма перевода.
+      # @return [BigDecimal] Transfer amount.
       attr_reader :amount
-      # @return [String] Актив перевода.
+      # @return [String] Transfer asset.
       attr_reader :currency
-      # @return [String] Ссылка на PDF-документ перевода; пусто, если документы выключены.
+      # @return [String] A link to the transfer PDF document; empty if documents are disabled.
       attr_reader :document_url
-      # @return [String] Получатель — пользователь личного кошелька.
+      # @return [String] The recipient is a personal wallet user.
       attr_reader :to_user_id
-      # @return [String] Идентификатор проводки перевода.
+      # @return [String] The transfer posting id.
       attr_reader :uuid
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -13621,17 +14033,17 @@ module Oblodai
       # JSON names of every field this release knows.
       FIELDS = %w[amount currency direction document_url personal_balance uuid].freeze
 
-      # @return [BigDecimal] Сумма перевода.
+      # @return [BigDecimal] Transfer amount.
       attr_reader :amount
-      # @return [String] Актив перевода.
+      # @return [String] Transfer asset.
       attr_reader :currency
-      # @return [String] Направление: to_personal.
+      # @return [String] Direction: to_personal.
       attr_reader :direction
-      # @return [String] Ссылка на PDF-документ перевода; пусто, если документы выключены.
+      # @return [String] A link to the transfer PDF document; empty if documents are disabled.
       attr_reader :document_url
-      # @return [String] Баланс личного кошелька владельца после перевода.
+      # @return [String] The balance of the owner's personal wallet after the transfer.
       attr_reader :personal_balance
-      # @return [String] Идентификатор проводки перевода.
+      # @return [String] The transfer posting id.
       attr_reader :uuid
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -13693,15 +14105,15 @@ module Oblodai
       # JSON names of every field this release knows.
       FIELDS = %w[amount currency order_id to_user_id].freeze
 
-      # @return [BigDecimal] Сумма перевода в currency.
+      # @return [BigDecimal] The transfer amount in currency.
       attr_reader :amount
-      # @return [String] Код валюты (криптовалюта).
+      # @return [String] Currency code (cryptocurrency).
       attr_reader :currency
-      # @return [String] Платформенный user id получателя (UUID, не username); username резолвится в
-      #   id через публичный профиль кабинета /public/users/{username}.
+      # @return [String] The recipient's platform user id (a UUID, not a username); a username is
+      #   resolved to an id via the dashboard's public profile /public/users/{username}.
       attr_reader :to_user_id
-      # @return [String, nil] Ключ идемпотентности: повтор с тем же order_id — no-op; в батче
-      #   переводов обязателен.
+      # @return [String, nil] Idempotency key: a retry with the same order_id is a no-op; required
+      #   in a transfer batch.
       attr_reader :order_id
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -13755,8 +14167,8 @@ module Oblodai
       # JSON names of every field this release knows.
       FIELDS = ["enabled"].freeze
 
-      # @return [Boolean, nil] true — включить автоконвертацию волатильных поступлений в USDT, false
-      #   — выключить; без поля — только прочитать текущее состояние.
+      # @return [Boolean, nil] true — enable auto-conversion of volatile incoming funds to USDT,
+      #   false — disable it; without the field — only read the current state.
       attr_reader :enabled
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -13798,7 +14210,7 @@ module Oblodai
       # JSON names of every field this release knows.
       FIELDS = ["enabled"].freeze
 
-      # @return [Boolean] Включена ли автоконвертация волатильных поступлений в USDT.
+      # @return [Boolean] Whether auto-conversion of volatile incoming funds to USDT is enabled.
       attr_reader :enabled
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -13840,7 +14252,7 @@ module Oblodai
       # JSON names of every field this release knows.
       FIELDS = ["image"].freeze
 
-      # @return [String] PNG QR-кода как data:-URI; "" — не удалось отрисовать.
+      # @return [String] The QR code PNG as a data: URI; "" — rendering failed.
       attr_reader :image
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -13875,7 +14287,7 @@ module Oblodai
       end
     end
 
-    # Приходит, когда депозит на статический кошелёк зачислен.
+    # Sent when a deposit to a static wallet is credited.
     class WalletWebhook < Generated::Model
       # JSON names of the fields the API always sends.
       REQUIRED = %w[
@@ -13887,36 +14299,37 @@ module Oblodai
         uuid
       ].freeze
 
-      # @return [String] Адрес кошелька, на который пришёл платёж.
+      # @return [String] The wallet address the payment arrived at.
       attr_reader :address
-      # @return [String] Код валюты зачисления.
+      # @return [String] Credit currency code.
       attr_reader :currency
-      # @return [String] Когда событие произошло, UTC с миллисекундами (ISO 8601).
+      # @return [String] When the event happened, UTC with milliseconds (ISO 8601).
       attr_reader :event_at
-      # @return [Boolean] true — статус финальный.
+      # @return [Boolean] true — the status is final.
       attr_reader :is_final
-      # @return [String] Сеть блокчейна.
+      # @return [String] Blockchain network.
       attr_reader :network
-      # @return [String] Ваш order_id кошелька.
+      # @return [String] Your order_id for the wallet.
       attr_reader :order_id
-      # @return [String] Валюта, в которой заплатил плательщик (совпадает с currency).
+      # @return [String] The currency the payer paid in (matches currency).
       attr_reader :payer_currency
-      # @return [String] Зачисленная сумма депозита (десятичное число строкой).
+      # @return [String] The credited deposit amount (a decimal number as a string).
       attr_reader :payment_amount
-      # @return [Integer] Глобальный номер события: в пределах одного объекта больший номер новее,
-      #   меньший — опоздавшая доставка, её нужно отбросить. У репетиции (test: true) всегда 0.
+      # @return [Integer] The global event number: within one object a higher number is newer, a
+      #   lower one is a late delivery and must be discarded. Always 0 on a rehearsal (test: true).
       attr_reader :sequence
-      # @return [String] Статус в словаре платежа; живой поток шлёт только paid.
+      # @return [String] A status from the payment vocabulary; the live flow sends only paid.
       attr_reader :status
-      # @return [String] Хеш транзакции депозита.
+      # @return [String] The deposit transaction hash.
       attr_reader :txid
-      # @return [String] Вид события: payment | payout | wallet | conversion — какое тело пришло.
+      # @return [String] Event kind: payment | payout | wallet | conversion — which body arrived.
       attr_reader :type
-      # @return [String] Идентификатор статического кошелька.
+      # @return [String] Static wallet id.
       attr_reader :uuid
-      # @return [Boolean, nil] Есть только у репетиции (/v1/test-webhook/*,
-      #   /v1/payment/testing-webhook) и всегда true — внутри подписи. Боевое событие этого поля не
-      #   несёт никогда: тело с test: true обработчик обязан игнорировать, даже если подпись верна.
+      # @return [Boolean, nil] Present only on a rehearsal (/v1/test-webhook/*,
+      #   /v1/payment/testing-webhook) and always true — inside the signature. A live event never
+      #   carries this field: your handler must ignore a body with test: true even if the signature is
+      #   valid.
       attr_reader :test
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -14010,25 +14423,25 @@ module Oblodai
       # JSON names of every field this release knows.
       FIELDS = %w[attempts cancel_reason created_at event_type id last_error sequence status updated_at url].freeze
 
-      # @return [Integer] Сделано попыток.
+      # @return [Integer] Attempts made.
       attr_reader :attempts
-      # @return [String] Почему доставка cancelled не будет отправлена; пусто у остальных статусов.
+      # @return [String] Why a cancelled delivery will not be sent; empty for other statuses.
       attr_reader :cancel_reason
-      # @return [String] Когда поставлена, RFC 3339 UTC.
+      # @return [String] When queued, RFC 3339 UTC.
       attr_reader :created_at
-      # @return [String] Событие в теле.
+      # @return [String] The event in the body.
       attr_reader :event_type
-      # @return [String] Идентификатор доставки.
+      # @return [String] Delivery id.
       attr_reader :id
-      # @return [String] Ошибка последней попытки; пусто, если её не было.
+      # @return [String] The error of the last attempt; empty if there was none.
       attr_reader :last_error
-      # @return [Integer] Глобальный номер события (тот же, что в теле).
+      # @return [Integer] The global event number (the same as in the body).
       attr_reader :sequence
-      # @return [String] Состояние доставки. Values: {Oblodai::Enums::WebhookDeliveryStatus}.
+      # @return [String] Delivery state. Values: {Oblodai::Enums::WebhookDeliveryStatus}.
       attr_reader :status
-      # @return [String] Последнее изменение, RFC 3339 UTC.
+      # @return [String] Last change, RFC 3339 UTC.
       attr_reader :updated_at
-      # @return [String] Куда доставляется.
+      # @return [String] Where it is delivered.
       attr_reader :url
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -14106,9 +14519,9 @@ module Oblodai
       # JSON names of every field this release knows.
       FIELDS = %w[items paginate].freeze
 
-      # @return [Array<Oblodai::Models::WebhookDeliveryLogItem>] Записи этой страницы.
+      # @return [Array<Oblodai::Models::WebhookDeliveryLogItem>] The records of this page.
       attr_reader :items
-      # @return [Oblodai::Models::Pagination] Блок пагинации.
+      # @return [Oblodai::Models::Pagination] Pagination block.
       attr_reader :paginate
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -14154,7 +14567,8 @@ module Oblodai
       # JSON names of every field this release knows.
       FIELDS = ["ok"].freeze
 
-      # @return [Boolean] Всегда true: вебхук поставлен в очередь; неудача отвечает ошибкой.
+      # @return [Boolean] Always true: the webhook has been queued; a failure responds with an
+      #   error.
       attr_reader :ok
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
