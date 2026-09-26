@@ -1229,8 +1229,8 @@ module Oblodai
         bare: false,
         list_kind: nil
       ),
-      "logoutCli" => RouteSpec.new(
-        operation_id: "logoutCli",
+      "logoutCliLogin" => RouteSpec.new(
+        operation_id: "logoutCliLogin",
         method: "POST",
         path: "/v1/cli/logout",
         auth: :key,

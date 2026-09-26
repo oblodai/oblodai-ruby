@@ -658,7 +658,8 @@ module Oblodai
       # (address/network default to the recorded payer address). It moves money — it is signed with
       # your API key like everything else: a merchant has one key and it has full access.
       #
-      # Requires role: Finance when called with a CLI key.
+      # With a CLI key: only the store owner's own key (role Owner); other team members use the
+      # dashboard, where each such operation is confirmed with 2FA.
       #
       # Error codes: auth.bad_timestamp, auth.body_too_large, auth.ip_not_allowed,
       # cli.permission_denied, compliance.blocked, compliance.blocked_address,
@@ -1019,7 +1020,8 @@ module Oblodai
       # partner shares are reversed. You can also send the money as a regular payout, but reports
       # will show it as a payout, not a refund.
       #
-      # Requires role: Finance when called with a CLI key.
+      # With a CLI key: only the store owner's own key (role Owner); other team members use the
+      # dashboard, where each such operation is confirmed with 2FA.
       #
       # Error codes: auth.bad_timestamp, auth.body_too_large, auth.ip_not_allowed,
       # cli.permission_denied, compliance.blocked, compliance.blocked_address,
@@ -1124,7 +1126,8 @@ module Oblodai
       # the operator has reviewed it. Until then it is not yours yet, and the response will be
       # "nothing to refund".
       #
-      # Requires role: Finance when called with a CLI key.
+      # With a CLI key: only the store owner's own key (role Owner); other team members use the
+      # dashboard, where each such operation is confirmed with 2FA.
       #
       # Error codes: auth.bad_timestamp, auth.body_too_large, auth.ip_not_allowed,
       # cli.permission_denied, compliance.blocked, compliance.blocked_address,
@@ -1206,7 +1209,8 @@ module Oblodai
       #
       # Also: `memo` (tag/memo for TON), `url_callback` (your own webhook URL for this payout).
       #
-      # Requires role: Finance when called with a CLI key.
+      # With a CLI key: only the store owner's own key (role Owner); other team members use the
+      # dashboard, where each such operation is confirmed with 2FA.
       #
       # Error codes: auth.bad_timestamp, auth.body_too_large, auth.ip_not_allowed,
       # cli.permission_denied, compliance.blocked, compliance.blocked_address,
@@ -1310,7 +1314,8 @@ module Oblodai
       # stop the rest, and a result is returned for each. Idempotent on `order_id`, like a regular
       # payout.
       #
-      # Requires role: Finance when called with a CLI key.
+      # With a CLI key: only the store owner's own key (role Owner); other team members use the
+      # dashboard, where each such operation is confirmed with 2FA.
       #
       # Error codes: auth.bad_timestamp, auth.body_too_large, auth.ip_not_allowed,
       # batch.duplicate_order_id, cli.permission_denied, compliance.blocked,
@@ -1876,7 +1881,8 @@ module Oblodai
       # fee, instant, off-chain). The recipient is addressed by user id; a username is resolved by
       # the dashboard's public endpoint /public/users/{username}.
       #
-      # Requires role: Finance when called with a CLI key.
+      # With a CLI key: only the store owner's own key (role Owner); other team members use the
+      # dashboard, where each such operation is confirmed with 2FA.
       #
       # Error codes: auth.bad_timestamp, auth.body_too_large, auth.ip_not_allowed,
       # cli.permission_denied, idempotency.bad_key, idempotency.in_progress, idempotency.key_reused,
@@ -1943,7 +1949,8 @@ module Oblodai
       # An asynchronous batch of internal transfers: {"transfers":[<as in /v1/transfer/to-user>...],
       # "on_error":"continue"}. Status and per-row results — POST /v1/batch/info.
       #
-      # Requires role: Finance when called with a CLI key.
+      # With a CLI key: only the store owner's own key (role Owner); other team members use the
+      # dashboard, where each such operation is confirmed with 2FA.
       #
       # Error codes: auth.bad_timestamp, auth.body_too_large, auth.ip_not_allowed,
       # batch.bad_on_error, batch.bad_recipient, batch.disabled, batch.duplicate_order_id,
@@ -2007,7 +2014,8 @@ module Oblodai
       # HOUR, not the maximum — set the lifetime explicitly. Idempotency: `reference` (or the
       # `Idempotency-Key` header).
       #
-      # Requires role: Finance when called with a CLI key.
+      # With a CLI key: only the store owner's own key (role Owner); other team members use the
+      # dashboard, where each such operation is confirmed with 2FA.
       #
       # Error codes: auth.bad_timestamp, auth.body_too_large, auth.ip_not_allowed,
       # cli.permission_denied, email.bad_recipient, idempotency.bad_key, idempotency.in_progress,
@@ -2104,7 +2112,8 @@ module Oblodai
       # Up to 500 links per call; each succeeds or fails independently, the response is aligned with
       # the request indices. Retrying with the same `reference` values is safe.
       #
-      # Requires role: Finance when called with a CLI key.
+      # With a CLI key: only the store owner's own key (role Owner); other team members use the
+      # dashboard, where each such operation is confirmed with 2FA.
       #
       # Error codes: auth.bad_timestamp, auth.body_too_large, auth.ip_not_allowed,
       # cli.permission_denied, email.bad_recipient, idempotency.bad_key, idempotency.in_progress,
@@ -2490,7 +2499,8 @@ module Oblodai
       # would silently collapse into one. Returns `batch_id`; per-item status via `/v1/batch/info`.
       # `on_error`: `continue`/`stop`.
       #
-      # Requires role: Finance when called with a CLI key.
+      # With a CLI key: only the store owner's own key (role Owner); other team members use the
+      # dashboard, where each such operation is confirmed with 2FA.
       #
       # Error codes: auth.bad_timestamp, auth.body_too_large, auth.ip_not_allowed,
       # batch.bad_on_error, batch.bad_recipient, batch.disabled, batch.duplicate_order_id,
@@ -2548,7 +2558,8 @@ module Oblodai
       # payouts, processed in the background, status via `/v1/batch/info`. Each item is a regular
       # `/v1/payout` object, idempotent on `order_id`.
       #
-      # Requires role: Finance when called with a CLI key.
+      # With a CLI key: only the store owner's own key (role Owner); other team members use the
+      # dashboard, where each such operation is confirmed with 2FA.
       #
       # Error codes: auth.bad_timestamp, auth.body_too_large, auth.ip_not_allowed,
       # batch.bad_on_error, batch.bad_recipient, batch.disabled, batch.duplicate_order_id,
@@ -2676,7 +2687,8 @@ module Oblodai
       # external share cannot be recovered (top up your balance); an on-platform partner's share is
       # clawed back automatically.
       #
-      # Requires role: Finance when called with a CLI key.
+      # With a CLI key: only the store owner's own key (role Owner); other team members use the
+      # dashboard, where each such operation is confirmed with 2FA.
       #
       # Error codes: auth.bad_timestamp, auth.body_too_large, auth.ip_not_allowed,
       # cli.permission_denied, idempotency.bad_key, idempotency.in_progress, idempotency.key_reused,
@@ -4730,7 +4742,8 @@ module Oblodai
       #
       # Automatically withdraw incoming funds to a given address.
       #
-      # Requires role: Finance when called with a CLI key.
+      # With a CLI key: only the store owner's own key (role Owner); other team members use the
+      # dashboard, where each such operation is confirmed with 2FA.
       #
       # Error codes: auth.bad_timestamp, auth.body_too_large, auth.ip_not_allowed,
       # autowithdraw.bad_min, autowithdraw.missing, autowithdraw.network_required,
@@ -4819,7 +4832,8 @@ module Oblodai
 
       # Delete an auto-withdrawal rule
       #
-      # Requires role: Finance when called with a CLI key.
+      # With a CLI key: only the store owner's own key (role Owner); other team members use the
+      # dashboard, where each such operation is confirmed with 2FA.
       #
       # Error codes: auth.bad_timestamp, auth.body_too_large, auth.ip_not_allowed,
       # cli.permission_denied, internal, merchant.bad_signature, merchant.key_expired,
@@ -5415,7 +5429,8 @@ module Oblodai
       # issued again, so the cheque can only be printed while you still have the token. ⚠ The
       # document is money: anyone who has it can claim the funds. The response is `application/pdf`.
       #
-      # Requires role: Finance when called with a CLI key.
+      # With a CLI key: only the store owner's own key (role Owner); other team members use the
+      # dashboard, where each such operation is confirmed with 2FA.
       #
       # Error codes: auth.bad_timestamp, auth.body_too_large, auth.ip_not_allowed,
       # cheque.token_required, cli.permission_denied, document.disabled, document.encode_failed,
@@ -6814,7 +6829,7 @@ module Oblodai
       # request.overloaded, request.rate_limited, request.too_deep
       #
       # @return [Oblodai::Models::CLILogoutResult]
-      def logout_cli(
+      def logout(
         idempotency_key: nil,
         timeout: nil,
         max_retries: nil,
@@ -6822,7 +6837,7 @@ module Oblodai
         request_id: nil
       )
         _request(
-          Generated::ROUTES.fetch("logoutCli"),
+          Generated::ROUTES.fetch("logoutCliLogin"),
           nil,
           Generated::RequestOptions.new(
             idempotency_key:,
