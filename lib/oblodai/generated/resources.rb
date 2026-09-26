@@ -11,91 +11,97 @@ module Oblodai
   # call options `idempotency_key:`, `timeout:` (seconds), `max_retries:`, `extra_headers:` and
   # `request_id:`.
   module Resources
-    # Приём оплаты: создать счёт, узнать статус, история, QR.
+    # Accepting payments: create an invoice, check its status, history, QR code.
     class Payments < Generated::Resource
-      # Создать платёж (счёт на оплату)
+      # Create a payment (invoice)
       #
-      # Создаёт счёт и возвращает адрес + сумму к оплате и ссылку на страницу оплаты.
+      # Creates an invoice and returns the address and amount to pay plus a link to the payment
+      # page.
       #
-      # **Как проще всего:** передайте `amount` (сумма), `currency` (валюта цены, напр. `USD`),
-      # `order_id` (ваш номер заказа). Если укажете `network` и `to_currency` — сразу зафиксируется
-      # конкретная монета/сеть. Если НЕ укажете — получится валюто-агностичная ссылка: клиент сам
-      # выберет валюту и сеть на странице оплаты.
+      # **The simplest way:** pass `amount`, `currency` (the price currency, e.g. `USD`) and
+      # `order_id` (your order number). If you set `network` and `to_currency`, a specific
+      # coin/network is locked in immediately. If you DON'T, you get a currency-agnostic link: the
+      # customer picks the currency and network on the payment page.
       #
-      # **Цена и расчёт — разные вещи.** `currency` говорит, сколько счёт СТОИТ: это может быть фиат
-      # (`USD`, `EUR`, `RUB`, `GBP`, `JPY` и ещё сорок фиатных валют — полный список в
-      # `/v1/currencies`) или любая монета. `to_currency` говорит, чем ПЛАТЯТ: **только крипта**.
-      # Фиата мы не храним, поэтому баланс, выплаты и возвраты всегда в монете — счёт на 5000 ₽
-      # выставить можно, а получить за него можно USDT, TRX и т. д.
+      # **Price and settlement are different things.** `currency` says what the invoice COSTS: it
+      # can be fiat (`USD`, `EUR`, `RUB`, `GBP`, `JPY` and forty more fiat currencies — the full
+      # list is in `/v1/currencies`) or any coin. `to_currency` says what the customer PAYS WITH:
+      # **crypto only**. We do not hold fiat, so balances, payouts and refunds are always in a coin
+      # — you can issue an invoice for 5000 RUB, but it is paid in USDT, TRX, etc.
       #
-      # Отсюда правило: если цена в фиате, то `to_currency` либо задаётся явно, либо не задаётся
-      # вовсе — вместе с `network` (тогда монету выберет покупатель). Цена в фиате + одна лишь
-      # `network`, без монеты, вернёт `payment.to_currency_required`: вывести монету из рублей
-      # неоткуда.
+      # Hence the rule: if the price is in fiat, `to_currency` is either set explicitly or omitted
+      # together with `network` (then the buyer picks the coin). A fiat price with only `network`
+      # and no coin returns `payment.to_currency_required`: there is no way to derive a coin from
+      # rubles.
       #
-      # У иены и воны (`JPY`, `KRW`) **нет копеек** — сумма пишется без дробной части (`"10000"`, не
-      # `"10000.00"`). Полный список валют цены — в `pricing_currencies` у `GET /v1/currencies`.
+      # The yen and the won (`JPY`, `KRW`) have **no minor units** — write the amount without a
+      # fractional part (`"10000"`, not `"10000.00"`). The full list of price currencies is in
+      # `pricing_currencies` of `GET /v1/currencies`.
       #
-      # **Идемпотентность:** повтор с тем же `order_id` вернёт тот же счёт (двойного счёта не
-      # будет).
+      # **Idempotency:** a retry with the same `order_id` returns the same invoice (no duplicate
+      # invoice is created).
       #
-      # Необязательные удобства: `lifetime` (сколько секунд живёт счёт, 300–43200),
-      # `url_return`/`url_success` (куда вернуть клиента), `url_callback` (куда слать вебхук),
-      # `additional_data` (ваши приватные данные), `payer_email`, `accuracy_payment_percent` (допуск
-      # недо/переплаты 0–5%), `is_refresh` (оживить просроченный счёт по order_id).
+      # Optional conveniences: `lifetime` (invoice lifetime in seconds, 300–43200),
+      # `url_return`/`url_success` (where to send the customer back), `url_callback` (where to send
+      # the webhook), `additional_data` (your private data), `payer_email`,
+      # `accuracy_payment_percent` (underpayment/overpayment tolerance, 0–5%), `is_refresh` (revive
+      # an expired invoice by order_id).
+      #
+      # Requires role: Finance when called with a CLI key.
       #
       # Error codes: auth.bad_timestamp, auth.body_too_large, auth.ip_not_allowed,
-      # idempotency.bad_key, idempotency.in_progress, idempotency.key_reused,
+      # cli.permission_denied, idempotency.bad_key, idempotency.in_progress, idempotency.key_reused,
       # idempotency.unavailable, internal, invoice.address_failed, invoice.address_taken,
       # invoice.already_paid, invoice.bad_price, invoice.corrupt_pay_asset, invoice.daily_quota,
       # invoice.deposit_pending, invoice.fiat_pay_asset, invoice.no_pay_asset, invoice.quote_failed,
       # invoice.refresh_lease, invoice.refresh_not_expired, invoice.refresh_paid,
       # invoice.refresh_select, invoice.surcharge_asset, merchant.acceptance_blocked,
-      # merchant.bad_signature, merchant.key_mode_mismatch, merchant.not_found,
-      # merchant.rate_limited, merchant.secret_decrypt, merchant.suspended, merchant.unknown_key,
-      # onramp.suppresses, pay.method_not_accepted, pay.surcharge_unknown, payment.bad_accuracy,
-      # payment.bad_amount, payment.bad_payer_email, payment.bad_redirect_url, payment.bad_subtract,
-      # payment.bad_url_callback, payment.below_minimum, payment.discount_unavailable,
-      # payment.minimum_unavailable, payment.network_required, payment.not_found,
-      # payment.subtract_impossible, payment.surcharge_unavailable, payment.to_currency_required,
-      # payment.unknown_to_currency, payment.unsupported_network, postgres.lock_pool_busy,
-      # rates.deviation, rates.fiat_pay_asset, rates.no_pay_asset, rates.no_source,
-      # rates.non_positive, rates.stale_rate, rates.unavailable, request.bad_json,
+      # merchant.bad_signature, merchant.key_expired, merchant.key_mode_mismatch,
+      # merchant.not_found, merchant.rate_limited, merchant.secret_decrypt, merchant.suspended,
+      # merchant.unknown_key, onramp.suppresses, pay.method_not_accepted, pay.surcharge_unknown,
+      # payment.bad_accuracy, payment.bad_amount, payment.bad_payer_email, payment.bad_redirect_url,
+      # payment.bad_subtract, payment.bad_url_callback, payment.below_minimum,
+      # payment.discount_unavailable, payment.minimum_unavailable, payment.network_required,
+      # payment.not_found, payment.subtract_impossible, payment.surcharge_unavailable,
+      # payment.to_currency_required, payment.unknown_to_currency, payment.unsupported_network,
+      # postgres.lock_pool_busy, rates.deviation, rates.fiat_pay_asset, rates.no_pay_asset,
+      # rates.no_source, rates.non_positive, rates.stale_rate, rates.unavailable, request.bad_json,
       # request.body_read, request.control_char, request.duplicate_field, request.nul_byte,
       # request.overloaded, request.rate_limited, request.reference_invalid,
       # request.reference_too_long, request.too_deep, request.unknown_currency, webhook.no_endpoint
       #
       # @param params [Oblodai::Models::PaymentRequest, Hash, nil] the request body as a model or a
       #   Hash; the keywords add to it
-      # @param accuracy_payment_percent [Float, nil] Допуск недо/переплаты, 0–5 %. Перекрывает
-      #   настройку мерчанта.
-      # @param additional_data [String, nil] Приватные данные мерчанта, эхом в вебхуках (покупателю
-      #   не видны).
-      # @param amount [BigDecimal, String, nil] Сумма к оплате в валюте currency.
-      # @param currency [String, nil] Код валюты цены: любой из 23 фиатов (USD, EUR, RUB, …) или
-      #   любая монета (USDT, BTC, …). У JPY и KRW ноль знаков после запятой.
-      # @param is_payment_multiple [Boolean, nil] Разрешить доплату остатка. An explicit nil sends
+      # @param accuracy_payment_percent [Float, nil] Underpayment/overpayment tolerance, 0–5 %.
+      #   Overrides the merchant setting.
+      # @param additional_data [String, nil] The merchant's private data, echoed in webhooks (not
+      #   visible to the buyer).
+      # @param amount [BigDecimal, String, nil] The amount to pay in currency.
+      # @param currency [String, nil] The price currency code: any of the 23 fiat currencies (USD,
+      #   EUR, RUB, …) or any coin (USDT, BTC, …). JPY and KRW have zero decimal places.
+      # @param is_payment_multiple [Boolean, nil] Allow paying the remainder. An explicit nil sends
       #   null.
-      # @param is_refresh [Boolean, nil] Оживить просроченный счёт по order_id вместо создания
-      #   нового.
-      # @param lifetime_seconds [Integer, nil] Время жизни счёта в секундах, 300–43200; по умолчанию
-      #   3600. Значения вне диапазона обрезаются к ближайшей границе.
-      # @param network [String, nil] Сеть расчёта (напр. tron, ethereum). Необязательна — см. режимы
-      #   выбора валюты и сети.
-      # @param order_id [String, nil] Ссылка мерчанта; ключ идемпотентности. Настоятельно
-      #   рекомендуется.
-      # @param payer_email [String, nil] Email плательщика. Если задан — после оплаты на него
-      #   автоматически уходит чек; он же получатель по умолчанию у POST /v1/payment/send-email.
-      # @param subtract [Integer, nil] Устаревшее: % сетевой наценки на плательщика (0–100);
-      #   payer-facing наценки настраиваются через discount.
-      # @param theme [String, nil] Тема страницы оплаты: dark | light.
-      # @param to_currency [String, nil] Валюта расчёта — крипта, которой платят. По умолчанию =
-      #   currency (только если currency — крипта); при цене в фиате задайте явно либо опустите вместе
-      #   с network.
-      # @param url_callback [String, nil] Индивидуальный webhook для этого счёта. Требует
-      #   зарегистрированного эндпоинта (POST /v1/webhooks): доставка подписывается его секретом.
-      # @param url_return [String, nil] Ссылка «назад в магазин» на странице оплаты.
-      # @param url_success [String, nil] Редирект после успешной оплаты.
+      # @param is_refresh [Boolean, nil] Revive an expired invoice by order_id instead of creating a
+      #   new one.
+      # @param lifetime_seconds [Integer, nil] Invoice lifetime in seconds, 300–43200; default 3600.
+      #   Out-of-range values are clamped to the nearest bound.
+      # @param network [String, nil] The settlement network (e.g. tron, ethereum). Optional — see
+      #   the currency and network selection modes.
+      # @param order_id [String, nil] The merchant reference; the idempotency key. Strongly
+      #   recommended.
+      # @param payer_email [String, nil] The payer's email. If set, a receipt is sent to it
+      #   automatically after payment; it is also the default recipient for POST
+      #   /v1/payment/send-email.
+      # @param subtract [Integer, nil] Deprecated: % network surcharge on the payer (0–100);
+      #   payer-facing surcharges are configured via discount.
+      # @param theme [String, nil] Payment page theme: dark | light.
+      # @param to_currency [String, nil] The settlement currency — the crypto used to pay. Defaults
+      #   to currency (only if currency is crypto); for a fiat price set it explicitly or omit it
+      #   together with network.
+      # @param url_callback [String, nil] A per-invoice webhook. Requires a registered endpoint
+      #   (POST /v1/webhooks): the delivery is signed with its secret.
+      # @param url_return [String, nil] The "back to store" link on the payment page.
+      # @param url_success [String, nil] Redirect after a successful payment.
       # @return [Oblodai::Models::PaymentView]
       def create(
         params = nil,
@@ -156,23 +162,26 @@ module Oblodai
         )
       end
 
-      # Узнать статус платежа
+      # Get payment status
       #
-      # Передайте `uuid` (наш) ИЛИ `order_id` (ваш). Вернёт текущий статус и суммы. Если оба —
-      # приоритет у `order_id`.
+      # Pass `uuid` (ours) OR `order_id` (yours). Returns the current status and amounts. If both
+      # are given, `order_id` takes precedence.
       #
-      # Error codes: auth.bad_timestamp, auth.body_too_large, auth.ip_not_allowed, internal,
-      # invoice.corrupt_pay_asset, merchant.bad_signature, merchant.key_mode_mismatch,
-      # merchant.rate_limited, merchant.secret_decrypt, merchant.suspended, merchant.unknown_key,
-      # onramp.suppresses, payment.bad_uuid, payment.no_lookup, payment.not_found, payout.not_found,
-      # request.bad_json, request.body_read, request.control_char, request.duplicate_field,
-      # request.nul_byte, request.overloaded, request.rate_limited, request.too_deep
+      # Requires role: Viewer when called with a CLI key.
+      #
+      # Error codes: auth.bad_timestamp, auth.body_too_large, auth.ip_not_allowed,
+      # cli.permission_denied, internal, invoice.corrupt_pay_asset, merchant.bad_signature,
+      # merchant.key_expired, merchant.key_mode_mismatch, merchant.rate_limited,
+      # merchant.secret_decrypt, merchant.suspended, merchant.unknown_key, onramp.suppresses,
+      # payment.bad_uuid, payment.no_lookup, payment.not_found, payout.not_found, request.bad_json,
+      # request.body_read, request.control_char, request.duplicate_field, request.nul_byte,
+      # request.overloaded, request.rate_limited, request.too_deep
       #
       # @param params [Oblodai::Models::LookupRequest, Hash, nil] the request body as a model or a
       #   Hash; the keywords add to it
-      # @param order_id [String, nil] Ваша ссылка на заказ.
-      # @param uuid [String, nil] Идентификатор счёта в Oblodai. Нужен uuid или order_id; приоритет
-      #   у uuid.
+      # @param order_id [String, nil] Your order reference.
+      # @param uuid [String, nil] The invoice id in Oblodai. Either uuid or order_id is required;
+      #   uuid takes precedence.
       # @return [Oblodai::Models::PaymentInfoResult]
       def get_info(
         params = nil,
@@ -204,23 +213,26 @@ module Oblodai
         )
       end
 
-      # QR-код адреса счёта
+      # Invoice address QR code
       #
-      # Возвращает QR адреса оплаты (по `uuid`/`order_id`) как PNG data:-URI — вставляется прямо в
-      # `<img src>`.
+      # Returns the QR code of the payment address (by `uuid`/`order_id`) as a PNG data: URI — drop
+      # it straight into `<img src>`.
       #
-      # Error codes: auth.bad_timestamp, auth.body_too_large, auth.ip_not_allowed, internal,
-      # invoice.corrupt_pay_asset, merchant.bad_signature, merchant.key_mode_mismatch,
-      # merchant.rate_limited, merchant.secret_decrypt, merchant.suspended, merchant.unknown_key,
-      # payment.bad_uuid, payment.no_lookup, payment.not_found, request.bad_json, request.body_read,
+      # Requires role: Viewer when called with a CLI key.
+      #
+      # Error codes: auth.bad_timestamp, auth.body_too_large, auth.ip_not_allowed,
+      # cli.permission_denied, internal, invoice.corrupt_pay_asset, merchant.bad_signature,
+      # merchant.key_expired, merchant.key_mode_mismatch, merchant.rate_limited,
+      # merchant.secret_decrypt, merchant.suspended, merchant.unknown_key, payment.bad_uuid,
+      # payment.no_lookup, payment.not_found, request.bad_json, request.body_read,
       # request.control_char, request.duplicate_field, request.nul_byte, request.overloaded,
       # request.rate_limited, request.too_deep
       #
       # @param params [Oblodai::Models::LookupRequest, Hash, nil] the request body as a model or a
       #   Hash; the keywords add to it
-      # @param order_id [String, nil] Ваша ссылка на заказ.
-      # @param uuid [String, nil] Идентификатор счёта в Oblodai. Нужен uuid или order_id; приоритет
-      #   у uuid.
+      # @param order_id [String, nil] Your order reference.
+      # @param uuid [String, nil] The invoice id in Oblodai. Either uuid or order_id is required;
+      #   uuid takes precedence.
       # @return [Oblodai::Models::PaymentQRResult]
       def get_qr(
         params = nil,
@@ -252,32 +264,35 @@ module Oblodai
         )
       end
 
-      # История платежей
+      # Payment history
       #
-      # Список ваших платежей, новые сверху: `items` + блок `paginate` (`total` — всего записей по
-      # фильтру, `per_page`, `offset`, `has_pages`). Тело: `limit` (1–100, по умолчанию 25),
-      # `offset`, необязательный `status` — то же значение, что в ответах и вебхуках (`created`,
+      # Your payments, newest first: `items` plus a `paginate` block (`total` — number of records
+      # matching the filter, `per_page`, `offset`, `has_pages`). Body: `limit` (1–100, default 25),
+      # `offset`, optional `status` — the same value as in responses and webhooks (`created`,
       # `confirm_check`, `paid`, `paid_over`, `wrong_amount`, `expired`, `cancelled`, `select`).
       #
-      # Error codes: auth.bad_timestamp, auth.body_too_large, auth.ip_not_allowed, internal,
-      # invoice.corrupt_pay_asset, merchant.bad_signature, merchant.key_mode_mismatch,
-      # merchant.rate_limited, merchant.secret_decrypt, merchant.suspended, merchant.unknown_key,
-      # onramp.suppressed_in, payment.bad_status, payment.not_found, request.bad_json,
-      # request.body_read, request.control_char, request.duplicate_field, request.nul_byte,
-      # request.overloaded, request.rate_limited, request.too_deep
+      # Requires role: Viewer when called with a CLI key.
+      #
+      # Error codes: auth.bad_timestamp, auth.body_too_large, auth.ip_not_allowed,
+      # cli.permission_denied, internal, invoice.corrupt_pay_asset, merchant.bad_signature,
+      # merchant.key_expired, merchant.key_mode_mismatch, merchant.rate_limited,
+      # merchant.secret_decrypt, merchant.suspended, merchant.unknown_key, onramp.suppressed_in,
+      # payment.bad_status, payment.not_found, request.bad_json, request.body_read,
+      # request.control_char, request.duplicate_field, request.nul_byte, request.overloaded,
+      # request.rate_limited, request.too_deep
       #
       # @param params [Oblodai::Models::HistoryRequest, Hash, nil] the request body as a model or a
       #   Hash; the keywords add to it
-      # @param include_refunds [Boolean, nil] Только для /v1/payout/history: true — вместе с
-      #   выплатами вернуть и возвраты (прежнее поведение ленты без kind). По умолчанию false:
-      #   возвраты — отдельно, kind=refund.
-      # @param kind [String, nil] Только для /v1/payout/history: payout — обычные выплаты, refund —
-      #   возвраты; пусто — обычные выплаты (с include_refunds=true — всё вместе). Values:
+      # @param include_refunds [Boolean, nil] Only for /v1/payout/history: true — return refunds
+      #   together with payouts (the former behavior of the feed without kind). Default false: refunds
+      #   are separate, kind=refund.
+      # @param kind [String, nil] Only for /v1/payout/history: payout — regular payouts, refund —
+      #   refunds; empty — regular payouts (with include_refunds=true — everything together). Values:
       #   {Oblodai::Enums::PayoutKind}.
-      # @param limit [Integer, nil] Размер страницы, 1–100; вне диапазона — 25.
-      # @param offset [Integer, nil] Смещение от начала списка (новые сверху).
-      # @param status [String, nil] Фильтр по статусу (точное значение из словаря статусов); пусто —
-      #   все.
+      # @param limit [Integer, nil] Page size, 1–100; out of range — 25.
+      # @param offset [Integer, nil] Offset from the start of the list (newest first).
+      # @param status [String, nil] Filter by status (an exact value from the status vocabulary);
+      #   empty — all.
       # @return [Oblodai::Page<Oblodai::Models::PaymentView>]
       def list_history(
         params = nil,
@@ -315,23 +330,25 @@ module Oblodai
         )
       end
 
-      # Доступные валюты и сети для приёма
+      # Currencies and networks available for accepting payments
       #
-      # Список валют/сетей, которые можно принимать, с лимитами и комиссиями. Тело запроса — пустой
+      # The currencies/networks you can accept, with limits and fees. The request body is an empty
       # `{}`.
       #
-      # Error codes: auth.bad_timestamp, auth.body_too_large, auth.ip_not_allowed, internal,
-      # merchant.bad_signature, merchant.key_mode_mismatch, merchant.rate_limited,
-      # merchant.secret_decrypt, merchant.suspended, merchant.unknown_key, rates.deviation,
-      # rates.fiat_pay_asset, rates.no_pay_asset, rates.no_source, rates.non_positive,
-      # rates.unavailable, request.bad_json, request.body_read, request.control_char,
-      # request.duplicate_field, request.nul_byte, request.overloaded, request.rate_limited,
-      # request.too_deep
+      # Requires role: Viewer when called with a CLI key.
+      #
+      # Error codes: auth.bad_timestamp, auth.body_too_large, auth.ip_not_allowed,
+      # cli.permission_denied, internal, merchant.bad_signature, merchant.key_expired,
+      # merchant.key_mode_mismatch, merchant.rate_limited, merchant.secret_decrypt,
+      # merchant.suspended, merchant.unknown_key, rates.deviation, rates.fiat_pay_asset,
+      # rates.no_pay_asset, rates.no_source, rates.non_positive, rates.unavailable,
+      # request.bad_json, request.body_read, request.control_char, request.duplicate_field,
+      # request.nul_byte, request.overloaded, request.rate_limited, request.too_deep
       #
       # @param params [Oblodai::Models::PageRequest, Hash, nil] the request body as a model or a
       #   Hash; the keywords add to it
-      # @param limit [Integer, nil] Размер страницы, 1–100; вне диапазона — 25.
-      # @param offset [Integer, nil] Смещение от начала списка.
+      # @param limit [Integer, nil] Page size, 1–100; out of range — 25.
+      # @param offset [Integer, nil] Offset from the start of the list.
       # @return [Oblodai::Page<Oblodai::Models::PayServiceEntry>]
       def list_services(
         params = nil,
@@ -363,26 +380,29 @@ module Oblodai
         )
       end
 
-      # Отменить счёт
+      # Cancel an invoice
       #
-      # Отменяет ваш неоплаченный счёт (например, созданный по ошибке) по `uuid`/`order_id`.
-      # Разрешено, пока по счёту не увиден ни один платёж или депозит в сети; после этого — 409
-      # (`invoice.already_paid` / `invoice.deposit_pending`): такой счёт надо не отменять, а
-      # провести или вернуть.
+      # Cancels your unpaid invoice (e.g. one created by mistake) by `uuid`/`order_id`. Allowed as
+      # long as no payment or on-chain deposit has been seen for the invoice; after that — 409
+      # (`invoice.already_paid` / `invoice.deposit_pending`): such an invoice must be settled or
+      # refunded, not cancelled.
       #
-      # Error codes: auth.bad_timestamp, auth.body_too_large, auth.ip_not_allowed, internal,
-      # invoice.already_paid, invoice.corrupt_pay_asset, invoice.deposit_pending,
-      # merchant.bad_signature, merchant.key_mode_mismatch, merchant.rate_limited,
-      # merchant.secret_decrypt, merchant.suspended, merchant.unknown_key, onramp.suppresses,
-      # payment.bad_uuid, payment.no_lookup, payment.not_found, request.bad_json, request.body_read,
+      # Requires role: Finance when called with a CLI key.
+      #
+      # Error codes: auth.bad_timestamp, auth.body_too_large, auth.ip_not_allowed,
+      # cli.permission_denied, internal, invoice.already_paid, invoice.corrupt_pay_asset,
+      # invoice.deposit_pending, merchant.bad_signature, merchant.key_expired,
+      # merchant.key_mode_mismatch, merchant.rate_limited, merchant.secret_decrypt,
+      # merchant.suspended, merchant.unknown_key, onramp.suppresses, payment.bad_uuid,
+      # payment.no_lookup, payment.not_found, request.bad_json, request.body_read,
       # request.control_char, request.duplicate_field, request.nul_byte, request.overloaded,
       # request.rate_limited, request.too_deep
       #
       # @param params [Oblodai::Models::LookupRequest, Hash, nil] the request body as a model or a
       #   Hash; the keywords add to it
-      # @param order_id [String, nil] Ваша ссылка на заказ.
-      # @param uuid [String, nil] Идентификатор счёта в Oblodai. Нужен uuid или order_id; приоритет
-      #   у uuid.
+      # @param order_id [String, nil] Your order reference.
+      # @param uuid [String, nil] The invoice id in Oblodai. Either uuid or order_id is required;
+      #   uuid takes precedence.
       # @return [Oblodai::Models::PaymentView]
       def cancel(
         params = nil,
@@ -414,27 +434,31 @@ module Oblodai
         )
       end
 
-      # Отправить счёт на e-mail
+      # Email the invoice
       #
-      # Шлёт покупателю письмо с кнопкой «Оплатить» для существующего платежа (по
-      # `uuid`/`order_id`). Адрес — поле `email` или `payer_email` платежа. Требует настроенный SMTP
-      # (иначе `email.disabled`). Отправка ограничена ПО АДРЕСУ ПОЛУЧАТЕЛЯ: не больше 10 писем на
-      # один адрес за час, считая по всем вашим платежам (иначе `email.rate_limited`, 429). Чек об
-      # оплате отправляется автоматически на `payer_email`, когда платёж получен.
+      # Sends the buyer an email with a "Pay" button for an existing payment (by `uuid`/`order_id`).
+      # The address is the `email` field or the payment's `payer_email`. Requires SMTP to be
+      # configured (otherwise `email.disabled`). Sending is limited PER RECIPIENT ADDRESS: no more
+      # than 10 emails to one address per hour, counted across all your payments (otherwise
+      # `email.rate_limited`, 429). A payment receipt is sent automatically to `payer_email` once
+      # the payment is received.
+      #
+      # Requires role: Finance when called with a CLI key.
       #
       # Error codes: auth.bad_timestamp, auth.body_too_large, auth.ip_not_allowed,
-      # email.bad_recipient, email.disabled, email.no_recipient, email.rate_limited, internal,
-      # invoice.corrupt_pay_asset, merchant.bad_signature, merchant.key_mode_mismatch,
-      # merchant.rate_limited, merchant.secret_decrypt, merchant.suspended, merchant.unknown_key,
-      # payment.bad_uuid, payment.no_lookup, payment.not_found, request.bad_json, request.body_read,
+      # cli.permission_denied, email.bad_recipient, email.disabled, email.no_recipient,
+      # email.rate_limited, internal, invoice.corrupt_pay_asset, merchant.bad_signature,
+      # merchant.key_expired, merchant.key_mode_mismatch, merchant.rate_limited,
+      # merchant.secret_decrypt, merchant.suspended, merchant.unknown_key, payment.bad_uuid,
+      # payment.no_lookup, payment.not_found, request.bad_json, request.body_read,
       # request.control_char, request.duplicate_field, request.nul_byte, request.overloaded,
       # request.rate_limited, request.too_deep
       #
       # @param params [Oblodai::Models::SendEmailRequest, Hash, nil] the request body as a model or
       #   a Hash; the keywords add to it
-      # @param email [String, nil] Кому отправить. По умолчанию — payer_email, заданный у платежа.
-      # @param order_id [String, nil] Ваша ссылка на заказ.
-      # @param uuid [String, nil] Идентификатор платежа в Oblodai. Нужен uuid или order_id.
+      # @param email [String, nil] Whom to send to. Defaults to the payer_email set on the payment.
+      # @param order_id [String, nil] Your order reference.
+      # @param uuid [String, nil] The payment id in Oblodai. Either uuid or order_id is required.
       # @return [Oblodai::Models::SendEmailResult]
       def send_email(
         params = nil,
@@ -468,37 +492,41 @@ module Oblodai
         )
       end
 
-      # Настройки страницы оплаты
+      # Payment page settings
       #
-      # Куда возвращать покупателя после оплаты (`success_url`) и после отказа (`fail_url`), и слать
-      # ли ему чек на почту (`email_receipts`).
+      # Where to send the buyer after payment (`success_url`) and after a failure (`fail_url`), and
+      # whether to email them a receipt (`email_receipts`).
       #
-      # Редиректы — это ЗНАЧЕНИЯ ПО УМОЛЧАНИЮ: они подставляются только в те счета, где вы не
-      # прислали `url_success`/`url_return` сами. Присланное в `/v1/payment` всегда сильнее. Чек —
-      # не умолчание, а решение: у него нет поля в счёте, и он уходит только если покупатель оставил
-      # почту.
+      # The redirects are DEFAULTS: they apply only to invoices where you did not send
+      # `url_success`/`url_return` yourself. Values sent in `/v1/payment` always win. The receipt is
+      # not a default but a decision: the invoice has no field for it, and it is sent only if the
+      # buyer left an email.
       #
-      # Присылайте только те поля, которые меняете: пропущенное поле сохраняет прежнее значение, а
-      # пустая строка в редиректе — это «никуда не отправлять». Адрес должен быть http(s); проверка
-      # на записи, а не на показе.
+      # Send only the fields you change: an omitted field keeps its previous value, and an empty
+      # string in a redirect means "do not redirect". The URL must be http(s); it is validated on
+      # write, not on display.
+      #
+      # Requires role: Finance when called with a CLI key.
       #
       # Error codes: auth.bad_timestamp, auth.body_too_large, auth.ip_not_allowed,
-      # checkoutcfg.bad_url, checkoutcfg.disabled, checkoutcfg.url_too_long, internal,
-      # merchant.bad_signature, merchant.key_mode_mismatch, merchant.rate_limited,
-      # merchant.secret_decrypt, merchant.suspended, merchant.unknown_key, request.bad_json,
-      # request.body_read, request.control_char, request.duplicate_field, request.missing_field,
-      # request.nul_byte, request.overloaded, request.rate_limited, request.too_deep
+      # checkoutcfg.bad_url, checkoutcfg.disabled, checkoutcfg.url_too_long, cli.permission_denied,
+      # internal, merchant.bad_signature, merchant.key_expired, merchant.key_mode_mismatch,
+      # merchant.rate_limited, merchant.secret_decrypt, merchant.suspended, merchant.unknown_key,
+      # request.bad_json, request.body_read, request.control_char, request.duplicate_field,
+      # request.missing_field, request.nul_byte, request.overloaded, request.rate_limited,
+      # request.too_deep
       #
       # @param params [Oblodai::Models::CheckoutConfigRequest, Hash, nil] the request body as a
       #   model or a Hash; the keywords add to it
-      # @param email_receipts [Boolean, nil] Слать ли покупателю чек на почту после оплаты. Чек
-      #   уходит только если покупатель оставил адрес. По умолчанию — да. An explicit nil sends null.
-      # @param fail_url [String, nil] Куда вернуть покупателя, если он ушёл с оплаты. Пустая строка
-      #   — никуда не отправлять. Поле можно не присылать — тогда прежнее значение сохранится.
-      #   Подставляется только в те счета, где url_return не задан. An explicit nil sends null.
-      # @param success_url [String, nil] Куда вернуть покупателя после успешной оплаты. Пустая
-      #   строка — никуда не отправлять. Поле можно не присылать — тогда прежнее значение сохранится.
-      #   Подставляется только в те счета, где url_success не задан. An explicit nil sends null.
+      # @param email_receipts [Boolean, nil] Whether to email the buyer a receipt after payment. The
+      #   receipt is sent only if the buyer left an address. Defaults to yes. An explicit nil sends
+      #   null.
+      # @param fail_url [String, nil] Where to send the buyer if they left the payment page. An
+      #   empty string — do not redirect. The field may be omitted — then the previous value is kept.
+      #   Applied only to invoices where url_return is not set. An explicit nil sends null.
+      # @param success_url [String, nil] Where to send the buyer after a successful payment. An
+      #   empty string — do not redirect. The field may be omitted — then the previous value is kept.
+      #   Applied only to invoices where url_success is not set. An explicit nil sends null.
       # @return [Oblodai::Models::CheckoutConfigView]
       def set_checkout_config(
         params = nil,
@@ -533,16 +561,19 @@ module Oblodai
         )
       end
 
-      # Текущие настройки страницы оплаты
+      # Current payment page settings
       #
-      # Возвращает `success_url`, `fail_url`, `email_receipts` проекта. Ненастроенное поле отдаётся
-      # своим ФАКТИЧЕСКИМ поведением: пустой редирект и `email_receipts: true`.
+      # Returns the project's `success_url`, `fail_url`, `email_receipts`. An unconfigured field is
+      # returned as its EFFECTIVE behavior: an empty redirect and `email_receipts: true`.
+      #
+      # Requires role: Viewer when called with a CLI key.
       #
       # Error codes: auth.bad_timestamp, auth.body_too_large, auth.ip_not_allowed,
-      # checkoutcfg.disabled, internal, merchant.bad_signature, merchant.key_mode_mismatch,
-      # merchant.rate_limited, merchant.secret_decrypt, merchant.suspended, merchant.unknown_key,
-      # request.body_read, request.control_char, request.duplicate_field, request.nul_byte,
-      # request.overloaded, request.rate_limited, request.too_deep
+      # checkoutcfg.disabled, cli.permission_denied, internal, merchant.bad_signature,
+      # merchant.key_expired, merchant.key_mode_mismatch, merchant.rate_limited,
+      # merchant.secret_decrypt, merchant.suspended, merchant.unknown_key, request.body_read,
+      # request.control_char, request.duplicate_field, request.nul_byte, request.overloaded,
+      # request.rate_limited, request.too_deep
       #
       # @return [Oblodai::Models::CheckoutConfigView]
       def get_checkout_config(
@@ -566,25 +597,28 @@ module Oblodai
         )
       end
 
-      # Ссылки на анкету происхождения средств
+      # Source-of-funds questionnaire links
       #
-      # По `uuid` или `order_id`. Если по платежу ничего не заблокировано — **пустой массив**; это
-      # единственное, по чему различаются случаи, сама причина наружу не уходит. Каждый элемент:
-      # `link` (передайте её плательщику), `expired_at`, `status`
-      # (`init|pending|completed|expired`). Содержимое анкеты вам не показывается: это данные вашего
-      # клиента, а не ваши.
+      # By `uuid` or `order_id`. If nothing is blocked for the payment — an **empty array**; that is
+      # the only thing that distinguishes the cases, the reason itself is not disclosed. Each item:
+      # `link` (hand it to the payer), `expired_at`, `status` (`init|pending|completed|expired`).
+      # The questionnaire contents are not shown to you: they are your customer's data, not yours.
+      #
+      # Requires role: Finance when called with a CLI key.
       #
       # Error codes: aml.sof_race, auth.bad_timestamp, auth.body_too_large, auth.ip_not_allowed,
-      # internal, invoice.corrupt_pay_asset, merchant.bad_signature, merchant.key_mode_mismatch,
-      # merchant.rate_limited, merchant.secret_decrypt, merchant.suspended, merchant.unknown_key,
-      # payment.bad_uuid, payment.no_reference, payment.not_found, request.bad_json,
-      # request.body_read, request.control_char, request.duplicate_field, request.nul_byte,
-      # request.overloaded, request.rate_limited, request.too_deep
+      # cli.permission_denied, internal, invoice.corrupt_pay_asset, merchant.bad_signature,
+      # merchant.key_expired, merchant.key_mode_mismatch, merchant.rate_limited,
+      # merchant.secret_decrypt, merchant.suspended, merchant.unknown_key, payment.bad_uuid,
+      # payment.no_reference, payment.not_found, request.bad_json, request.body_read,
+      # request.control_char, request.duplicate_field, request.nul_byte, request.overloaded,
+      # request.rate_limited, request.too_deep
       #
       # @param params [Oblodai::Models::AMLLinksRequest, Hash, nil] the request body as a model or a
       #   Hash; the keywords add to it
-      # @param order_id [String, nil] Идентификатор заказа мерчанта.
-      # @param uuid [String, nil] Идентификатор платежа. Нужен uuid или order_id; приоритет у uuid.
+      # @param order_id [String, nil] The merchant's order id.
+      # @param uuid [String, nil] Payment id. Either uuid or order_id is required; uuid takes
+      #   precedence.
       # @return [Oblodai::Models::AMLLinksResult]
       def get_aml_links(
         params = nil,
@@ -616,57 +650,62 @@ module Oblodai
         )
       end
 
-      # Разрешить недоплату: принять или вернуть
+      # Resolve an underpayment: accept or refund
       #
-      # Для платежа в статусе `wrong_amount` (недоплата, срок вышел) мерчант явно решает судьбу
-      # денег: `action:"accept"` — оставить частичную оплату как расчёт (снимает автовозврат),
-      # `action:"refund"` — вернуть полученное плательщику сейчас (адрес/сеть по умолчанию —
-      # записанный адрес плательщика). Двигает деньги — подписывается вашим API-ключом, как и всё
-      # остальное: ключ у мерчанта один и он полнодоступный.
+      # For a payment in status `wrong_amount` (underpaid, expired) the merchant explicitly decides
+      # what happens to the money: `action:"accept"` — keep the partial payment as settlement
+      # (cancels the auto-refund), `action:"refund"` — return what was received to the payer now
+      # (address/network default to the recorded payer address). It moves money — it is signed with
+      # your API key like everything else: a merchant has one key and it has full access.
+      #
+      # Requires role: Finance when called with a CLI key.
       #
       # Error codes: auth.bad_timestamp, auth.body_too_large, auth.ip_not_allowed,
-      # compliance.blocked, compliance.blocked_address, compliance.blocklist_unavailable,
-      # compliance.no_destination, compliance.no_network, compliance.sanctioned_address,
-      # compliance.sanctions_unavailable, idempotency.bad_key, idempotency.in_progress,
-      # idempotency.key_reused, idempotency.unavailable, internal, invoice.corrupt_pay_asset,
-      # ledger.account_not_found, ledger.asset_mismatch, ledger.bad_direction,
-      # ledger.duplicate_posting, ledger.fiat_asset, ledger.idempotency_conflict,
-      # ledger.missing_idempotency_key, ledger.no_lines, ledger.non_positive_amount,
-      # ledger.sandbox_live_mix, ledger.unbalanced, merchant.bad_signature,
-      # merchant.key_mode_mismatch, merchant.rate_limited, merchant.secret_decrypt,
-      # merchant.suspended, merchant.unknown_key, onramp.suppresses, payment.bad_uuid,
-      # payment.no_lookup, payment.not_found, payout.above_limit, payout.address_network_mismatch,
-      # payout.amount_below_fee, payout.approver_is_creator, payout.asset_mismatch,
-      # payout.bad_address, payout.bad_amount, payout.bad_memo, payout.bad_owner_kind,
-      # payout.cap_unpriceable, payout.convert_bad_amount, payout.convert_frozen,
-      # payout.convert_idempotency_conflict, payout.convert_insufficient, payout.convert_no_rate,
-      # payout.convert_same_asset, payout.convert_unsupported, payout.daily_cap,
-      # payout.destination_not_activated, payout.duplicate_reference, payout.fee_asset_mismatch,
-      # payout.freeze_unknown, payout.frozen, payout.funds_maturing, payout.funds_settling,
-      # payout.illegal_transition, payout.insufficient_funds, payout.memo_conflict,
-      # payout.memo_required, payout.memo_too_long, payout.merchant_frozen, payout.no_destination,
-      # payout.no_owner, payout.not_found, payout.not_pending, payout.reference_collision,
-      # postgres.lock_pool_busy, rates.deviation, rates.no_source, rates.non_positive,
-      # rates.stale_rate, refund.destination_internal, refund.dust, refund.exceeds_excess,
-      # refund.exceeds_refundable, refund.fence_check, refund.from_currency_personal_account,
-      # refund.no_address, refund.nothing_to_refund, refund.omnibus_destination,
-      # refund.paid_internally, refund.reference_collision, request.bad_json, request.body_read,
-      # request.control_char, request.duplicate_field, request.nul_byte, request.overloaded,
-      # request.rate_limited, request.too_deep, resolution.already_refunded,
-      # resolution.already_resolved, resolution.bad_action, resolution.chain_ambiguous,
-      # resolution.disabled, resolution.network_required, resolution.not_underpaid,
-      # resolution.unsupported_network, treasury.no_ccy_map, wallet.static_not_found
+      # cli.permission_denied, compliance.blocked, compliance.blocked_address,
+      # compliance.blocklist_unavailable, compliance.no_destination, compliance.no_network,
+      # compliance.sanctioned_address, compliance.sanctions_unavailable, idempotency.bad_key,
+      # idempotency.in_progress, idempotency.key_reused, idempotency.unavailable, internal,
+      # invoice.corrupt_pay_asset, ledger.account_not_found, ledger.asset_mismatch,
+      # ledger.bad_direction, ledger.duplicate_posting, ledger.fiat_asset,
+      # ledger.idempotency_conflict, ledger.missing_idempotency_key, ledger.no_lines,
+      # ledger.non_positive_amount, ledger.sandbox_live_mix, ledger.unbalanced,
+      # merchant.bad_signature, merchant.key_expired, merchant.key_mode_mismatch,
+      # merchant.rate_limited, merchant.secret_decrypt, merchant.suspended, merchant.unknown_key,
+      # onramp.suppresses, payment.bad_uuid, payment.no_lookup, payment.not_found,
+      # payout.above_limit, payout.address_network_mismatch, payout.amount_below_fee,
+      # payout.approver_is_creator, payout.asset_mismatch, payout.bad_address, payout.bad_amount,
+      # payout.bad_memo, payout.bad_owner_kind, payout.cap_unpriceable, payout.convert_bad_amount,
+      # payout.convert_frozen, payout.convert_idempotency_conflict, payout.convert_insufficient,
+      # payout.convert_no_rate, payout.convert_same_asset, payout.convert_unsupported,
+      # payout.daily_cap, payout.destination_not_activated, payout.duplicate_reference,
+      # payout.fee_asset_mismatch, payout.freeze_unknown, payout.frozen, payout.funds_maturing,
+      # payout.funds_settling, payout.illegal_transition, payout.insufficient_funds,
+      # payout.memo_conflict, payout.memo_required, payout.memo_too_long, payout.merchant_frozen,
+      # payout.no_destination, payout.no_owner, payout.not_found, payout.not_pending,
+      # payout.reference_collision, postgres.lock_pool_busy, rates.deviation, rates.no_source,
+      # rates.non_positive, rates.stale_rate, refund.destination_internal, refund.dust,
+      # refund.exceeds_excess, refund.exceeds_refundable, refund.fence_check,
+      # refund.from_currency_personal_account, refund.no_address, refund.nothing_to_refund,
+      # refund.omnibus_destination, refund.paid_internally, refund.reference_collision,
+      # request.bad_json, request.body_read, request.control_char, request.duplicate_field,
+      # request.nul_byte, request.overloaded, request.rate_limited, request.too_deep,
+      # resolution.already_refunded, resolution.already_resolved, resolution.bad_action,
+      # resolution.chain_ambiguous, resolution.disabled, resolution.network_required,
+      # resolution.not_underpaid, resolution.unsupported_network, treasury.no_ccy_map,
+      # wallet.static_not_found
       #
       # @param params [Oblodai::Models::ResolveRequest, Hash, nil] the request body as a model or a
       #   Hash; the keywords add to it
-      # @param action [String, nil] accept — принять частичную оплату, refund — вернуть плательщику.
-      # @param address [String, nil] Только для refund: адрес возврата. По умолчанию — записанный
-      #   payer_address платежа; если он пуст (Bitcoin/UTXO), адрес обязателен, иначе
+      # @param action [String, nil] accept — accept the partial payment, refund — return it to the
+      #   payer.
+      # @param address [String, nil] Only for refund: the refund address. Defaults to the payment's
+      #   recorded payer_address; if that is empty (Bitcoin/UTXO), the address is required, otherwise
       #   refund.no_address.
-      # @param network [String, nil] Только для refund: сеть возврата, по умолчанию — сеть платежа.
-      # @param order_id [String, nil] Ваш идентификатор платежа.
-      # @param reference [String, nil] Только для refund: ваш ключ дедупликации возврата.
-      # @param uuid [String, nil] UUID платежа. Нужен uuid или order_id.
+      # @param network [String, nil] Only for refund: the refund network, defaults to the payment's
+      #   network.
+      # @param order_id [String, nil] Your payment identifier.
+      # @param reference [String, nil] Only for refund: your refund deduplication key.
+      # @param uuid [String, nil] Payment UUID. Either uuid or order_id is required.
       # @return [Oblodai::Models::ResolveRefundResult, Oblodai::Models::ResolveAcceptResult]
       def resolve(
         params = nil,
@@ -707,48 +746,51 @@ module Oblodai
       end
     end
 
-    # Многоразовые ссылки на оплату: одна ссылка — много платежей.
+    # Reusable payment links: one link, many payments.
     class PaymentLinks < Generated::Resource
-      # Создать платёжную ссылку
+      # Create a payment link
       #
-      # Переиспользуемая ссылка (как страница доната): по ней платят много людей, каждый платёж —
-      # свой инвойс со своим адресом. `amount_mode`: `fixed` (сумма задана в `amount_fixed`), `open`
-      # (клиент вводит любую сумму, опц. `amount_min`), `range` (клиент вводит в диапазоне
-      # `amount_min`…`amount_max`). `currency` — валюта цены (крипто-тикер, напр. `USDT`).
+      # A reusable link (like a donation page): many people pay through it, each payment is its own
+      # invoice with its own address. `amount_mode`: `fixed` (the amount is set in `amount_fixed`),
+      # `open` (the customer enters any amount, optionally `amount_min`), `range` (the customer
+      # enters an amount between `amount_min` and `amount_max`). `currency` — the price currency (a
+      # crypto ticker, e.g. `USDT`).
       #
-      # Валюту/сеть оплаты можно **закрепить** (`pinned_currency` + `pinned_network`) или оставить
-      # пустыми — тогда клиент выбирает их на странице оплаты. `expires_in` — срок жизни ссылки в
-      # секундах (0 = **бессрочно**; сами инвойсы при этом живут обычный короткий срок). В ответе —
-      # `link_id` и `url` для клиента.
+      # The payment currency/network can be **pinned** (`pinned_currency` + `pinned_network`) or
+      # left empty — then the customer picks them on the payment page. `expires_in` — the link
+      # lifetime in seconds (0 = **never expires**; the invoices themselves still have the usual
+      # short lifetime). The response contains `link_id` and the `url` for the customer.
       #
-      # Error codes: auth.bad_timestamp, auth.body_too_large, auth.ip_not_allowed, internal,
-      # merchant.acceptance_blocked, merchant.bad_signature, merchant.key_mode_mismatch,
-      # merchant.rate_limited, merchant.secret_decrypt, merchant.suspended, merchant.unknown_key,
-      # paylink.bad_amount, paylink.bad_max, paylink.bad_min, paylink.bad_mode, paylink.bad_range,
-      # paylink.disabled, paylink.expires_in_negative, paylink.expires_in_too_large,
-      # paylink.not_positive, request.bad_json, request.body_read, request.control_char,
-      # request.duplicate_field, request.nul_byte, request.overloaded, request.rate_limited,
-      # request.too_deep, request.unknown_currency
+      # Requires role: Finance when called with a CLI key.
+      #
+      # Error codes: auth.bad_timestamp, auth.body_too_large, auth.ip_not_allowed,
+      # cli.permission_denied, internal, merchant.acceptance_blocked, merchant.bad_signature,
+      # merchant.key_expired, merchant.key_mode_mismatch, merchant.rate_limited,
+      # merchant.secret_decrypt, merchant.suspended, merchant.unknown_key, paylink.bad_amount,
+      # paylink.bad_max, paylink.bad_min, paylink.bad_mode, paylink.bad_range, paylink.disabled,
+      # paylink.expires_in_negative, paylink.expires_in_too_large, paylink.not_positive,
+      # request.bad_json, request.body_read, request.control_char, request.duplicate_field,
+      # request.nul_byte, request.overloaded, request.rate_limited, request.too_deep,
+      # request.unknown_currency
       #
       # @param params [Oblodai::Models::PaymentLinkCreateRequest, Hash, nil] the request body as a
       #   model or a Hash; the keywords add to it
-      # @param amount_fixed [String, nil] Сумма — для режима fixed; обязательна в этом режиме
-      # @param amount_mode [String, nil] Режим суммы: fixed | open | range Values:
+      # @param amount_fixed [String, nil] Amount — for fixed mode; required in this mode
+      # @param amount_mode [String, nil] Amount mode: fixed | open | range Values:
       #   {Oblodai::Enums::AmountMode}.
-      # @param currency [String, nil] Валюта цены — фиат (USD, EUR, RUB, …) или монета; список —
-      #   pricing_currencies из GET /v1/currencies
-      # @param description [String, nil] Описание на странице оплаты
-      # @param expires_in_seconds [Integer, nil] Срок жизни ссылки, секунд от момента создания; 0
-      #   (по умолчанию) — ссылка бессрочная
-      # @param max_amount [BigDecimal, String, nil] Верхняя граница — для range; обязательна в этом
-      #   режиме
-      # @param min_amount [BigDecimal, String, nil] Нижняя граница: необязательный «пол» для open,
-      #   обязательный минимум для range
-      # @param pinned_currency [String, nil] Валюта расчёта (монета), закреплённая за ссылкой; пусто
-      #   — монету выбирает покупатель
-      # @param pinned_network [String, nil] Сеть расчёта, закреплённая за ссылкой; пусто — сеть
-      #   выбирает покупатель
-      # @param title [String, nil] Заголовок на странице оплаты
+      # @param currency [String, nil] The price currency — fiat (USD, EUR, RUB, …) or a coin; the
+      #   list is pricing_currencies from GET /v1/currencies
+      # @param description [String, nil] Description on the payment page
+      # @param expires_in_seconds [Integer, nil] The link lifetime, in seconds from creation; 0
+      #   (default) — the link never expires
+      # @param max_amount [BigDecimal, String, nil] Upper bound — for range; required in this mode
+      # @param min_amount [BigDecimal, String, nil] Lower bound: an optional "floor" for open, a
+      #   required minimum for range
+      # @param pinned_currency [String, nil] The settlement currency (coin) pinned to the link;
+      #   empty — the buyer chooses the coin
+      # @param pinned_network [String, nil] The settlement network pinned to the link; empty — the
+      #   buyer chooses the network
+      # @param title [String, nil] Title on the payment page
       # @return [Oblodai::Models::PaymentLinkResponse]
       def create(
         params = nil,
@@ -796,20 +838,23 @@ module Oblodai
         )
       end
 
-      # Список ссылок
+      # List links
       #
-      # Ваши платёжные ссылки, новые сверху.
+      # Your payment links, newest first.
       #
-      # Error codes: auth.bad_timestamp, auth.body_too_large, auth.ip_not_allowed, internal,
-      # merchant.bad_signature, merchant.key_mode_mismatch, merchant.rate_limited,
-      # merchant.secret_decrypt, merchant.suspended, merchant.unknown_key, paylink.disabled,
-      # request.bad_json, request.body_read, request.control_char, request.duplicate_field,
-      # request.nul_byte, request.overloaded, request.rate_limited, request.too_deep
+      # Requires role: Viewer when called with a CLI key.
+      #
+      # Error codes: auth.bad_timestamp, auth.body_too_large, auth.ip_not_allowed,
+      # cli.permission_denied, internal, merchant.bad_signature, merchant.key_expired,
+      # merchant.key_mode_mismatch, merchant.rate_limited, merchant.secret_decrypt,
+      # merchant.suspended, merchant.unknown_key, paylink.disabled, request.bad_json,
+      # request.body_read, request.control_char, request.duplicate_field, request.nul_byte,
+      # request.overloaded, request.rate_limited, request.too_deep
       #
       # @param params [Oblodai::Models::PageRequest, Hash, nil] the request body as a model or a
       #   Hash; the keywords add to it
-      # @param limit [Integer, nil] Размер страницы, 1–100; вне диапазона — 25.
-      # @param offset [Integer, nil] Смещение от начала списка.
+      # @param limit [Integer, nil] Page size, 1–100; out of range — 25.
+      # @param offset [Integer, nil] Offset from the start of the list.
       # @return [Oblodai::Page<Oblodai::Models::PaymentLinkView>]
       def list(
         params = nil,
@@ -841,22 +886,26 @@ module Oblodai
         )
       end
 
-      # Ссылка + её платежи
+      # Link and its payments
       #
-      # По `link_id`: конфиг ссылки и собранные по ней платежи (`payments[]`).
+      # By `link_id`: the link configuration and the payments collected through it (`payments[]`).
       #
-      # Error codes: auth.bad_timestamp, auth.body_too_large, auth.ip_not_allowed, internal,
-      # merchant.bad_signature, merchant.key_mode_mismatch, merchant.rate_limited,
-      # merchant.secret_decrypt, merchant.suspended, merchant.unknown_key, paylink.bad_id,
-      # paylink.disabled, paylink.not_found, request.bad_json, request.body_read,
-      # request.control_char, request.duplicate_field, request.nul_byte, request.overloaded,
-      # request.rate_limited, request.too_deep
+      # Requires role: Viewer when called with a CLI key.
+      #
+      # Error codes: auth.bad_timestamp, auth.body_too_large, auth.ip_not_allowed,
+      # cli.permission_denied, internal, merchant.bad_signature, merchant.key_expired,
+      # merchant.key_mode_mismatch, merchant.rate_limited, merchant.secret_decrypt,
+      # merchant.suspended, merchant.unknown_key, paylink.bad_id, paylink.disabled,
+      # paylink.not_found, request.bad_json, request.body_read, request.control_char,
+      # request.duplicate_field, request.nul_byte, request.overloaded, request.rate_limited,
+      # request.too_deep
       #
       # @param params [Oblodai::Models::PaymentLinkLookupRequest, Hash, nil] the request body as a
       #   model or a Hash; the keywords add to it
-      # @param limit [Integer, nil] Размер страницы платежей по ссылке, 1–100; вне диапазона — 25.
-      # @param link_id [String, nil] Идентификатор платёжной ссылки.
-      # @param offset [Integer, nil] Смещение страницы платежей.
+      # @param limit [Integer, nil] The page size for payments through the link, 1–100; out of range
+      #   — 25.
+      # @param link_id [String, nil] Payment link id.
+      # @param offset [Integer, nil] The offset of the payments page.
       # @return [Oblodai::Models::PaymentLinkDetail]
       def get(
         params = nil,
@@ -890,22 +939,25 @@ module Oblodai
         )
       end
 
-      # Включить/выключить ссылку
+      # Enable/disable a link
       #
-      # `{link_id, active}`. Выключенная ссылка не принимает новые платежи.
+      # `{link_id, active}`. A disabled link does not accept new payments.
       #
-      # Error codes: auth.bad_timestamp, auth.body_too_large, auth.ip_not_allowed, internal,
-      # merchant.bad_signature, merchant.key_mode_mismatch, merchant.rate_limited,
-      # merchant.secret_decrypt, merchant.suspended, merchant.unknown_key, paylink.bad_id,
-      # paylink.disabled, paylink.not_found, request.bad_json, request.body_read,
-      # request.control_char, request.duplicate_field, request.nul_byte, request.overloaded,
-      # request.rate_limited, request.too_deep
+      # Requires role: Finance when called with a CLI key.
+      #
+      # Error codes: auth.bad_timestamp, auth.body_too_large, auth.ip_not_allowed,
+      # cli.permission_denied, internal, merchant.bad_signature, merchant.key_expired,
+      # merchant.key_mode_mismatch, merchant.rate_limited, merchant.secret_decrypt,
+      # merchant.suspended, merchant.unknown_key, paylink.bad_id, paylink.disabled,
+      # paylink.not_found, request.bad_json, request.body_read, request.control_char,
+      # request.duplicate_field, request.nul_byte, request.overloaded, request.rate_limited,
+      # request.too_deep
       #
       # @param params [Oblodai::Models::PaymentLinkToggleRequest, Hash, nil] the request body as a
       #   model or a Hash; the keywords add to it
-      # @param active [Boolean, nil] true — ссылка принимает оплату; false — выключена (страница
-      #   покажет, что ссылка неактивна).
-      # @param link_id [String, nil] Идентификатор платёжной ссылки.
+      # @param active [Boolean, nil] true — the link accepts payments; false — disabled (the page
+      #   will show that the link is inactive).
+      # @param link_id [String, nil] Payment link id.
       # @return [Oblodai::Models::PaymentLinkToggled]
       def toggle(
         params = nil,
@@ -938,60 +990,63 @@ module Oblodai
       end
     end
 
-    # Вернуть деньги плательщику (списание с вашего баланса).
+    # Return money to the payer (debited from your balance).
     class Refunds < Generated::Resource
-      # Вернуть платёж
+      # Refund a payment
       #
-      # Возврат — это списание с вашего баланса.
+      # A refund is debited from your balance.
       #
-      # `address` (куда вернуть) можно опустить ТОЛЬКО если в платеже `payer_address_is_refundable`
-      # = true: тогда вернём на записанный адрес плательщика (`payer_address`). Если там false —
-      # адрес плательщика нам известен, но он не является адресом возврата (Bitcoin/UTXO: первый
-      # вход мог быть биржей или сдачей; XRP: общий адрес биржи с тегом назначения; оплата КАРТОЙ
-      # через крипто-он-рамп: отправитель — омнибусный горячий кошелёк провайдера, а не покупатель).
-      # Возврат туда уходит безвозвратно тому, кто денег не платил, поэтому запрос без `address`
-      # будет отклонён (`refund.no_address`): спросите адрес у покупателя и передайте его явно.
-      # Нужен `uuid`/`order_id` платежа. По умолчанию вернём всю полученную сумму; можно указать
-      # частичную `amount`.
+      # `address` (where to refund) may be omitted ONLY if the payment has
+      # `payer_address_is_refundable` = true: then we refund to the recorded payer address
+      # (`payer_address`). If it is false, we know the payer's address but it is not a refund
+      # address (Bitcoin/UTXO: the first input may belong to an exchange or be change; XRP: a shared
+      # exchange address with a destination tag; CARD payment via a crypto on-ramp: the sender is
+      # the provider's omnibus hot wallet, not the buyer). A refund sent there is irrecoverably lost
+      # to someone who never paid, so a request without `address` is rejected (`refund.no_address`):
+      # ask the buyer for an address and pass it explicitly. The payment's `uuid`/`order_id` is
+      # required. By default the full received amount is refunded; you may specify a partial
+      # `amount`.
       #
-      # Идемпотентно по `(платёж, адрес, сумма)`; суммарно нельзя вернуть больше, чем оплачено.
-      # Возврат подтверждается автоматически на любой адрес. Единственное исключение — платёж картой
-      # через он-рамп: возврат НА ЗАПИСАННЫЙ АДРЕС ПЛАТЕЛЬЩИКА такого счёта отклоняется
-      # (`refund.omnibus_destination`), потому что этот адрес принадлежит провайдеру, а не
-      # покупателю — пришлите адрес покупателя явно.
+      # Idempotent on `(payment, address, amount)`; in total you cannot refund more than was paid.
+      # Refunds to any address are approved automatically. The only exception is a card payment via
+      # an on-ramp: a refund TO THE RECORDED PAYER ADDRESS of such an invoice is rejected
+      # (`refund.omnibus_destination`), because that address belongs to the provider, not the buyer
+      # — send the buyer's address explicitly.
       #
-      # Возврат платится ТОЙ ЖЕ монетой, которой заплатил покупатель. Если она уже сведена в стейбл
-      # автообменом, передайте `from_currency: "USDT"` — возврат профинансируется конвертацией
-      # вашего баланса USDT и останется ВОЗВРАТОМ: счёт пометится возвращённым, доли партнёрам
-      # отзовутся. Отправить деньги обычной выплатой тоже можно, но в отчётах это будет выплата, а
-      # не возврат.
+      # A refund is paid in THE SAME coin the buyer paid with. If it has already been converted into
+      # a stablecoin by auto-conversion, pass `from_currency: "USDT"` — the refund is funded by
+      # converting your USDT balance and remains a REFUND: the invoice is marked refunded and
+      # partner shares are reversed. You can also send the money as a regular payout, but reports
+      # will show it as a payout, not a refund.
+      #
+      # Requires role: Finance when called with a CLI key.
       #
       # Error codes: auth.bad_timestamp, auth.body_too_large, auth.ip_not_allowed,
-      # compliance.blocked, compliance.blocked_address, compliance.blocklist_unavailable,
-      # compliance.no_destination, compliance.no_network, compliance.sanctioned_address,
-      # compliance.sanctions_unavailable, idempotency.bad_key, idempotency.in_progress,
-      # idempotency.key_reused, idempotency.unavailable, internal, invoice.corrupt_pay_asset,
-      # ledger.account_not_found, ledger.asset_mismatch, ledger.bad_direction,
-      # ledger.duplicate_posting, ledger.fiat_asset, ledger.idempotency_conflict,
-      # ledger.missing_idempotency_key, ledger.no_lines, ledger.non_positive_amount,
-      # ledger.sandbox_live_mix, ledger.unbalanced, merchant.bad_signature,
-      # merchant.key_mode_mismatch, merchant.rate_limited, merchant.secret_decrypt,
-      # merchant.suspended, merchant.unknown_key, onramp.suppresses, payment.bad_uuid,
-      # payment.no_lookup, payment.not_found, payout.above_limit, payout.address_network_mismatch,
-      # payout.amount_below_fee, payout.approver_is_creator, payout.asset_mismatch,
-      # payout.bad_address, payout.bad_amount, payout.bad_memo, payout.bad_owner_kind,
-      # payout.cap_unpriceable, payout.convert_bad_amount, payout.convert_frozen,
-      # payout.convert_idempotency_conflict, payout.convert_insufficient, payout.convert_no_rate,
-      # payout.convert_same_asset, payout.convert_unsupported, payout.daily_cap,
-      # payout.destination_not_activated, payout.duplicate_reference, payout.fee_asset_mismatch,
-      # payout.freeze_unknown, payout.frozen, payout.funds_maturing, payout.funds_settling,
-      # payout.illegal_transition, payout.insufficient_funds, payout.memo_conflict,
-      # payout.memo_required, payout.memo_too_long, payout.merchant_frozen, payout.no_destination,
-      # payout.no_owner, payout.not_found, payout.not_pending, payout.reference_collision,
-      # postgres.lock_pool_busy, rates.deviation, rates.no_source, rates.non_positive,
-      # rates.stale_rate, refund.bad_amount, refund.chain_ambiguous, refund.destination_internal,
-      # refund.dust, refund.exceeds_excess, refund.exceeds_refundable, refund.fence_check,
-      # refund.from_currency_personal_account, refund.from_currency_unsupported,
+      # cli.permission_denied, compliance.blocked, compliance.blocked_address,
+      # compliance.blocklist_unavailable, compliance.no_destination, compliance.no_network,
+      # compliance.sanctioned_address, compliance.sanctions_unavailable, idempotency.bad_key,
+      # idempotency.in_progress, idempotency.key_reused, idempotency.unavailable, internal,
+      # invoice.corrupt_pay_asset, ledger.account_not_found, ledger.asset_mismatch,
+      # ledger.bad_direction, ledger.duplicate_posting, ledger.fiat_asset,
+      # ledger.idempotency_conflict, ledger.missing_idempotency_key, ledger.no_lines,
+      # ledger.non_positive_amount, ledger.sandbox_live_mix, ledger.unbalanced,
+      # merchant.bad_signature, merchant.key_expired, merchant.key_mode_mismatch,
+      # merchant.rate_limited, merchant.secret_decrypt, merchant.suspended, merchant.unknown_key,
+      # onramp.suppresses, payment.bad_uuid, payment.no_lookup, payment.not_found,
+      # payout.above_limit, payout.address_network_mismatch, payout.amount_below_fee,
+      # payout.approver_is_creator, payout.asset_mismatch, payout.bad_address, payout.bad_amount,
+      # payout.bad_memo, payout.bad_owner_kind, payout.cap_unpriceable, payout.convert_bad_amount,
+      # payout.convert_frozen, payout.convert_idempotency_conflict, payout.convert_insufficient,
+      # payout.convert_no_rate, payout.convert_same_asset, payout.convert_unsupported,
+      # payout.daily_cap, payout.destination_not_activated, payout.duplicate_reference,
+      # payout.fee_asset_mismatch, payout.freeze_unknown, payout.frozen, payout.funds_maturing,
+      # payout.funds_settling, payout.illegal_transition, payout.insufficient_funds,
+      # payout.memo_conflict, payout.memo_required, payout.memo_too_long, payout.merchant_frozen,
+      # payout.no_destination, payout.no_owner, payout.not_found, payout.not_pending,
+      # payout.reference_collision, postgres.lock_pool_busy, rates.deviation, rates.no_source,
+      # rates.non_positive, rates.stale_rate, refund.bad_amount, refund.chain_ambiguous,
+      # refund.destination_internal, refund.dust, refund.exceeds_excess, refund.exceeds_refundable,
+      # refund.fence_check, refund.from_currency_personal_account, refund.from_currency_unsupported,
       # refund.network_required, refund.no_address, refund.nothing_to_refund,
       # refund.omnibus_destination, refund.paid_internally, refund.reference_collision,
       # refund.unsupported_network, request.bad_json, request.body_read, request.control_char,
@@ -1001,17 +1056,19 @@ module Oblodai
       #
       # @param params [Oblodai::Models::RefundRequest, Hash, nil] the request body as a model or a
       #   Hash; the keywords add to it
-      # @param address [String, nil] Адрес назначения возврата. По умолчанию — payer_address
-      #   платежа; обязателен только для Bitcoin/UTXO.
-      # @param amount [BigDecimal, String, nil] Частичная сумма. По умолчанию — вся полученная.
-      # @param from_currency [String, nil] Профинансировать возврат конвертацией баланса: только
-      #   USDT → валюта платежа. Нужен, когда монета платежа уже сведена автообменом.
-      # @param network [String, nil] Сеть.
-      # @param order_id [String, nil] Ваша ссылка на заказ платежа. Нужен uuid или order_id.
-      # @param reference [String, nil] Необязательный ключ идемпотентности возврата: различает два
-      #   разных возврата с одинаковыми (платёж, адрес, сумма); повтор с тем же значением
-      #   дедуплицируется. Это не order_id.
-      # @param uuid [String, nil] Идентификатор платежа. Нужен uuid или order_id.
+      # @param address [String, nil] Refund destination address. Defaults to the payment's
+      #   payer_address; required only for Bitcoin/UTXO.
+      # @param amount [BigDecimal, String, nil] A partial amount. Defaults to the full received
+      #   amount.
+      # @param from_currency [String, nil] Fund the refund by converting balance: USDT → the payment
+      #   currency only. Needed when the payment coin has already been converted by auto-exchange.
+      # @param network [String, nil] Network.
+      # @param order_id [String, nil] Your order reference of the payment. Either uuid or order_id
+      #   is required.
+      # @param reference [String, nil] An optional refund idempotency key: distinguishes two
+      #   different refunds with the same (payment, address, amount); a retry with the same value is
+      #   deduplicated. This is not order_id.
+      # @param uuid [String, nil] Payment id. Either uuid or order_id is required.
       # @return [Oblodai::Models::PayoutView]
       def payment(
         params = nil,
@@ -1053,27 +1110,32 @@ module Oblodai
         )
       end
 
-      # Вернуть средства со статик-кошелька
+      # Refund funds from a static wallet
       #
-      # Возвращает на `address` ЧИСТУЮ сумму, полученную на (заблокированном) статик-кошельке: из
-      # полученного вычитается уже возвращённое. Пока возврат жив (создан, отправлен, подтверждён),
-      # повторный вызов возвращает его же. Если возврат не состоялся (failed/cancelled), вызов можно
-      # повторить — в том числе на другой адрес. Отменённые reorg'ом депозиты не считаются.
+      # Refunds to `address` the NET amount received on a (blocked) static wallet: the amount
+      # already refunded is subtracted from what was received. While a refund is alive (created,
+      # sent, confirmed), a repeated call returns that same refund. If the refund did not go through
+      # (failed/cancelled), the call can be repeated — including to a different address. Deposits
+      # reverted by a reorg are not counted.
       #
-      # Блокировка смотрит ВПЕРЁД: она останавливает следующий приход, а не пересматривает уже
-      # зачисленные. Деньги, пришедшие ПОСЛЕ блокировки, на баланс не попадают — они уходят в
-      # карантин и ждут решения оператора; вернуть их этой ручкой можно после того, как он их
-      # разобрал. Пока не разобраны — они ещё не ваши, и ответ будет «возвращать нечего».
+      # Blocking looks FORWARD: it stops the next incoming deposit, it does not revisit ones already
+      # credited. Money that arrives AFTER the block does not reach the balance — it goes to
+      # quarantine and waits for an operator's decision; you can refund it with this endpoint once
+      # the operator has reviewed it. Until then it is not yours yet, and the response will be
+      # "nothing to refund".
+      #
+      # Requires role: Finance when called with a CLI key.
       #
       # Error codes: auth.bad_timestamp, auth.body_too_large, auth.ip_not_allowed,
-      # compliance.blocked, compliance.blocked_address, compliance.blocklist_unavailable,
-      # compliance.no_destination, compliance.no_network, compliance.sanctioned_address,
-      # compliance.sanctions_unavailable, internal, ledger.account_not_found, ledger.asset_mismatch,
-      # ledger.bad_direction, ledger.duplicate_posting, ledger.fiat_asset,
-      # ledger.idempotency_conflict, ledger.missing_idempotency_key, ledger.no_lines,
-      # ledger.non_positive_amount, ledger.sandbox_live_mix, ledger.unbalanced,
-      # merchant.bad_signature, merchant.key_mode_mismatch, merchant.rate_limited,
-      # merchant.secret_decrypt, merchant.suspended, merchant.unknown_key, payout.above_limit,
+      # cli.permission_denied, compliance.blocked, compliance.blocked_address,
+      # compliance.blocklist_unavailable, compliance.no_destination, compliance.no_network,
+      # compliance.sanctioned_address, compliance.sanctions_unavailable, internal,
+      # ledger.account_not_found, ledger.asset_mismatch, ledger.bad_direction,
+      # ledger.duplicate_posting, ledger.fiat_asset, ledger.idempotency_conflict,
+      # ledger.missing_idempotency_key, ledger.no_lines, ledger.non_positive_amount,
+      # ledger.sandbox_live_mix, ledger.unbalanced, merchant.bad_signature, merchant.key_expired,
+      # merchant.key_mode_mismatch, merchant.rate_limited, merchant.secret_decrypt,
+      # merchant.suspended, merchant.unknown_key, payout.above_limit,
       # payout.address_network_mismatch, payout.amount_below_fee, payout.asset_mismatch,
       # payout.bad_address, payout.bad_amount, payout.bad_memo, payout.bad_owner_kind,
       # payout.cap_unpriceable, payout.daily_cap, payout.destination_not_activated,
@@ -1089,11 +1151,11 @@ module Oblodai
       #
       # @param params [Oblodai::Models::BlockedRefundRequest, Hash, nil] the request body as a model
       #   or a Hash; the keywords add to it
-      # @param address [String, nil] Адрес назначения возврата.
-      # @param memo [String, nil] Тег/мемо назначения (XRP destination tag, XLM memo id, TON
-      #   comment). Обязателен для классического адреса на tag/memo-сети, если тег не встроен в
-      #   X-/M-адрес.
-      # @param uuid [String, nil] Идентификатор статического кошелька (из ответа /v1/wallet).
+      # @param address [String, nil] Refund destination address.
+      # @param memo [String, nil] Destination tag/memo (XRP destination tag, XLM memo id, TON
+      #   comment). Required for a classic address on a tag/memo network unless the tag is embedded in
+      #   an X-/M-address.
+      # @param uuid [String, nil] The static wallet id (from the /v1/wallet response).
       # @return [Oblodai::Models::BlockedRefundResult]
       def blocked_wallet(
         params = nil,
@@ -1128,32 +1190,35 @@ module Oblodai
       end
     end
 
-    # Отправить деньги на адрес (списание с вашего баланса).
+    # Send money to an address (debited from your balance).
     class Payouts < Generated::Resource
-      # Создать выплату
+      # Create a payout
       #
-      # Отправить деньги на адрес. Идемпотентно по `order_id`. Выплата уходит сразу: ключ мерчанта
-      # несёт полную выплатную полномочность, белого списка адресов нет, ручного подтверждения тоже
-      # (`approval_required` в ответе всегда `false`). Ограничивают её суточный лимит, заморозка
-      # аккаунта и комплаенс-проверка адреса.
+      # Send money to an address. Idempotent on `order_id`. The payout goes out immediately: the
+      # merchant key carries full payout authority, there is no address whitelist and no manual
+      # approval (`approval_required` in the response is always `false`). It is limited by the daily
+      # limit, account freeze and the address compliance check.
       #
-      # **Конвертация (`from_currency`):** укажите `from_currency: "USDT"`, чтобы оплатить выплату в
-      # `currency`, списав ваш баланс USDT — мы сконвертируем USDT → `currency` (только те валюты,
-      # что казначейство может добыть он-чейн). В ответе появится объект `convert` с `from_amount`
-      # (сколько USDT списано) и `rate`.
+      # **Conversion (`from_currency`):** set `from_currency: "USDT"` to fund a payout in `currency`
+      # by debiting your USDT balance — we convert USDT → `currency` (only currencies the treasury
+      # can source on-chain). The response then contains a `convert` object with `from_amount` (how
+      # much USDT was debited) and `rate`.
       #
-      # Ещё: `memo` (тег/мемо для TON), `url_callback` (свой адрес вебхука для этой выплаты).
+      # Also: `memo` (tag/memo for TON), `url_callback` (your own webhook URL for this payout).
+      #
+      # Requires role: Finance when called with a CLI key.
       #
       # Error codes: auth.bad_timestamp, auth.body_too_large, auth.ip_not_allowed,
-      # compliance.blocked, compliance.blocked_address, compliance.blocklist_unavailable,
-      # compliance.no_destination, compliance.no_network, compliance.sanctioned_address,
-      # compliance.sanctions_unavailable, idempotency.bad_key, idempotency.in_progress,
-      # idempotency.key_reused, idempotency.unavailable, internal, ledger.account_not_found,
-      # ledger.asset_mismatch, ledger.bad_direction, ledger.duplicate_posting, ledger.fiat_asset,
-      # ledger.idempotency_conflict, ledger.missing_idempotency_key, ledger.no_lines,
-      # ledger.non_positive_amount, ledger.sandbox_live_mix, ledger.unbalanced,
-      # merchant.bad_signature, merchant.key_mode_mismatch, merchant.rate_limited,
-      # merchant.secret_decrypt, merchant.suspended, merchant.unknown_key, payout.above_limit,
+      # cli.permission_denied, compliance.blocked, compliance.blocked_address,
+      # compliance.blocklist_unavailable, compliance.no_destination, compliance.no_network,
+      # compliance.sanctioned_address, compliance.sanctions_unavailable, idempotency.bad_key,
+      # idempotency.in_progress, idempotency.key_reused, idempotency.unavailable, internal,
+      # ledger.account_not_found, ledger.asset_mismatch, ledger.bad_direction,
+      # ledger.duplicate_posting, ledger.fiat_asset, ledger.idempotency_conflict,
+      # ledger.missing_idempotency_key, ledger.no_lines, ledger.non_positive_amount,
+      # ledger.sandbox_live_mix, ledger.unbalanced, merchant.bad_signature, merchant.key_expired,
+      # merchant.key_mode_mismatch, merchant.rate_limited, merchant.secret_decrypt,
+      # merchant.suspended, merchant.unknown_key, payout.above_limit,
       # payout.address_network_mismatch, payout.amount_below_fee, payout.asset_mismatch,
       # payout.bad_address, payout.bad_amount, payout.bad_memo, payout.bad_owner_kind,
       # payout.bad_url_callback, payout.cap_unpriceable, payout.convert_bad_amount,
@@ -1175,22 +1240,22 @@ module Oblodai
       #
       # @param params [Oblodai::Models::PayoutRequest, Hash, nil] the request body as a model or a
       #   Hash; the keywords add to it
-      # @param address [String, nil] Адрес получателя.
-      # @param amount [BigDecimal, String, nil] Сумма выплаты в валюте currency.
-      # @param currency [String, nil] Код валюты (например USDT).
-      # @param from_currency [String, nil] Профинансировать выплату конвертацией баланса. Только
-      #   USDT → currency.
-      # @param is_subtract [Boolean, nil] Кто платит сетевую комиссию: true — с баланса списывается
-      #   amount+fee, получатель получает amount; false — получатель получает amount-fee; не передано
-      #   — fee-config проекта. An explicit nil sends null.
-      # @param memo [String, nil] Тег/мемо назначения (TON Jetton). Максимум 120 символов.
-      # @param network [String, nil] Сеть (tron, ethereum, …). Обязательна для монет с несколькими
-      #   сетями.
-      # @param order_id [String, nil] Ваш номер выплаты; ключ идемпотентности.
-      # @param source [String, nil] Метка происхождения: api (по умолчанию) или manual.
-      # @param url_callback [String, nil] Свой URL вебхука для этой выплаты (проходит
-      #   SSRF-проверку). Требует зарегистрированного эндпоинта (POST /v1/webhooks): доставка
-      #   подписывается его секретом.
+      # @param address [String, nil] Recipient address.
+      # @param amount [BigDecimal, String, nil] The payout amount in currency.
+      # @param currency [String, nil] Currency code (e.g. USDT).
+      # @param from_currency [String, nil] Fund the payout by converting balance. USDT → currency
+      #   only.
+      # @param is_subtract [Boolean, nil] Who pays the network fee: true — amount+fee is debited
+      #   from the balance, the recipient gets amount; false — the recipient gets amount-fee; omitted
+      #   — the project's fee-config. An explicit nil sends null.
+      # @param memo [String, nil] Destination tag/memo (TON Jetton). At most 120 characters.
+      # @param network [String, nil] Network (tron, ethereum, …). Required for coins with several
+      #   networks.
+      # @param order_id [String, nil] Your payout number; the idempotency key.
+      # @param source [String, nil] The origin label: api (default) or manual.
+      # @param url_callback [String, nil] Your own webhook URL for this payout (passes the SSRF
+      #   check). Requires a registered endpoint (POST /v1/webhooks): the delivery is signed with its
+      #   secret.
       # @return [Oblodai::Models::PayoutItem]
       def create(
         params = nil,
@@ -1239,48 +1304,50 @@ module Oblodai
         )
       end
 
-      # Массовая выплата
+      # Mass payout
       #
-      # Много выплат за один запрос (до 100). Каждая независима: ошибка по одной не останавливает
-      # остальные, по каждой возвращается результат. Идемпотентно по `order_id`, как обычная
-      # выплата.
+      # Many payouts in one request (up to 100). Each one is independent: an error in one does not
+      # stop the rest, and a result is returned for each. Idempotent on `order_id`, like a regular
+      # payout.
+      #
+      # Requires role: Finance when called with a CLI key.
       #
       # Error codes: auth.bad_timestamp, auth.body_too_large, auth.ip_not_allowed,
-      # batch.duplicate_order_id, compliance.blocked, compliance.blocked_address,
-      # compliance.blocklist_unavailable, compliance.no_destination, compliance.no_network,
-      # compliance.sanctioned_address, compliance.sanctions_unavailable, idempotency.bad_key,
-      # idempotency.in_progress, idempotency.key_reused, idempotency.unavailable, internal,
-      # ledger.account_not_found, ledger.asset_mismatch, ledger.bad_direction,
-      # ledger.duplicate_posting, ledger.fiat_asset, ledger.idempotency_conflict,
-      # ledger.missing_idempotency_key, ledger.no_lines, ledger.non_positive_amount,
-      # ledger.sandbox_live_mix, ledger.unbalanced, merchant.bad_signature,
-      # merchant.key_mode_mismatch, merchant.rate_limited, merchant.secret_decrypt,
-      # merchant.suspended, merchant.unknown_key, payout.above_limit,
-      # payout.address_network_mismatch, payout.amount_below_fee, payout.asset_mismatch,
-      # payout.bad_address, payout.bad_amount, payout.bad_memo, payout.bad_owner_kind,
-      # payout.bad_url_callback, payout.batch_too_large, payout.cap_unpriceable,
-      # payout.convert_bad_amount, payout.convert_frozen, payout.convert_idempotency_conflict,
-      # payout.convert_insufficient, payout.convert_no_rate, payout.convert_same_asset,
-      # payout.convert_unsupported, payout.daily_cap, payout.destination_internal,
-      # payout.destination_not_activated, payout.duplicate_reference, payout.empty_batch,
-      # payout.fee_asset_mismatch, payout.freeze_unknown, payout.from_currency_unsupported,
-      # payout.frozen, payout.funds_maturing, payout.funds_settling, payout.insufficient_funds,
-      # payout.memo_conflict, payout.memo_required, payout.memo_too_long, payout.merchant_frozen,
-      # payout.network_required, payout.no_destination, payout.no_owner, payout.not_found,
-      # payout.order_id_required, payout.reference_collision, payout.reserved_reference,
-      # payout.unsupported_network, rates.deviation, rates.no_source, rates.non_positive,
-      # rates.stale_rate, request.bad_json, request.body_read, request.control_char,
-      # request.duplicate_field, request.nul_byte, request.overloaded, request.rate_limited,
-      # request.reference_invalid, request.reference_too_long, request.too_deep,
-      # request.unknown_currency, sandbox.convert_not_available, treasury.no_ccy_map,
-      # wallet.static_not_found, webhook.no_endpoint
+      # batch.duplicate_order_id, cli.permission_denied, compliance.blocked,
+      # compliance.blocked_address, compliance.blocklist_unavailable, compliance.no_destination,
+      # compliance.no_network, compliance.sanctioned_address, compliance.sanctions_unavailable,
+      # idempotency.bad_key, idempotency.in_progress, idempotency.key_reused,
+      # idempotency.unavailable, internal, ledger.account_not_found, ledger.asset_mismatch,
+      # ledger.bad_direction, ledger.duplicate_posting, ledger.fiat_asset,
+      # ledger.idempotency_conflict, ledger.missing_idempotency_key, ledger.no_lines,
+      # ledger.non_positive_amount, ledger.sandbox_live_mix, ledger.unbalanced,
+      # merchant.bad_signature, merchant.key_expired, merchant.key_mode_mismatch,
+      # merchant.rate_limited, merchant.secret_decrypt, merchant.suspended, merchant.unknown_key,
+      # payout.above_limit, payout.address_network_mismatch, payout.amount_below_fee,
+      # payout.asset_mismatch, payout.bad_address, payout.bad_amount, payout.bad_memo,
+      # payout.bad_owner_kind, payout.bad_url_callback, payout.batch_too_large,
+      # payout.cap_unpriceable, payout.convert_bad_amount, payout.convert_frozen,
+      # payout.convert_idempotency_conflict, payout.convert_insufficient, payout.convert_no_rate,
+      # payout.convert_same_asset, payout.convert_unsupported, payout.daily_cap,
+      # payout.destination_internal, payout.destination_not_activated, payout.duplicate_reference,
+      # payout.empty_batch, payout.fee_asset_mismatch, payout.freeze_unknown,
+      # payout.from_currency_unsupported, payout.frozen, payout.funds_maturing,
+      # payout.funds_settling, payout.insufficient_funds, payout.memo_conflict,
+      # payout.memo_required, payout.memo_too_long, payout.merchant_frozen, payout.network_required,
+      # payout.no_destination, payout.no_owner, payout.not_found, payout.order_id_required,
+      # payout.reference_collision, payout.reserved_reference, payout.unsupported_network,
+      # rates.deviation, rates.no_source, rates.non_positive, rates.stale_rate, request.bad_json,
+      # request.body_read, request.control_char, request.duplicate_field, request.nul_byte,
+      # request.overloaded, request.rate_limited, request.reference_invalid,
+      # request.reference_too_long, request.too_deep, request.unknown_currency,
+      # sandbox.convert_not_available, treasury.no_ccy_map, wallet.static_not_found,
+      # webhook.no_endpoint
       #
       # @param params [Oblodai::Models::MassPayoutRequest, Hash, nil] the request body as a model or
       #   a Hash; the keywords add to it
-      # @param payouts [Array<Oblodai::Models::PayoutRequest, Hash>, nil] Массив до 100 элементов;
-      #   поля каждого — как в POST /v1/payout.
-      # @param source [String, nil] Метка происхождения, применяется ко всем элементам без своего
-      #   source.
+      # @param payouts [Array<Oblodai::Models::PayoutRequest, Hash>, nil] An array of up to 100
+      #   items; the fields of each are as in POST /v1/payout.
+      # @param source [String, nil] The origin label, applied to all items without their own source.
       # @return [Oblodai::Models::MassPayoutResult]
       def create_mass(
         params = nil,
@@ -1312,27 +1379,30 @@ module Oblodai
         )
       end
 
-      # Узнать статус выплаты
+      # Get payout status
       #
-      # По `uuid`/`order_id`.
+      # By `uuid`/`order_id`.
       #
-      # Дополнительно к общему объекту выплаты этот ответ несёт `error` и `error_code`: последняя
-      # записанная причина, почему выплата упала или застряла (текст и, когда он есть, машинный код
-      # вида `payout.insufficient_funds`). Оба ключа присутствуют всегда; `null` — ошибок не
-      # записано.
+      # In addition to the common payout object this response carries `error` and `error_code`: the
+      # last recorded reason why the payout failed or got stuck (the text and, when present, a
+      # machine code like `payout.insufficient_funds`). Both keys are always present; `null` — no
+      # errors recorded.
       #
-      # Error codes: auth.bad_timestamp, auth.body_too_large, auth.ip_not_allowed, internal,
-      # merchant.bad_signature, merchant.key_mode_mismatch, merchant.rate_limited,
-      # merchant.secret_decrypt, merchant.suspended, merchant.unknown_key, payout.bad_uuid,
-      # payout.no_lookup, payout.not_found, request.bad_json, request.body_read,
-      # request.control_char, request.duplicate_field, request.nul_byte, request.overloaded,
-      # request.rate_limited, request.too_deep
+      # Requires role: Viewer when called with a CLI key.
+      #
+      # Error codes: auth.bad_timestamp, auth.body_too_large, auth.ip_not_allowed,
+      # cli.permission_denied, internal, merchant.bad_signature, merchant.key_expired,
+      # merchant.key_mode_mismatch, merchant.rate_limited, merchant.secret_decrypt,
+      # merchant.suspended, merchant.unknown_key, payout.bad_uuid, payout.no_lookup,
+      # payout.not_found, request.bad_json, request.body_read, request.control_char,
+      # request.duplicate_field, request.nul_byte, request.overloaded, request.rate_limited,
+      # request.too_deep
       #
       # @param params [Oblodai::Models::LookupRequest, Hash, nil] the request body as a model or a
       #   Hash; the keywords add to it
-      # @param order_id [String, nil] Ваша ссылка на заказ.
-      # @param uuid [String, nil] Идентификатор счёта в Oblodai. Нужен uuid или order_id; приоритет
-      #   у uuid.
+      # @param order_id [String, nil] Your order reference.
+      # @param uuid [String, nil] The invoice id in Oblodai. Either uuid or order_id is required;
+      #   uuid takes precedence.
       # @return [Oblodai::Models::PayoutInfoResult]
       def get_info(
         params = nil,
@@ -1364,33 +1434,36 @@ module Oblodai
         )
       end
 
-      # История выплат
+      # Payout history
       #
-      # Список ваших выплат, новые сверху: `items` + блок `paginate` (`total`, `per_page`, `offset`,
-      # `has_pages`). Тело: `limit`, `offset`, необязательные `status`, `kind` (`refund` | `payout`
-      # | пусто — выплаты без возвратов) и `include_refunds`: по умолчанию возвраты в историю выплат
-      # не входят, `true` без `kind` возвращает выплаты и возвраты одной лентой; только возвраты —
-      # `kind: refund`.
+      # Your payouts, newest first: `items` plus a `paginate` block (`total`, `per_page`, `offset`,
+      # `has_pages`). Body: `limit`, `offset`, optional `status`, `kind` (`refund` | `payout` |
+      # empty — payouts without refunds) and `include_refunds`: by default refunds are not included
+      # in the payout history; `true` without `kind` returns payouts and refunds as one feed;
+      # refunds only — `kind: refund`.
       #
-      # Error codes: auth.bad_timestamp, auth.body_too_large, auth.ip_not_allowed, internal,
-      # merchant.bad_signature, merchant.key_mode_mismatch, merchant.rate_limited,
-      # merchant.secret_decrypt, merchant.suspended, merchant.unknown_key, payout.bad_kind,
-      # payout.bad_status, payout.not_found, request.bad_json, request.body_read,
-      # request.control_char, request.duplicate_field, request.nul_byte, request.overloaded,
-      # request.rate_limited, request.too_deep
+      # Requires role: Viewer when called with a CLI key.
+      #
+      # Error codes: auth.bad_timestamp, auth.body_too_large, auth.ip_not_allowed,
+      # cli.permission_denied, internal, merchant.bad_signature, merchant.key_expired,
+      # merchant.key_mode_mismatch, merchant.rate_limited, merchant.secret_decrypt,
+      # merchant.suspended, merchant.unknown_key, payout.bad_kind, payout.bad_status,
+      # payout.not_found, request.bad_json, request.body_read, request.control_char,
+      # request.duplicate_field, request.nul_byte, request.overloaded, request.rate_limited,
+      # request.too_deep
       #
       # @param params [Oblodai::Models::HistoryRequest, Hash, nil] the request body as a model or a
       #   Hash; the keywords add to it
-      # @param include_refunds [Boolean, nil] Только для /v1/payout/history: true — вместе с
-      #   выплатами вернуть и возвраты (прежнее поведение ленты без kind). По умолчанию false:
-      #   возвраты — отдельно, kind=refund.
-      # @param kind [String, nil] Только для /v1/payout/history: payout — обычные выплаты, refund —
-      #   возвраты; пусто — обычные выплаты (с include_refunds=true — всё вместе). Values:
+      # @param include_refunds [Boolean, nil] Only for /v1/payout/history: true — return refunds
+      #   together with payouts (the former behavior of the feed without kind). Default false: refunds
+      #   are separate, kind=refund.
+      # @param kind [String, nil] Only for /v1/payout/history: payout — regular payouts, refund —
+      #   refunds; empty — regular payouts (with include_refunds=true — everything together). Values:
       #   {Oblodai::Enums::PayoutKind}.
-      # @param limit [Integer, nil] Размер страницы, 1–100; вне диапазона — 25.
-      # @param offset [Integer, nil] Смещение от начала списка (новые сверху).
-      # @param status [String, nil] Фильтр по статусу (точное значение из словаря статусов); пусто —
-      #   все.
+      # @param limit [Integer, nil] Page size, 1–100; out of range — 25.
+      # @param offset [Integer, nil] Offset from the start of the list (newest first).
+      # @param status [String, nil] Filter by status (an exact value from the status vocabulary);
+      #   empty — all.
       # @return [Oblodai::Page<Oblodai::Models::PayoutView>]
       def list_history(
         params = nil,
@@ -1428,26 +1501,31 @@ module Oblodai
         )
       end
 
-      # Рассчитать сумму и комиссию выплаты
+      # Calculate payout amount and fee
       #
-      # Предварительный расчёт: сколько спишется, сколько комиссия, сколько получит адрес — без
-      # создания выплаты.
+      # A preliminary calculation: how much will be debited, the fee, and how much the address will
+      # receive — without creating a payout.
       #
-      # Error codes: auth.bad_timestamp, auth.body_too_large, auth.ip_not_allowed, internal,
-      # merchant.bad_signature, merchant.key_mode_mismatch, merchant.rate_limited,
-      # merchant.secret_decrypt, merchant.suspended, merchant.unknown_key, payout.amount_below_fee,
-      # payout.bad_amount, payout.network_required, payout.unsupported_network, rates.deviation,
-      # rates.no_source, rates.non_positive, request.bad_json, request.body_read,
-      # request.control_char, request.duplicate_field, request.nul_byte, request.overloaded,
-      # request.rate_limited, request.too_deep, request.unknown_currency
+      # Requires role: Viewer when called with a CLI key.
+      #
+      # Error codes: auth.bad_timestamp, auth.body_too_large, auth.ip_not_allowed,
+      # cli.permission_denied, internal, merchant.bad_signature, merchant.key_expired,
+      # merchant.key_mode_mismatch, merchant.rate_limited, merchant.secret_decrypt,
+      # merchant.suspended, merchant.unknown_key, payout.amount_below_fee, payout.bad_amount,
+      # payout.network_required, payout.unsupported_network, rates.deviation, rates.no_source,
+      # rates.non_positive, request.bad_json, request.body_read, request.control_char,
+      # request.duplicate_field, request.nul_byte, request.overloaded, request.rate_limited,
+      # request.too_deep, request.unknown_currency
       #
       # @param params [Oblodai::Models::PayoutCalculateRequest, Hash, nil] the request body as a
       #   model or a Hash; the keywords add to it
-      # @param amount [BigDecimal, String, nil] Сумма выплаты, строкой.
-      # @param currency [String, nil] Актив выплаты (USDT, BTC, …).
-      # @param is_subtract [Boolean, nil] true — комиссия списывается с баланса поверх суммы
-      #   (получатель получит ровно amount); false — из суммы выплаты. An explicit nil sends null.
-      # @param network [String, nil] Сеть выплаты; обязательна, если актив живёт в нескольких сетях.
+      # @param amount [BigDecimal, String, nil] The payout amount, as a string.
+      # @param currency [String, nil] Payout asset (USDT, BTC, …).
+      # @param is_subtract [Boolean, nil] true — the fee is debited from the balance on top of the
+      #   amount (the recipient gets exactly amount); false — from the payout amount. An explicit nil
+      #   sends null.
+      # @param network [String, nil] Payout network; required if the asset lives on several
+      #   networks.
       # @return [Oblodai::Models::PayoutCalculation]
       def calculate(
         params = nil,
@@ -1484,49 +1562,52 @@ module Oblodai
         )
       end
 
-      # Проверить выплату без создания (dry-run)
+      # Validate a payout without creating it (dry run)
       #
-      # Прогоняет все проверки создания выплаты — валюта, сумма, сеть, адрес, memo, скрининг адреса,
-      # комиссия, заморозка/суточный лимит и достаточность баланса — но ничего не резервирует и не
-      # отправляет. Ответ `valid: true` с суммами (`amount`, `commission`, `payer_amount`,
-      # `fee_bearer`), либо та же ошибка, что вернуло бы создание. Тело — как у POST /v1/payout
-      # (order_id необязателен для проверки).
+      # Runs all payout-creation checks — currency, amount, network, address, memo, address
+      # screening, fee, freeze/daily limit and balance sufficiency — but reserves and sends nothing.
+      # The response is `valid: true` with the amounts (`amount`, `commission`, `payer_amount`,
+      # `fee_bearer`), or the same error that creation would return. The body is the same as for
+      # POST /v1/payout (order_id is optional for validation).
+      #
+      # Requires role: Finance when called with a CLI key.
       #
       # Error codes: auth.bad_timestamp, auth.body_too_large, auth.ip_not_allowed,
-      # compliance.blocked, compliance.blocked_address, compliance.blocklist_unavailable,
-      # compliance.no_destination, compliance.no_network, compliance.sanctioned_address,
-      # compliance.sanctions_unavailable, internal, merchant.bad_signature,
-      # merchant.key_mode_mismatch, merchant.rate_limited, merchant.secret_decrypt,
-      # merchant.suspended, merchant.unknown_key, payout.above_limit,
-      # payout.address_network_mismatch, payout.amount_below_fee, payout.bad_address,
-      # payout.bad_amount, payout.bad_memo, payout.bad_url_callback, payout.cap_unpriceable,
-      # payout.daily_cap, payout.destination_internal, payout.from_currency_unsupported,
-      # payout.insufficient_funds, payout.memo_conflict, payout.memo_required, payout.memo_too_long,
-      # payout.merchant_frozen, payout.network_required, payout.reserved_reference,
-      # payout.unsupported_network, rates.deviation, rates.no_source, rates.non_positive,
-      # request.bad_json, request.body_read, request.control_char, request.duplicate_field,
-      # request.nul_byte, request.overloaded, request.rate_limited, request.reference_invalid,
-      # request.reference_too_long, request.too_deep, request.unknown_currency,
-      # sandbox.convert_not_available, wallet.static_not_found, webhook.no_endpoint
+      # cli.permission_denied, compliance.blocked, compliance.blocked_address,
+      # compliance.blocklist_unavailable, compliance.no_destination, compliance.no_network,
+      # compliance.sanctioned_address, compliance.sanctions_unavailable, internal,
+      # merchant.bad_signature, merchant.key_expired, merchant.key_mode_mismatch,
+      # merchant.rate_limited, merchant.secret_decrypt, merchant.suspended, merchant.unknown_key,
+      # payout.above_limit, payout.address_network_mismatch, payout.amount_below_fee,
+      # payout.bad_address, payout.bad_amount, payout.bad_memo, payout.bad_url_callback,
+      # payout.cap_unpriceable, payout.daily_cap, payout.destination_internal,
+      # payout.from_currency_unsupported, payout.insufficient_funds, payout.memo_conflict,
+      # payout.memo_required, payout.memo_too_long, payout.merchant_frozen, payout.network_required,
+      # payout.reserved_reference, payout.unsupported_network, rates.deviation, rates.no_source,
+      # rates.non_positive, request.bad_json, request.body_read, request.control_char,
+      # request.duplicate_field, request.nul_byte, request.overloaded, request.rate_limited,
+      # request.reference_invalid, request.reference_too_long, request.too_deep,
+      # request.unknown_currency, sandbox.convert_not_available, wallet.static_not_found,
+      # webhook.no_endpoint
       #
       # @param params [Oblodai::Models::PayoutValidateRequest, Hash, nil] the request body as a
       #   model or a Hash; the keywords add to it
-      # @param address [String, nil] Адрес получателя.
-      # @param amount [BigDecimal, String, nil] Сумма выплаты в валюте currency.
-      # @param currency [String, nil] Код валюты (например USDT).
-      # @param from_currency [String, nil] Профинансировать выплату конвертацией баланса. Только
-      #   USDT → currency.
-      # @param is_subtract [Boolean, nil] Кто платит сетевую комиссию: true — с баланса списывается
-      #   amount+fee, получатель получает amount; false — получатель получает amount-fee; не передано
-      #   — fee-config проекта. An explicit nil sends null.
-      # @param memo [String, nil] Тег/мемо назначения (TON Jetton). Максимум 120 символов.
-      # @param network [String, nil] Сеть (tron, ethereum, …). Обязательна для монет с несколькими
-      #   сетями.
-      # @param order_id [String, nil] Ваш номер выплаты; ключ идемпотентности.
-      # @param source [String, nil] Метка происхождения: api (по умолчанию) или manual.
-      # @param url_callback [String, nil] Свой URL вебхука для этой выплаты (проходит
-      #   SSRF-проверку). Требует зарегистрированного эндпоинта (POST /v1/webhooks): доставка
-      #   подписывается его секретом.
+      # @param address [String, nil] Recipient address.
+      # @param amount [BigDecimal, String, nil] The payout amount in currency.
+      # @param currency [String, nil] Currency code (e.g. USDT).
+      # @param from_currency [String, nil] Fund the payout by converting balance. USDT → currency
+      #   only.
+      # @param is_subtract [Boolean, nil] Who pays the network fee: true — amount+fee is debited
+      #   from the balance, the recipient gets amount; false — the recipient gets amount-fee; omitted
+      #   — the project's fee-config. An explicit nil sends null.
+      # @param memo [String, nil] Destination tag/memo (TON Jetton). At most 120 characters.
+      # @param network [String, nil] Network (tron, ethereum, …). Required for coins with several
+      #   networks.
+      # @param order_id [String, nil] Your payout number; the idempotency key.
+      # @param source [String, nil] The origin label: api (default) or manual.
+      # @param url_callback [String, nil] Your own webhook URL for this payout (passes the SSRF
+      #   check). Requires a registered endpoint (POST /v1/webhooks): the delivery is signed with its
+      #   secret.
       # @return [Oblodai::Models::PayoutValidateResult]
       def validate(
         params = nil,
@@ -1575,27 +1656,30 @@ module Oblodai
         )
       end
 
-      # Отменить неотправленную выплату
+      # Cancel an unsent payout
       #
-      # Отменяет выплату и освобождает зарезервированные средства, пока она не отправлена в сеть
-      # (статусы pending / approved / awaiting_cosign); после отправки — 409. Возврат тоже является
-      # выплатой, поэтому этим же методом отклоняется ещё не отправленный возврат. Только своя
-      # выплата.
+      # Cancels a payout and releases the reserved funds as long as it has not been broadcast to the
+      # network (statuses pending / approved / awaiting_cosign); after broadcast — 409. A refund is
+      # also a payout, so this same method rejects a refund that has not been sent yet. Only your
+      # own payout.
       #
-      # Error codes: auth.bad_timestamp, auth.body_too_large, auth.ip_not_allowed, internal,
-      # ledger.account_not_found, ledger.asset_mismatch, ledger.bad_direction,
-      # ledger.duplicate_posting, ledger.fiat_asset, ledger.idempotency_conflict,
-      # ledger.missing_idempotency_key, ledger.no_lines, ledger.non_positive_amount,
-      # ledger.sandbox_live_mix, ledger.unbalanced, merchant.bad_signature,
-      # merchant.key_mode_mismatch, merchant.rate_limited, merchant.secret_decrypt,
-      # merchant.suspended, merchant.unknown_key, payout.already_broadcast, payout.bad_state,
-      # payout.bad_uuid, payout.illegal_transition, payout.not_found, request.bad_json,
-      # request.body_read, request.control_char, request.duplicate_field, request.nul_byte,
-      # request.overloaded, request.rate_limited, request.too_deep, split.bad_reversal_claim
+      # Requires role: Finance when called with a CLI key.
+      #
+      # Error codes: auth.bad_timestamp, auth.body_too_large, auth.ip_not_allowed,
+      # cli.permission_denied, internal, ledger.account_not_found, ledger.asset_mismatch,
+      # ledger.bad_direction, ledger.duplicate_posting, ledger.fiat_asset,
+      # ledger.idempotency_conflict, ledger.missing_idempotency_key, ledger.no_lines,
+      # ledger.non_positive_amount, ledger.sandbox_live_mix, ledger.unbalanced,
+      # merchant.bad_signature, merchant.key_expired, merchant.key_mode_mismatch,
+      # merchant.rate_limited, merchant.secret_decrypt, merchant.suspended, merchant.unknown_key,
+      # payout.already_broadcast, payout.bad_state, payout.bad_uuid, payout.illegal_transition,
+      # payout.not_found, request.bad_json, request.body_read, request.control_char,
+      # request.duplicate_field, request.nul_byte, request.overloaded, request.rate_limited,
+      # request.too_deep, split.bad_reversal_claim
       #
       # @param params [Oblodai::Models::CancelPayoutRequest, Hash, nil] the request body as a model
       #   or a Hash; the keywords add to it
-      # @param uuid [String, nil] Идентификатор выплаты (или возврата) для отмены.
+      # @param uuid [String, nil] The id of the payout (or refund) to cancel.
       # @return [Oblodai::Models::PayoutView]
       def cancel(
         params = nil,
@@ -1625,22 +1709,25 @@ module Oblodai
         )
       end
 
-      # Подтвердить выплату
+      # Approve a payout
       #
-      # Подтверждает выплату, ожидающую подтверждения. Выплаты по API-ключу подтверждаются
-      # автоматически — этот метод нужен только внутренним/кабинетным сценариям.
+      # Approves a payout awaiting approval. Payouts made with an API key are approved automatically
+      # — this method is only needed for internal/dashboard scenarios.
       #
-      # Error codes: auth.bad_timestamp, auth.body_too_large, auth.ip_not_allowed, internal,
-      # merchant.bad_signature, merchant.key_mode_mismatch, merchant.rate_limited,
-      # merchant.secret_decrypt, merchant.suspended, merchant.unknown_key,
-      # payout.approver_is_creator, payout.bad_uuid, payout.freeze_unknown, payout.frozen,
-      # payout.illegal_transition, payout.not_found, payout.not_pending, request.bad_json,
-      # request.body_read, request.control_char, request.duplicate_field, request.nul_byte,
-      # request.overloaded, request.rate_limited, request.too_deep
+      # Requires role: Finance when called with a CLI key.
+      #
+      # Error codes: auth.bad_timestamp, auth.body_too_large, auth.ip_not_allowed,
+      # cli.permission_denied, internal, merchant.bad_signature, merchant.key_expired,
+      # merchant.key_mode_mismatch, merchant.rate_limited, merchant.secret_decrypt,
+      # merchant.suspended, merchant.unknown_key, payout.approver_is_creator, payout.bad_uuid,
+      # payout.freeze_unknown, payout.frozen, payout.illegal_transition, payout.not_found,
+      # payout.not_pending, request.bad_json, request.body_read, request.control_char,
+      # request.duplicate_field, request.nul_byte, request.overloaded, request.rate_limited,
+      # request.too_deep
       #
       # @param params [Oblodai::Models::ApproveRequest, Hash, nil] the request body as a model or a
       #   Hash; the keywords add to it
-      # @param uuid [String, nil] Идентификатор выплаты.
+      # @param uuid [String, nil] Payout id.
       # @return [Oblodai::Models::PayoutView]
       def approve(
         params = nil,
@@ -1670,21 +1757,24 @@ module Oblodai
         )
       end
 
-      # Доступные валюты и сети для выплат
+      # Currencies and networks available for payouts
       #
-      # Список с лимитами и комиссиями. Тело — пустой `{}`.
+      # The list with limits and fees. The body is an empty `{}`.
       #
-      # Error codes: auth.bad_timestamp, auth.body_too_large, auth.ip_not_allowed, internal,
-      # merchant.bad_signature, merchant.key_mode_mismatch, merchant.rate_limited,
-      # merchant.secret_decrypt, merchant.suspended, merchant.unknown_key, rates.deviation,
-      # rates.no_source, rates.non_positive, request.bad_json, request.body_read,
-      # request.control_char, request.duplicate_field, request.nul_byte, request.overloaded,
-      # request.rate_limited, request.too_deep
+      # Requires role: Viewer when called with a CLI key.
+      #
+      # Error codes: auth.bad_timestamp, auth.body_too_large, auth.ip_not_allowed,
+      # cli.permission_denied, internal, merchant.bad_signature, merchant.key_expired,
+      # merchant.key_mode_mismatch, merchant.rate_limited, merchant.secret_decrypt,
+      # merchant.suspended, merchant.unknown_key, rates.deviation, rates.no_source,
+      # rates.non_positive, request.bad_json, request.body_read, request.control_char,
+      # request.duplicate_field, request.nul_byte, request.overloaded, request.rate_limited,
+      # request.too_deep
       #
       # @param params [Oblodai::Models::PageRequest, Hash, nil] the request body as a model or a
       #   Hash; the keywords add to it
-      # @param limit [Integer, nil] Размер страницы, 1–100; вне диапазона — 25.
-      # @param offset [Integer, nil] Смещение от начала списка.
+      # @param limit [Integer, nil] Page size, 1–100; out of range — 25.
+      # @param offset [Integer, nil] Offset from the start of the list.
       # @return [Oblodai::Page<Oblodai::Models::PayServiceEntry>]
       def list_services(
         params = nil,
@@ -1716,34 +1806,37 @@ module Oblodai
         )
       end
 
-      # Перевод на личный кошелёк
+      # Transfer to the personal wallet
       #
-      # Перевести средства с бизнес-кошелька мерчанта на личный кошелёк владельца аккаунта. Требует
-      # привязки мерчанта к пользователю.
+      # Transfer funds from the merchant's business wallet to the account owner's personal wallet.
+      # Requires the merchant to be linked to a user.
+      #
+      # Not available to CLI keys: call it with the integration key.
       #
       # Error codes: auth.bad_timestamp, auth.body_too_large, auth.ip_not_allowed,
-      # idempotency.bad_key, idempotency.in_progress, idempotency.key_reused,
+      # cli.permission_denied, idempotency.bad_key, idempotency.in_progress, idempotency.key_reused,
       # idempotency.unavailable, internal, ledger.account_not_found, ledger.asset_mismatch,
       # ledger.bad_direction, ledger.duplicate_posting, ledger.fiat_asset,
       # ledger.idempotency_conflict, ledger.missing_idempotency_key, ledger.no_lines,
       # ledger.non_positive_amount, ledger.sandbox_live_mix, ledger.unbalanced,
-      # merchant.bad_signature, merchant.key_mode_mismatch, merchant.no_personal_wallet,
-      # merchant.not_found, merchant.rate_limited, merchant.secret_decrypt, merchant.suspended,
-      # merchant.unknown_key, payout.above_limit, payout.cap_unpriceable, payout.daily_cap,
-      # payout.merchant_frozen, personal.amount_invalid, personal.bad_source_id,
-      # personal.funds_maturing, personal.insufficient, rates.deviation, rates.no_source,
-      # rates.non_positive, request.bad_json, request.body_read, request.control_char,
-      # request.duplicate_field, request.nul_byte, request.overloaded, request.rate_limited,
-      # request.reference_invalid, request.reference_too_long, request.too_deep,
-      # request.unknown_currency, sandbox.transfer_not_available, transfer.bad_amount
+      # merchant.bad_signature, merchant.key_expired, merchant.key_mode_mismatch,
+      # merchant.no_personal_wallet, merchant.not_found, merchant.rate_limited,
+      # merchant.secret_decrypt, merchant.suspended, merchant.unknown_key, payout.above_limit,
+      # payout.cap_unpriceable, payout.daily_cap, payout.merchant_frozen, personal.amount_invalid,
+      # personal.bad_source_id, personal.funds_maturing, personal.insufficient, rates.deviation,
+      # rates.no_source, rates.non_positive, request.bad_json, request.body_read,
+      # request.control_char, request.duplicate_field, request.nul_byte, request.overloaded,
+      # request.rate_limited, request.reference_invalid, request.reference_too_long,
+      # request.too_deep, request.unknown_currency, sandbox.transfer_not_available,
+      # transfer.bad_amount
       #
       # @param params [Oblodai::Models::TransferRequest, Hash, nil] the request body as a model or a
       #   Hash; the keywords add to it
-      # @param amount [BigDecimal, String, nil] Сумма перевода в currency.
-      # @param currency [String, nil] Код валюты (криптовалюта).
-      # @param order_id [String, nil] Ключ идемпотентности: повтор с тем же order_id — no-op.
-      #   Настоятельно передавайте всегда, иначе повтор запроса при сетевом таймауте создаст второй
-      #   перевод.
+      # @param amount [BigDecimal, String, nil] The transfer amount in currency.
+      # @param currency [String, nil] Currency code (cryptocurrency).
+      # @param order_id [String, nil] Idempotency key: a retry with the same order_id is a no-op.
+      #   Always pass it, otherwise retrying the request after a network timeout creates a second
+      #   transfer.
       # @return [Oblodai::Models::TransferToPersonalResult]
       def transfer_to_personal(
         params = nil,
@@ -1777,37 +1870,39 @@ module Oblodai
         )
       end
 
-      # Внутренний перевод пользователю платформы
+      # Internal transfer to a platform user
       #
-      # Перевести средства с бизнес-кошелька на личный кошелёк ДРУГОГО пользователя платформы (без
-      # комиссии, мгновенно, без сети). Получатель адресуется по user id; юзернейм резолвится
-      # публичным эндпоинтом кабинета /public/users/{username}.
+      # Transfer funds from the business wallet to the personal wallet of ANOTHER platform user (no
+      # fee, instant, off-chain). The recipient is addressed by user id; a username is resolved by
+      # the dashboard's public endpoint /public/users/{username}.
+      #
+      # Requires role: Finance when called with a CLI key.
       #
       # Error codes: auth.bad_timestamp, auth.body_too_large, auth.ip_not_allowed,
-      # idempotency.bad_key, idempotency.in_progress, idempotency.key_reused,
+      # cli.permission_denied, idempotency.bad_key, idempotency.in_progress, idempotency.key_reused,
       # idempotency.unavailable, internal, ledger.account_not_found, ledger.asset_mismatch,
       # ledger.bad_direction, ledger.duplicate_posting, ledger.fiat_asset,
       # ledger.idempotency_conflict, ledger.missing_idempotency_key, ledger.no_lines,
       # ledger.non_positive_amount, ledger.sandbox_live_mix, ledger.unbalanced,
-      # merchant.bad_signature, merchant.key_mode_mismatch, merchant.rate_limited,
-      # merchant.secret_decrypt, merchant.suspended, merchant.unknown_key, payout.above_limit,
-      # payout.cap_unpriceable, payout.daily_cap, payout.merchant_frozen, personal.amount_invalid,
-      # personal.bad_source, personal.bad_source_id, personal.insufficient, personal.no_recipient,
-      # personal.self_transfer, rates.deviation, rates.no_source, rates.non_positive,
-      # request.bad_json, request.body_read, request.control_char, request.duplicate_field,
-      # request.nul_byte, request.overloaded, request.rate_limited, request.reference_invalid,
-      # request.reference_too_long, request.too_deep, request.unknown_currency,
-      # sandbox.transfer_not_available, transfer.bad_amount, transfer.bad_recipient,
-      # transfer.no_recipient, transfer.recipient_not_found
+      # merchant.bad_signature, merchant.key_expired, merchant.key_mode_mismatch,
+      # merchant.rate_limited, merchant.secret_decrypt, merchant.suspended, merchant.unknown_key,
+      # payout.above_limit, payout.cap_unpriceable, payout.daily_cap, payout.merchant_frozen,
+      # personal.amount_invalid, personal.bad_source, personal.bad_source_id, personal.insufficient,
+      # personal.no_recipient, personal.self_transfer, rates.deviation, rates.no_source,
+      # rates.non_positive, request.bad_json, request.body_read, request.control_char,
+      # request.duplicate_field, request.nul_byte, request.overloaded, request.rate_limited,
+      # request.reference_invalid, request.reference_too_long, request.too_deep,
+      # request.unknown_currency, sandbox.transfer_not_available, transfer.bad_amount,
+      # transfer.bad_recipient, transfer.no_recipient, transfer.recipient_not_found
       #
       # @param params [Oblodai::Models::TransferToUserRequest, Hash, nil] the request body as a
       #   model or a Hash; the keywords add to it
-      # @param amount [BigDecimal, String, nil] Сумма перевода в currency.
-      # @param currency [String, nil] Код валюты (криптовалюта).
-      # @param order_id [String, nil] Ключ идемпотентности: повтор с тем же order_id — no-op; в
-      #   батче переводов обязателен.
-      # @param to_user_id [String, nil] Платформенный user id получателя (UUID, не username);
-      #   username резолвится в id через публичный профиль кабинета /public/users/{username}.
+      # @param amount [BigDecimal, String, nil] The transfer amount in currency.
+      # @param currency [String, nil] Currency code (cryptocurrency).
+      # @param order_id [String, nil] Idempotency key: a retry with the same order_id is a no-op;
+      #   required in a transfer batch.
+      # @param to_user_id [String, nil] The recipient's platform user id (a UUID, not a username); a
+      #   username is resolved to an id via the dashboard's public profile /public/users/{username}.
       # @return [Oblodai::Models::TransferResult]
       def transfer_to_user(
         params = nil,
@@ -1843,29 +1938,32 @@ module Oblodai
         )
       end
 
-      # Массовые внутренние переводы (ведомость)
+      # Bulk internal transfers (payroll)
       #
-      # Асинхронная пачка внутренних переводов: {"transfers":[<как /v1/transfer/to-user>...],
-      # "on_error":"continue"}. Статус и результаты по строкам — POST /v1/batch/info.
+      # An asynchronous batch of internal transfers: {"transfers":[<as in /v1/transfer/to-user>...],
+      # "on_error":"continue"}. Status and per-row results — POST /v1/batch/info.
+      #
+      # Requires role: Finance when called with a CLI key.
       #
       # Error codes: auth.bad_timestamp, auth.body_too_large, auth.ip_not_allowed,
       # batch.bad_on_error, batch.bad_recipient, batch.disabled, batch.duplicate_order_id,
       # batch.duplicate_reference, batch.empty, batch.invoice_required, batch.order_id_required,
-      # batch.reference_required, batch.too_large, batch.unsupported_kind, idempotency.bad_key,
-      # idempotency.in_progress, idempotency.key_reused, idempotency.unavailable, internal,
-      # merchant.bad_signature, merchant.key_mode_mismatch, merchant.rate_limited,
-      # merchant.secret_decrypt, merchant.suspended, merchant.unknown_key, request.bad_json,
-      # request.body_read, request.control_char, request.duplicate_field, request.nul_byte,
-      # request.overloaded, request.rate_limited, request.too_deep
+      # batch.reference_required, batch.too_large, batch.unsupported_kind, cli.permission_denied,
+      # idempotency.bad_key, idempotency.in_progress, idempotency.key_reused,
+      # idempotency.unavailable, internal, merchant.bad_signature, merchant.key_expired,
+      # merchant.key_mode_mismatch, merchant.rate_limited, merchant.secret_decrypt,
+      # merchant.suspended, merchant.unknown_key, request.bad_json, request.body_read,
+      # request.control_char, request.duplicate_field, request.nul_byte, request.overloaded,
+      # request.rate_limited, request.too_deep
       #
       # @param params [Oblodai::Models::TransferBatchRequest, Hash, nil] the request body as a model
       #   or a Hash; the keywords add to it
-      # @param on_error [String, nil] Что делать при ошибке элемента: continue (по умолчанию) —
-      #   обрабатывать остальные; stop — прекратить обработку после первой ошибки. Values:
+      # @param on_error [String, nil] What to do when an item fails: continue (default) — process
+      #   the rest; stop — stop processing after the first error. Values:
       #   {Oblodai::Enums::BatchOnError}.
-      # @param transfers [Array<Oblodai::Models::TransferBatchItem, Hash>, nil] Массив от 1 до 5000
-      #   элементов — те же поля, что у POST /v1/transfer/to-user; у каждого элемента обязательны
-      #   order_id (ключ идемпотентности) и to_user_id (UUID пользователя).
+      # @param transfers [Array<Oblodai::Models::TransferBatchItem, Hash>, nil] An array of 1 to
+      #   5000 items — the same fields as in POST /v1/transfer/to-user; each item requires order_id
+      #   (the idempotency key) and to_user_id (the user's UUID).
       # @return [Oblodai::Models::BatchSubmitResponse]
       def create_transfer_batch(
         params = nil,
@@ -1898,57 +1996,62 @@ module Oblodai
       end
     end
 
-    # Выплата без адреса: получатель сам вводит адрес по секретной ссылке.
+    # Payouts without an address: the recipient enters their own address via a secret link.
     class PayoutLinks < Generated::Resource
-      # Создать выплатную ссылку
+      # Create a payout link
       #
-      # Резервирует сумму с баланса и выпускает ссылку, по которой получатель сам вводит адрес и
-      # забирает деньги. Адрес получателя знать не нужно. `email` — отправим письмо со ссылкой;
-      # `expires_in_seconds` — окно на получение, 3600–2592000 (час–30 суток). ⚠ Без поля или при
-      # `0` ссылка живёт ОДИН ЧАС, а не максимум — задавайте срок явно. Идемпотентность: `reference`
-      # (или заголовок `Idempotency-Key`).
+      # Reserves the amount from the balance and issues a link through which the recipient enters
+      # their own address and claims the money. You do not need to know the recipient's address.
+      # `email` — we will send an email with the link; `expires_in_seconds` — the claim window,
+      # 3600–2592000 (an hour to 30 days). ⚠ If the field is omitted or `0`, the link lives ONE
+      # HOUR, not the maximum — set the lifetime explicitly. Idempotency: `reference` (or the
+      # `Idempotency-Key` header).
+      #
+      # Requires role: Finance when called with a CLI key.
       #
       # Error codes: auth.bad_timestamp, auth.body_too_large, auth.ip_not_allowed,
-      # email.bad_recipient, idempotency.bad_key, idempotency.in_progress, idempotency.key_reused,
-      # idempotency.unavailable, internal, ledger.account_not_found, ledger.asset_mismatch,
-      # ledger.bad_direction, ledger.duplicate_posting, ledger.fiat_asset,
+      # cli.permission_denied, email.bad_recipient, idempotency.bad_key, idempotency.in_progress,
+      # idempotency.key_reused, idempotency.unavailable, internal, ledger.account_not_found,
+      # ledger.asset_mismatch, ledger.bad_direction, ledger.duplicate_posting, ledger.fiat_asset,
       # ledger.idempotency_conflict, ledger.missing_idempotency_key, ledger.no_lines,
       # ledger.non_positive_amount, ledger.sandbox_live_mix, ledger.unbalanced,
-      # merchant.bad_signature, merchant.key_mode_mismatch, merchant.rate_limited,
-      # merchant.secret_decrypt, merchant.suspended, merchant.unknown_key, payout.freeze_unknown,
-      # payout.frozen, payout.merchant_frozen, payoutlink.bad_amount, payoutlink.bad_fee_bearer,
-      # payoutlink.bad_passcode, payoutlink.disabled, payoutlink.duplicate_reference,
-      # payoutlink.funds_maturing, payoutlink.idempotency_required, payoutlink.insufficient_funds,
-      # payoutlink.passcode, payoutlink.token, payoutlink.unsupported_network, rates.deviation,
-      # rates.no_source, rates.non_positive, request.bad_json, request.body_read,
-      # request.control_char, request.duplicate_field, request.nul_byte, request.overloaded,
-      # request.rate_limited, request.reference_invalid, request.reference_too_long,
-      # request.too_deep, request.unknown_currency
+      # merchant.bad_signature, merchant.key_expired, merchant.key_mode_mismatch,
+      # merchant.rate_limited, merchant.secret_decrypt, merchant.suspended, merchant.unknown_key,
+      # payout.freeze_unknown, payout.frozen, payout.merchant_frozen, payoutlink.bad_amount,
+      # payoutlink.bad_fee_bearer, payoutlink.bad_passcode, payoutlink.disabled,
+      # payoutlink.duplicate_reference, payoutlink.funds_maturing, payoutlink.idempotency_required,
+      # payoutlink.insufficient_funds, payoutlink.passcode, payoutlink.token,
+      # payoutlink.unsupported_network, rates.deviation, rates.no_source, rates.non_positive,
+      # request.bad_json, request.body_read, request.control_char, request.duplicate_field,
+      # request.nul_byte, request.overloaded, request.rate_limited, request.reference_invalid,
+      # request.reference_too_long, request.too_deep, request.unknown_currency
       #
       # @param params [Oblodai::Models::PayoutLinkItem, Hash, nil] the request body as a model or a
       #   Hash; the keywords add to it
-      # @param amount [BigDecimal, String, nil] Сумма в currency, строкой; больше нуля
-      # @param currency [String, nil] Крипто-актив выплаты (USDT, BTC, …); фиат невозможен
-      # @param email [String, nil] Если задан — получателю уходит письмо с кнопкой «Получить
-      #   средства»; сбой доставки не отменяет создание ссылки
-      # @param expires_in_seconds [Integer, nil] Срок жизни ссылки в секундах, клампится в диапазон
-      #   3600–2592000 (час–30 суток); без поля или при 0 ссылка живёт 1 час, а не максимум —
-      #   задавайте явно
-      # @param fee_bearer [String, nil] Кто платит сетевую комиссию: "recipient" (по умолчанию —
-      #   вычитается из суммы, получателю придёт меньше) или "merchant" (резервируется сумма плюс
-      #   комиссия, получателю придёт ровно amount) Values: {Oblodai::Enums::PayoutLinkFeeBearer}.
-      # @param network [String, nil] Сеть выплаты получателю (tron, bitcoin, …)
-      # @param note [String, nil] Сообщение получателю (видно на странице получения и в письме)
-      # @param passcode [String, nil] Код получения — второй фактор к ссылке: "auto" — сгенерируем и
-      #   вернём ОДИН раз в ответе, либо свой (6–64 видимых символа), пусто — без кода. Код
-      #   передавайте получателю ОТДЕЛЬНЫМ от ссылки каналом (в письмо он не кладётся); после 10
-      #   неверных вводов ссылка запирается.
-      # @param reference [String, nil] Ваш ключ дедупликации ссылки, уникальный на мерчанта: повтор
-      #   с тем же reference не зарезервирует деньги второй раз. В одиночном POST /v1/payout/link
-      #   необязателен — без него ключом становится заголовок Idempotency-Key, а без обоих запрос
-      #   отвергается (payoutlink.idempotency_required). В пачке POST /v1/payout/link/batch обязателен
-      #   у каждой ссылки: Idempotency-Key пачки на элементы не переносится
-      # @param title [String, nil] Заголовок — виден получателю на странице получения
+      # @param amount [BigDecimal, String, nil] The amount in currency, as a string; greater than
+      #   zero
+      # @param currency [String, nil] The payout crypto asset (USDT, BTC, …); fiat is not possible
+      # @param email [String, nil] If set, the recipient gets an email with a "Claim funds" button;
+      #   a delivery failure does not cancel the link creation
+      # @param expires_in_seconds [Integer, nil] The link lifetime in seconds, clamped to the range
+      #   3600–2592000 (an hour to 30 days); without the field or at 0 the link lives 1 hour, not the
+      #   maximum — set it explicitly
+      # @param fee_bearer [String, nil] Who pays the network fee: "recipient" (default — deducted
+      #   from the amount, the recipient gets less) or "merchant" (the amount plus the fee is
+      #   reserved, the recipient gets exactly amount) Values: {Oblodai::Enums::PayoutLinkFeeBearer}.
+      # @param network [String, nil] The network of the payout to the recipient (tron, bitcoin, …)
+      # @param note [String, nil] A message to the recipient (visible on the claim page and in the
+      #   email)
+      # @param passcode [String, nil] Claim passcode — a second factor for the link: "auto" — we
+      #   generate it and return it ONCE in the response, or your own (6–64 visible characters), empty
+      #   — no passcode. Give the passcode to the recipient over a channel SEPARATE from the link (it
+      #   is not included in the email); after 10 wrong attempts the link is locked.
+      # @param reference [String, nil] Your deduplication key for the link, unique per merchant: a
+      #   retry with the same reference will not reserve the money a second time. Optional in a single
+      #   POST /v1/payout/link — without it the Idempotency-Key header becomes the key, and without
+      #   both the request is rejected (payoutlink.idempotency_required). Required on every link in a
+      #   POST /v1/payout/link/batch: the batch's Idempotency-Key is not carried over to the items
+      # @param title [String, nil] Title — visible to the recipient on the claim page
       # @return [Oblodai::Models::PayoutLinkCreated]
       def create(
         params = nil,
@@ -1996,34 +2099,36 @@ module Oblodai
         )
       end
 
-      # Создать выплатные ссылки пачкой
+      # Create payout links in bulk
       #
-      # До 500 ссылок за вызов; каждая проходит или падает независимо, ответ выровнен по индексам
-      # запроса. Повтор с теми же `reference` безопасен.
+      # Up to 500 links per call; each succeeds or fails independently, the response is aligned with
+      # the request indices. Retrying with the same `reference` values is safe.
+      #
+      # Requires role: Finance when called with a CLI key.
       #
       # Error codes: auth.bad_timestamp, auth.body_too_large, auth.ip_not_allowed,
-      # email.bad_recipient, idempotency.bad_key, idempotency.in_progress, idempotency.key_reused,
-      # idempotency.unavailable, internal, ledger.account_not_found, ledger.asset_mismatch,
-      # ledger.bad_direction, ledger.duplicate_posting, ledger.fiat_asset,
+      # cli.permission_denied, email.bad_recipient, idempotency.bad_key, idempotency.in_progress,
+      # idempotency.key_reused, idempotency.unavailable, internal, ledger.account_not_found,
+      # ledger.asset_mismatch, ledger.bad_direction, ledger.duplicate_posting, ledger.fiat_asset,
       # ledger.idempotency_conflict, ledger.missing_idempotency_key, ledger.no_lines,
       # ledger.non_positive_amount, ledger.sandbox_live_mix, ledger.unbalanced,
-      # merchant.bad_signature, merchant.key_mode_mismatch, merchant.rate_limited,
-      # merchant.secret_decrypt, merchant.suspended, merchant.unknown_key, payout.freeze_unknown,
-      # payout.frozen, payout.merchant_frozen, payoutlink.bad_amount, payoutlink.bad_fee_bearer,
-      # payoutlink.bad_passcode, payoutlink.batch_too_large, payoutlink.disabled,
-      # payoutlink.duplicate_reference, payoutlink.empty_batch, payoutlink.funds_maturing,
-      # payoutlink.insufficient_funds, payoutlink.passcode, payoutlink.reference_required,
-      # payoutlink.token, payoutlink.unsupported_network, rates.deviation, rates.no_source,
-      # rates.non_positive, request.bad_json, request.body_read, request.control_char,
-      # request.duplicate_field, request.nul_byte, request.overloaded, request.rate_limited,
-      # request.reference_invalid, request.reference_too_long, request.too_deep,
-      # request.unknown_currency
+      # merchant.bad_signature, merchant.key_expired, merchant.key_mode_mismatch,
+      # merchant.rate_limited, merchant.secret_decrypt, merchant.suspended, merchant.unknown_key,
+      # payout.freeze_unknown, payout.frozen, payout.merchant_frozen, payoutlink.bad_amount,
+      # payoutlink.bad_fee_bearer, payoutlink.bad_passcode, payoutlink.batch_too_large,
+      # payoutlink.disabled, payoutlink.duplicate_reference, payoutlink.empty_batch,
+      # payoutlink.funds_maturing, payoutlink.insufficient_funds, payoutlink.passcode,
+      # payoutlink.reference_required, payoutlink.token, payoutlink.unsupported_network,
+      # rates.deviation, rates.no_source, rates.non_positive, request.bad_json, request.body_read,
+      # request.control_char, request.duplicate_field, request.nul_byte, request.overloaded,
+      # request.rate_limited, request.reference_invalid, request.reference_too_long,
+      # request.too_deep, request.unknown_currency
       #
       # @param params [Oblodai::Models::PayoutLinkBatchRequest, Hash, nil] the request body as a
       #   model or a Hash; the keywords add to it
-      # @param items [Array<Oblodai::Models::PayoutLinkBatchItem, Hash>, nil] До 500 ссылок за
-      #   вызов; каждая проходит или падает независимо, ответ выровнен по индексам запроса. reference
-      #   обязателен у каждой.
+      # @param items [Array<Oblodai::Models::PayoutLinkBatchItem, Hash>, nil] Up to 500 links per
+      #   call; each succeeds or fails independently, the response is aligned with the request
+      #   indices. reference is required on each.
       # @return [Oblodai::Models::PayoutLinkBatchResult]
       def create_batch(
         params = nil,
@@ -2053,19 +2158,22 @@ module Oblodai
         )
       end
 
-      # Список выплатных ссылок
+      # List payout links
       #
-      # Error codes: auth.bad_timestamp, auth.body_too_large, auth.ip_not_allowed, internal,
-      # merchant.bad_signature, merchant.key_mode_mismatch, merchant.rate_limited,
-      # merchant.secret_decrypt, merchant.suspended, merchant.unknown_key, payoutlink.disabled,
-      # rates.deviation, rates.no_source, rates.non_positive, request.bad_json, request.body_read,
+      # Requires role: Viewer when called with a CLI key.
+      #
+      # Error codes: auth.bad_timestamp, auth.body_too_large, auth.ip_not_allowed,
+      # cli.permission_denied, internal, merchant.bad_signature, merchant.key_expired,
+      # merchant.key_mode_mismatch, merchant.rate_limited, merchant.secret_decrypt,
+      # merchant.suspended, merchant.unknown_key, payoutlink.disabled, rates.deviation,
+      # rates.no_source, rates.non_positive, request.bad_json, request.body_read,
       # request.control_char, request.duplicate_field, request.nul_byte, request.overloaded,
       # request.rate_limited, request.too_deep
       #
       # @param params [Oblodai::Models::PageRequest, Hash, nil] the request body as a model or a
       #   Hash; the keywords add to it
-      # @param limit [Integer, nil] Размер страницы, 1–100; вне диапазона — 25.
-      # @param offset [Integer, nil] Смещение от начала списка.
+      # @param limit [Integer, nil] Page size, 1–100; out of range — 25.
+      # @param offset [Integer, nil] Offset from the start of the list.
       # @return [Oblodai::Page<Oblodai::Models::PayoutLinkView>]
       def list(
         params = nil,
@@ -2097,18 +2205,21 @@ module Oblodai
         )
       end
 
-      # Статус выплатной ссылки
+      # Payout link status
       #
-      # Error codes: auth.bad_timestamp, auth.body_too_large, auth.ip_not_allowed, internal,
-      # merchant.bad_signature, merchant.key_mode_mismatch, merchant.rate_limited,
-      # merchant.secret_decrypt, merchant.suspended, merchant.unknown_key, payoutlink.bad_id,
-      # payoutlink.disabled, payoutlink.not_found, rates.deviation, rates.no_source,
-      # rates.non_positive, request.body_read, request.control_char, request.duplicate_field,
-      # request.nul_byte, request.overloaded, request.rate_limited, request.too_deep
+      # Requires role: Viewer when called with a CLI key.
+      #
+      # Error codes: auth.bad_timestamp, auth.body_too_large, auth.ip_not_allowed,
+      # cli.permission_denied, internal, merchant.bad_signature, merchant.key_expired,
+      # merchant.key_mode_mismatch, merchant.rate_limited, merchant.secret_decrypt,
+      # merchant.suspended, merchant.unknown_key, payoutlink.bad_id, payoutlink.disabled,
+      # payoutlink.not_found, rates.deviation, rates.no_source, rates.non_positive,
+      # request.body_read, request.control_char, request.duplicate_field, request.nul_byte,
+      # request.overloaded, request.rate_limited, request.too_deep
       #
       # @param params [Oblodai::Models::PayoutLinkIDRequest, Hash, nil] the request body as a model
       #   or a Hash; the keywords add to it
-      # @param link_id [String, nil] Идентификатор выплатной ссылки (link_id из ответа создания).
+      # @param link_id [String, nil] The payout link id (link_id from the creation response).
       # @return [Oblodai::Models::PayoutLinkView]
       def get(
         params = nil,
@@ -2138,25 +2249,27 @@ module Oblodai
         )
       end
 
-      # Отменить выплатную ссылку
+      # Cancel a payout link
       #
-      # Непогашенная ссылка отменяется, резерв возвращается на баланс.
+      # An unclaimed link is cancelled and the reserve is returned to the balance.
       #
-      # Error codes: auth.bad_timestamp, auth.body_too_large, auth.ip_not_allowed, internal,
-      # ledger.account_not_found, ledger.asset_mismatch, ledger.bad_direction,
-      # ledger.duplicate_posting, ledger.fiat_asset, ledger.idempotency_conflict,
-      # ledger.missing_idempotency_key, ledger.no_lines, ledger.non_positive_amount,
-      # ledger.sandbox_live_mix, ledger.unbalanced, merchant.bad_signature,
-      # merchant.key_mode_mismatch, merchant.rate_limited, merchant.secret_decrypt,
-      # merchant.suspended, merchant.unknown_key, payout.not_found, payoutlink.bad_id,
-      # payoutlink.disabled, payoutlink.not_found, payoutlink.not_funded, rates.deviation,
-      # rates.no_source, rates.non_positive, request.body_read, request.control_char,
-      # request.duplicate_field, request.nul_byte, request.overloaded, request.rate_limited,
-      # request.too_deep
+      # Requires role: Finance when called with a CLI key.
+      #
+      # Error codes: auth.bad_timestamp, auth.body_too_large, auth.ip_not_allowed,
+      # cli.permission_denied, internal, ledger.account_not_found, ledger.asset_mismatch,
+      # ledger.bad_direction, ledger.duplicate_posting, ledger.fiat_asset,
+      # ledger.idempotency_conflict, ledger.missing_idempotency_key, ledger.no_lines,
+      # ledger.non_positive_amount, ledger.sandbox_live_mix, ledger.unbalanced,
+      # merchant.bad_signature, merchant.key_expired, merchant.key_mode_mismatch,
+      # merchant.rate_limited, merchant.secret_decrypt, merchant.suspended, merchant.unknown_key,
+      # payout.not_found, payoutlink.bad_id, payoutlink.disabled, payoutlink.not_found,
+      # payoutlink.not_funded, rates.deviation, rates.no_source, rates.non_positive,
+      # request.body_read, request.control_char, request.duplicate_field, request.nul_byte,
+      # request.overloaded, request.rate_limited, request.too_deep
       #
       # @param params [Oblodai::Models::PayoutLinkIDRequest, Hash, nil] the request body as a model
       #   or a Hash; the keywords add to it
-      # @param link_id [String, nil] Идентификатор выплатной ссылки (link_id из ответа создания).
+      # @param link_id [String, nil] The payout link id (link_id from the creation response).
       # @return [Oblodai::Models::PayoutLinkView]
       def cancel(
         params = nil,
@@ -2186,13 +2299,14 @@ module Oblodai
         )
       end
 
-      # Страница получения: что внутри ссылки (без ключа)
+      # Claim page: what the link holds (no key)
       #
-      # Публичный просмотр для получателя: валюта, сумма, заметка, срок. Токен — секрет из URL. У
-      # ссылки с кодом получения код передаётся заголовком `X-Claim-Passcode` (не query — второй
-      # фактор не должен оседать в логах); без кода отдаётся минимум (`passcode_required: true`,
-      # статус, срок) — суммы видны только после верного кода; неверные коды считаются и после 10
-      # запирают ссылку (429 `payoutlink.passcode_locked`).
+      # A public view for the recipient: currency, amount, note, expiry. The token is the secret
+      # from the URL. For a link with a claim passcode, the passcode is sent in the
+      # `X-Claim-Passcode` header (not the query — a second factor must not end up in logs); without
+      # the passcode only a minimum is returned (`passcode_required: true`, status, expiry) —
+      # amounts are visible only after a correct passcode; wrong passcodes are counted and after 10
+      # the link is locked (429 `payoutlink.passcode_locked`).
       #
       # Error codes: internal, payoutlink.disabled, payoutlink.not_found,
       # payoutlink.passcode_locked, payoutlink.passcode_required, payoutlink.passcode_wrong,
@@ -2226,12 +2340,13 @@ module Oblodai
         )
       end
 
-      # Получить выплату по ссылке (без ключа)
+      # Claim a payout via a link (no key)
       #
-      # Получатель вводит свой `address` (и `memo`, если сеть требует) — из резерва рождается
-      # обычная выплата. Ссылка с кодом получения требует `passcode`: без него — 403
-      # `payoutlink.passcode_required`, неверный — 403 `payoutlink.passcode_wrong`, после 10
-      # неверных — 429 `payoutlink.passcode_locked` (мерчант отменяет ссылку и выпускает новую).
+      # The recipient enters their `address` (and `memo`, if the network requires one) — a regular
+      # payout is created from the reserve. A link with a claim passcode requires `passcode`:
+      # without it — 403 `payoutlink.passcode_required`, a wrong one — 403
+      # `payoutlink.passcode_wrong`, after 10 wrong ones — 429 `payoutlink.passcode_locked` (the
+      # merchant cancels the link and issues a new one).
       #
       # Error codes: compliance.blocked, compliance.blocked_address,
       # compliance.blocklist_unavailable, compliance.no_destination, compliance.no_network,
@@ -2258,10 +2373,10 @@ module Oblodai
       # @param token [String]
       # @param params [Oblodai::Models::ClaimRequest, Hash, nil] the request body as a model or a
       #   Hash; the keywords add to it
-      # @param address [String, nil] Адрес получателя в сети выплаты.
-      # @param memo [String, nil] Memo/tag — только для сетей, где он обязателен.
-      # @param passcode [String, nil] Код получения — если отправитель установил его на ссылку.
-      #   После 10 неверных вводов ссылка запирается.
+      # @param address [String, nil] The recipient's address on the payout network.
+      # @param memo [String, nil] Memo/tag — only for networks where it is required.
+      # @param passcode [String, nil] Claim passcode — if the sender set one on the link. After 10
+      #   wrong attempts the link is locked.
       # @return [Oblodai::Models::PayoutClaimed]
       def claim_payout(
         token,
@@ -2300,38 +2415,41 @@ module Oblodai
       end
     end
 
-    # Асинхронные батчи: платежи, возвраты, выплаты, переводы пачками.
+    # Asynchronous batches of payments, refunds, payouts and transfers.
     class Batches < Generated::Resource
-      # Массовое создание платежей
+      # Create payments in bulk
       #
-      # До 5000 платежей за ОДИН запрос (одна отметка rate-limit). Каждый элемент — обычный объект
-      # `/v1/payment` (разные валюты/сети допустимы). В ответ сразу приходит `batch_id`; обработка
-      # идёт в фоне. Статус и результаты (включая `uuid` и ссылку оплаты каждого платежа) — через
-      # `/v1/batch/info`.
+      # Up to 5000 payments in ONE request (one rate-limit hit). Each item is a regular
+      # `/v1/payment` object (different currencies/networks are allowed). The response immediately
+      # returns `batch_id`; processing runs in the background. Status and results (including each
+      # payment's `uuid` and payment link) — via `/v1/batch/info`.
       #
-      # `on_error`: `continue` (по умолчанию — ошибка одного не мешает остальным) или `stop` (после
-      # первой ошибки оставшиеся отменяются); регистр не важен, любое другое значение — отказ
-      # `batch.bad_on_error`. Каждый элемент идемпотентен по своему `order_id`; вся пачка — по
-      # заголовку `Idempotency-Key`.
+      # `on_error`: `continue` (default — one item's error does not affect the rest) or `stop`
+      # (after the first error the remaining items are cancelled); case-insensitive, any other value
+      # is rejected with `batch.bad_on_error`. Each item is idempotent on its own `order_id`; the
+      # whole batch — on the `Idempotency-Key` header.
+      #
+      # Requires role: Finance when called with a CLI key.
       #
       # Error codes: auth.bad_timestamp, auth.body_too_large, auth.ip_not_allowed,
       # batch.bad_on_error, batch.bad_recipient, batch.disabled, batch.duplicate_order_id,
       # batch.duplicate_reference, batch.empty, batch.invoice_required, batch.order_id_required,
-      # batch.reference_required, batch.too_large, batch.unsupported_kind, idempotency.bad_key,
-      # idempotency.in_progress, idempotency.key_reused, idempotency.unavailable, internal,
-      # merchant.bad_signature, merchant.key_mode_mismatch, merchant.rate_limited,
-      # merchant.secret_decrypt, merchant.suspended, merchant.unknown_key, request.bad_json,
-      # request.body_read, request.control_char, request.duplicate_field, request.nul_byte,
-      # request.overloaded, request.rate_limited, request.too_deep
+      # batch.reference_required, batch.too_large, batch.unsupported_kind, cli.permission_denied,
+      # idempotency.bad_key, idempotency.in_progress, idempotency.key_reused,
+      # idempotency.unavailable, internal, merchant.bad_signature, merchant.key_expired,
+      # merchant.key_mode_mismatch, merchant.rate_limited, merchant.secret_decrypt,
+      # merchant.suspended, merchant.unknown_key, request.bad_json, request.body_read,
+      # request.control_char, request.duplicate_field, request.nul_byte, request.overloaded,
+      # request.rate_limited, request.too_deep
       #
       # @param params [Oblodai::Models::PaymentBatchRequest, Hash, nil] the request body as a model
       #   or a Hash; the keywords add to it
-      # @param on_error [String, nil] Что делать при ошибке элемента: continue (по умолчанию) —
-      #   обрабатывать остальные; stop — прекратить обработку после первой ошибки. Values:
+      # @param on_error [String, nil] What to do when an item fails: continue (default) — process
+      #   the rest; stop — stop processing after the first error. Values:
       #   {Oblodai::Enums::BatchOnError}.
-      # @param payments [Array<Oblodai::Models::PaymentBatchItem, Hash>, nil] Массив от 1 до 5000
-      #   элементов — те же поля, что у POST /v1/payment; order_id обязателен у каждого элемента: по
-      #   нему сопоставляются результаты и он защищает от дублей.
+      # @param payments [Array<Oblodai::Models::PaymentBatchItem, Hash>, nil] An array of 1 to 5000
+      #   items — the same fields as in POST /v1/payment; order_id is required on each item: results
+      #   are matched by it and it protects against duplicates.
       # @return [Oblodai::Models::BatchSubmitResponse]
       def create_payment(
         params = nil,
@@ -2363,32 +2481,36 @@ module Oblodai
         )
       end
 
-      # Массовые возвраты
+      # Bulk refunds
       #
-      # До 5000 возвратов за один запрос. Каждый элемент — обычный объект `/v1/payment/refund`, но
-      # `reference` ОБЯЗАТЕЛЕН на каждом элементе и уникален внутри батча: это ключ идемпотентности
-      # именно этого возврата (не путать с `order_id`, который указывает на счёт). Без него два
-      # разных возврата одной суммы одному плательщику молча схлопнулись бы в один. Возвращает
-      # `batch_id`; статус по каждому — через `/v1/batch/info`. `on_error`: `continue`/`stop`.
+      # Up to 5000 refunds in one request. Each item is a regular `/v1/payment/refund` object, but
+      # `reference` is REQUIRED on every item and must be unique within the batch: it is the
+      # idempotency key of that particular refund (not to be confused with `order_id`, which points
+      # to the invoice). Without it, two different refunds of the same amount to the same payer
+      # would silently collapse into one. Returns `batch_id`; per-item status via `/v1/batch/info`.
+      # `on_error`: `continue`/`stop`.
+      #
+      # Requires role: Finance when called with a CLI key.
       #
       # Error codes: auth.bad_timestamp, auth.body_too_large, auth.ip_not_allowed,
       # batch.bad_on_error, batch.bad_recipient, batch.disabled, batch.duplicate_order_id,
       # batch.duplicate_reference, batch.empty, batch.invoice_required, batch.order_id_required,
-      # batch.reference_required, batch.too_large, batch.unsupported_kind, idempotency.bad_key,
-      # idempotency.in_progress, idempotency.key_reused, idempotency.unavailable, internal,
-      # merchant.bad_signature, merchant.key_mode_mismatch, merchant.rate_limited,
-      # merchant.secret_decrypt, merchant.suspended, merchant.unknown_key, request.bad_json,
-      # request.body_read, request.control_char, request.duplicate_field, request.nul_byte,
-      # request.overloaded, request.rate_limited, request.too_deep
+      # batch.reference_required, batch.too_large, batch.unsupported_kind, cli.permission_denied,
+      # idempotency.bad_key, idempotency.in_progress, idempotency.key_reused,
+      # idempotency.unavailable, internal, merchant.bad_signature, merchant.key_expired,
+      # merchant.key_mode_mismatch, merchant.rate_limited, merchant.secret_decrypt,
+      # merchant.suspended, merchant.unknown_key, request.bad_json, request.body_read,
+      # request.control_char, request.duplicate_field, request.nul_byte, request.overloaded,
+      # request.rate_limited, request.too_deep
       #
       # @param params [Oblodai::Models::RefundBatchRequest, Hash, nil] the request body as a model
       #   or a Hash; the keywords add to it
-      # @param on_error [String, nil] Что делать при ошибке элемента: continue (по умолчанию) —
-      #   обрабатывать остальные; stop — прекратить обработку после первой ошибки. Values:
+      # @param on_error [String, nil] What to do when an item fails: continue (default) — process
+      #   the rest; stop — stop processing after the first error. Values:
       #   {Oblodai::Enums::BatchOnError}.
-      # @param refunds [Array<Oblodai::Models::RefundBatchItem, Hash>, nil] Массив от 1 до 5000
-      #   элементов — те же поля, что у POST /v1/payment/refund; у каждого элемента обязательны
-      #   reference (ключ идемпотентности) и uuid либо order_id платежа.
+      # @param refunds [Array<Oblodai::Models::RefundBatchItem, Hash>, nil] An array of 1 to 5000
+      #   items — the same fields as in POST /v1/payment/refund; each item requires reference (the
+      #   idempotency key) and the payment's uuid or order_id.
       # @return [Oblodai::Models::BatchSubmitResponse]
       def create_refund(
         params = nil,
@@ -2420,30 +2542,33 @@ module Oblodai
         )
       end
 
-      # Массовые выплаты (async, без лимита 100)
+      # Bulk payouts (async, no 100 limit)
       #
-      # Асинхронный аналог `/v1/payout/mass` без ограничения в 100: до 5000 выплат, обработка в
-      # фоне, статус через `/v1/batch/info`. Каждый элемент — обычный объект `/v1/payout`,
-      # идемпотентен по `order_id`.
+      # Asynchronous counterpart of `/v1/payout/mass` without the 100-item limit: up to 5000
+      # payouts, processed in the background, status via `/v1/batch/info`. Each item is a regular
+      # `/v1/payout` object, idempotent on `order_id`.
+      #
+      # Requires role: Finance when called with a CLI key.
       #
       # Error codes: auth.bad_timestamp, auth.body_too_large, auth.ip_not_allowed,
       # batch.bad_on_error, batch.bad_recipient, batch.disabled, batch.duplicate_order_id,
       # batch.duplicate_reference, batch.empty, batch.invoice_required, batch.order_id_required,
-      # batch.reference_required, batch.too_large, batch.unsupported_kind, idempotency.bad_key,
-      # idempotency.in_progress, idempotency.key_reused, idempotency.unavailable, internal,
-      # merchant.bad_signature, merchant.key_mode_mismatch, merchant.rate_limited,
-      # merchant.secret_decrypt, merchant.suspended, merchant.unknown_key, request.bad_json,
-      # request.body_read, request.control_char, request.duplicate_field, request.nul_byte,
-      # request.overloaded, request.rate_limited, request.too_deep
+      # batch.reference_required, batch.too_large, batch.unsupported_kind, cli.permission_denied,
+      # idempotency.bad_key, idempotency.in_progress, idempotency.key_reused,
+      # idempotency.unavailable, internal, merchant.bad_signature, merchant.key_expired,
+      # merchant.key_mode_mismatch, merchant.rate_limited, merchant.secret_decrypt,
+      # merchant.suspended, merchant.unknown_key, request.bad_json, request.body_read,
+      # request.control_char, request.duplicate_field, request.nul_byte, request.overloaded,
+      # request.rate_limited, request.too_deep
       #
       # @param params [Oblodai::Models::PayoutBatchRequest, Hash, nil] the request body as a model
       #   or a Hash; the keywords add to it
-      # @param on_error [String, nil] Что делать при ошибке элемента: continue (по умолчанию) —
-      #   обрабатывать остальные; stop — прекратить обработку после первой ошибки. Values:
+      # @param on_error [String, nil] What to do when an item fails: continue (default) — process
+      #   the rest; stop — stop processing after the first error. Values:
       #   {Oblodai::Enums::BatchOnError}.
-      # @param payouts [Array<Oblodai::Models::PayoutRequest, Hash>, nil] Массив от 1 до 5000
-      #   элементов — те же поля, что у POST /v1/payout; order_id у каждого элемента обязателен и
-      #   служит ключом идемпотентности: повтор вернёт уже созданную выплату.
+      # @param payouts [Array<Oblodai::Models::PayoutRequest, Hash>, nil] An array of 1 to 5000
+      #   items — the same fields as in POST /v1/payout; order_id is required on each item and serves
+      #   as the idempotency key: a retry returns the payout already created.
       # @return [Oblodai::Models::BatchSubmitResponse]
       def create_payout(
         params = nil,
@@ -2475,23 +2600,25 @@ module Oblodai
         )
       end
 
-      # Статус пачки
+      # Batch status
       #
-      # Прогресс пачки (`total`/`succeeded`/`failed`/`status`) и постранично её элементы с
-      # результатом или ошибкой по каждому. `status`: `pending` → `processing` → `completed`.
+      # Batch progress (`total`/`succeeded`/`failed`/`status`) and its items, paginated, with the
+      # result or error for each. `status`: `pending` → `processing` → `completed`.
+      #
+      # Requires role: Viewer when called with a CLI key.
       #
       # Error codes: auth.bad_timestamp, auth.body_too_large, auth.ip_not_allowed, batch.bad_id,
-      # batch.disabled, batch.not_found, internal, merchant.bad_signature,
-      # merchant.key_mode_mismatch, merchant.rate_limited, merchant.secret_decrypt,
-      # merchant.suspended, merchant.unknown_key, request.bad_json, request.body_read,
-      # request.control_char, request.duplicate_field, request.nul_byte, request.overloaded,
-      # request.rate_limited, request.too_deep
+      # batch.disabled, batch.not_found, cli.permission_denied, internal, merchant.bad_signature,
+      # merchant.key_expired, merchant.key_mode_mismatch, merchant.rate_limited,
+      # merchant.secret_decrypt, merchant.suspended, merchant.unknown_key, request.bad_json,
+      # request.body_read, request.control_char, request.duplicate_field, request.nul_byte,
+      # request.overloaded, request.rate_limited, request.too_deep
       #
       # @param params [Oblodai::Models::BatchInfoRequest, Hash, nil] the request body as a model or
       #   a Hash; the keywords add to it
-      # @param batch_id [String, nil] Идентификатор батча из ответа на submit.
-      # @param limit [Integer, nil] Сколько элементов вернуть в items (пагинация).
-      # @param offset [Integer, nil] Смещение по элементам.
+      # @param batch_id [String, nil] The batch id from the submit response.
+      # @param limit [Integer, nil] How many items to return in items (pagination).
+      # @param offset [Integer, nil] Offset in items.
       # @return [Oblodai::Models::BatchInfoResponse]
       def get_info(
         params = nil,
@@ -2526,51 +2653,56 @@ module Oblodai
       end
     end
 
-    # Автоматическое разделение поступлений между получателями.
+    # Automatic splitting of incoming funds between recipients.
     class Splits < Generated::Resource
-      # Правило сплита (отчисление партнёру)
+      # Split rule (partner share)
       #
-      # Автоматически отправлять долю КАЖДОГО входящего платежа партнёру. Укажите ровно одного
-      # получателя:
+      # Automatically send a share of EVERY incoming payment to a partner. Specify exactly one
+      # recipient:
       #
-      # • `address` + `network` — внешний крипто-адрес. Уходит он-чейн выплатой, **необратимо**.
-      # • `merchant_id` — аккаунт на Oblodai. Уходит проводкой по балансу: **обратимо** (возврат
-      # отзовёт долю обратно).
+      # • `address` + `network` — an external crypto address. Sent as an on-chain payout,
+      # **irreversibly**.
+      # • `merchant_id` — an Oblodai account. Sent as a balance posting: **reversible** (a refund
+      # claws the share back).
       #
-      # `percent` — доля от платежа (напр. `10` или `2.5`). Сумма всех активных правил проекта не
-      # может превышать 100%.
+      # `percent` — the share of the payment (e.g. `10` or `2.5`). The sum of all active rules of a
+      # project cannot exceed 100%.
       #
-      # ⚠️ **Возвраты.** Возврат списывается с ВАШЕГО баланса на всю сумму, что прислал плательщик.
-      # Поэтому отправка партнёрам не происходит сразу: она откладывается на `refund_hold_seconds`
-      # (см. `/v1/split/config/set`), и в момент отправки база пересчитывается как «оплачено −
-      # возвращено». Возврат внутри окна автоматически уменьшает (или отменяет) отчисление, и вам
-      # всегда есть чем вернуть деньги. Возврат ПОСЛЕ отправки: внешнюю долю вернуть нельзя
-      # (пополняйте баланс), долю on-platform партнёра мы отзовём автоматически.
+      # ⚠️ **Refunds.** A refund is debited from YOUR balance for the full amount the payer sent.
+      # That is why partner shares are not sent immediately: sending is deferred by
+      # `refund_hold_seconds` (see `/v1/split/config/set`), and at send time the base is
+      # recalculated as "paid − refunded". A refund within the window automatically reduces (or
+      # cancels) the share, so you always have the funds to refund. A refund AFTER sending: an
+      # external share cannot be recovered (top up your balance); an on-platform partner's share is
+      # clawed back automatically.
+      #
+      # Requires role: Finance when called with a CLI key.
       #
       # Error codes: auth.bad_timestamp, auth.body_too_large, auth.ip_not_allowed,
-      # idempotency.bad_key, idempotency.in_progress, idempotency.key_reused,
-      # idempotency.unavailable, internal, merchant.bad_signature, merchant.key_mode_mismatch,
-      # merchant.rate_limited, merchant.secret_decrypt, merchant.suspended, merchant.unknown_key,
-      # payout.address_network_mismatch, payout.bad_address, payout.bad_memo, payout.memo_conflict,
-      # payout.memo_required, payout.memo_too_long, request.bad_json, request.body_read,
-      # request.control_char, request.duplicate_field, request.nul_byte, request.overloaded,
-      # request.rate_limited, request.too_deep, split.bad_destination, split.bad_merchant,
-      # split.bad_percent, split.consent_check_failed, split.dest_check_failed,
-      # split.dest_not_found, split.disabled, split.duplicate_destination, split.exceeds_100,
-      # split.network_required, split.recipient_not_opted_in, split.self_destination,
-      # split.unsupported_network
+      # cli.permission_denied, idempotency.bad_key, idempotency.in_progress, idempotency.key_reused,
+      # idempotency.unavailable, internal, merchant.bad_signature, merchant.key_expired,
+      # merchant.key_mode_mismatch, merchant.rate_limited, merchant.secret_decrypt,
+      # merchant.suspended, merchant.unknown_key, payout.address_network_mismatch,
+      # payout.bad_address, payout.bad_memo, payout.memo_conflict, payout.memo_required,
+      # payout.memo_too_long, request.bad_json, request.body_read, request.control_char,
+      # request.duplicate_field, request.nul_byte, request.overloaded, request.rate_limited,
+      # request.too_deep, split.bad_destination, split.bad_merchant, split.bad_percent,
+      # split.consent_check_failed, split.dest_check_failed, split.dest_not_found, split.disabled,
+      # split.duplicate_destination, split.exceeds_100, split.network_required,
+      # split.recipient_not_opted_in, split.self_destination, split.unsupported_network
       #
       # @param params [Oblodai::Models::SplitRuleRequest, Hash, nil] the request body as a model or
       #   a Hash; the keywords add to it
-      # @param address [String, nil] Внешний криптоадрес партнёра; доля уходит реальной транзакцией
-      #   в блокчейне — необратимо. Ровно один вариант получателя: либо address+network, либо
-      #   merchant_id.
-      # @param merchant_id [String, nil] Идентификатор мерчанта-партнёра внутри Oblodai; доля
-      #   движется по внутреннему учёту и при возврате отзывается обратно.
-      # @param network [String, nil] Сеть адреса. Обязательна вместе с address.
-      # @param note [String, nil] Комментарий для себя (виден в списке правил).
-      # @param percent [String, nil] Доля от каждого платежа, строкой: "10" = 10 %, "2.5" = 2.5 %.
-      #   Больше 0 и не больше 100, шаг 0.01 %; сумма всех правил не может превышать 100 %.
+      # @param address [String, nil] The partner's external crypto address; the share is sent as a
+      #   real on-chain transaction — irreversibly. Exactly one recipient option: either
+      #   address+network or merchant_id.
+      # @param merchant_id [String, nil] The id of the partner merchant within Oblodai; the share
+      #   moves within internal accounting and is clawed back on refund.
+      # @param network [String, nil] The address network. Required together with address.
+      # @param note [String, nil] A note for yourself (visible in the rule list).
+      # @param percent [String, nil] The share of each payment, as a string: "10" = 10 %, "2.5" =
+      #   2.5 %. Greater than 0 and at most 100, in steps of 0.01 %; the sum of all rules cannot
+      #   exceed 100 %.
       # @return [Oblodai::Models::SplitRuleCreated]
       def create_rule(
         params = nil,
@@ -2608,21 +2740,24 @@ module Oblodai
         )
       end
 
-      # Список правил
+      # List rules
       #
-      # Ваши правила сплита. `reversible: true` — партнёр на платформе (долю можно отозвать при
-      # возврате).
+      # Your split rules. `reversible: true` — an on-platform partner (the share can be clawed back
+      # on refund).
       #
-      # Error codes: auth.bad_timestamp, auth.body_too_large, auth.ip_not_allowed, internal,
-      # merchant.bad_signature, merchant.key_mode_mismatch, merchant.rate_limited,
-      # merchant.secret_decrypt, merchant.suspended, merchant.unknown_key, request.bad_json,
-      # request.body_read, request.control_char, request.duplicate_field, request.nul_byte,
-      # request.overloaded, request.rate_limited, request.too_deep, split.disabled
+      # Requires role: Viewer when called with a CLI key.
+      #
+      # Error codes: auth.bad_timestamp, auth.body_too_large, auth.ip_not_allowed,
+      # cli.permission_denied, internal, merchant.bad_signature, merchant.key_expired,
+      # merchant.key_mode_mismatch, merchant.rate_limited, merchant.secret_decrypt,
+      # merchant.suspended, merchant.unknown_key, request.bad_json, request.body_read,
+      # request.control_char, request.duplicate_field, request.nul_byte, request.overloaded,
+      # request.rate_limited, request.too_deep, split.disabled
       #
       # @param params [Oblodai::Models::PageRequest, Hash, nil] the request body as a model or a
       #   Hash; the keywords add to it
-      # @param limit [Integer, nil] Размер страницы, 1–100; вне диапазона — 25.
-      # @param offset [Integer, nil] Смещение от начала списка.
+      # @param limit [Integer, nil] Page size, 1–100; out of range — 25.
+      # @param offset [Integer, nil] Offset from the start of the list.
       # @return [Oblodai::Page<Oblodai::Models::SplitRuleView>]
       def list_rules(
         params = nil,
@@ -2654,20 +2789,22 @@ module Oblodai
         )
       end
 
-      # Удалить правило
+      # Delete a rule
       #
-      # `{rule_id}`. На уже отправленные доли не влияет.
+      # `{rule_id}`. Does not affect shares already sent.
       #
-      # Error codes: auth.bad_timestamp, auth.body_too_large, auth.ip_not_allowed, internal,
-      # merchant.bad_signature, merchant.key_mode_mismatch, merchant.rate_limited,
-      # merchant.secret_decrypt, merchant.suspended, merchant.unknown_key, request.bad_json,
-      # request.body_read, request.control_char, request.duplicate_field, request.nul_byte,
-      # request.overloaded, request.rate_limited, request.too_deep, split.bad_id, split.disabled,
-      # split.not_found
+      # Requires role: Finance when called with a CLI key.
+      #
+      # Error codes: auth.bad_timestamp, auth.body_too_large, auth.ip_not_allowed,
+      # cli.permission_denied, internal, merchant.bad_signature, merchant.key_expired,
+      # merchant.key_mode_mismatch, merchant.rate_limited, merchant.secret_decrypt,
+      # merchant.suspended, merchant.unknown_key, request.bad_json, request.body_read,
+      # request.control_char, request.duplicate_field, request.nul_byte, request.overloaded,
+      # request.rate_limited, request.too_deep, split.bad_id, split.disabled, split.not_found
       #
       # @param params [Oblodai::Models::SplitRuleDeleteRequest, Hash, nil] the request body as a
       #   model or a Hash; the keywords add to it
-      # @param rule_id [String, nil] Идентификатор правила из POST /v1/split/rule или списка.
+      # @param rule_id [String, nil] The rule id from POST /v1/split/rule or the list.
       # @return [Oblodai::Models::SplitRuleDeleted]
       def delete_rule(
         params = nil,
@@ -2697,28 +2834,30 @@ module Oblodai
         )
       end
 
-      # Окно удержания под возвраты
+      # Refund hold window
       #
-      # `refund_hold_seconds` — на сколько СЕКУНД откладывается ВСЯ исходящая маршрутизация платежа
-      # (сплиты партнёрам, авто-вывод, авто-конвертация в USDT) после его зачисления.
+      # `refund_hold_seconds` — how many SECONDS ALL outgoing routing of a payment (partner splits,
+      # auto-withdrawal, auto-conversion to USDT) is deferred after the payment is credited.
       #
-      # Смысл: пока окно не истекло, деньги лежат на вашем балансе, и любой возврат проходит без
-      # проблем. `0` = отправлять сразу, тогда риск возврата после отправки вы берёте на себя.
-      # Диапазон 0–7776000 (до 90 суток); поле обязательное — пришлите `0` явно, если доли нужно
-      # отправлять сразу.
+      # The point: until the window expires the money stays on your balance, and any refund goes
+      # through without trouble. `0` = send immediately, in which case you bear the risk of a refund
+      # after sending. Range 0–7776000 (up to 90 days); the field is required — send `0` explicitly
+      # if shares should be sent immediately.
       #
-      # Error codes: auth.bad_timestamp, auth.body_too_large, auth.ip_not_allowed, internal,
-      # merchant.bad_signature, merchant.key_mode_mismatch, merchant.rate_limited,
-      # merchant.secret_decrypt, merchant.suspended, merchant.unknown_key, request.bad_json,
-      # request.body_read, request.control_char, request.duplicate_field, request.missing_field,
-      # request.nul_byte, request.overloaded, request.rate_limited, request.too_deep,
-      # split.bad_hold, split.disabled
+      # Requires role: Finance when called with a CLI key.
+      #
+      # Error codes: auth.bad_timestamp, auth.body_too_large, auth.ip_not_allowed,
+      # cli.permission_denied, internal, merchant.bad_signature, merchant.key_expired,
+      # merchant.key_mode_mismatch, merchant.rate_limited, merchant.secret_decrypt,
+      # merchant.suspended, merchant.unknown_key, request.bad_json, request.body_read,
+      # request.control_char, request.duplicate_field, request.missing_field, request.nul_byte,
+      # request.overloaded, request.rate_limited, request.too_deep, split.bad_hold, split.disabled
       #
       # @param params [Oblodai::Models::SplitConfigRequest, Hash, nil] the request body as a model
       #   or a Hash; the keywords add to it
-      # @param refund_hold_seconds [Integer, nil] На сколько секунд откладывать расчёт по сплитам;
-      #   диапазон 0–7776000 (до 90 суток). 0 — отправлять доли сразу: риск невозможности возврата
-      #   берёте на себя. An explicit nil sends null.
+      # @param refund_hold_seconds [Integer, nil] How many seconds to defer split settlement; range
+      #   0–7776000 (up to 90 days). 0 — send shares immediately: you bear the risk of being unable to
+      #   refund. An explicit nil sends null.
       # @return [Oblodai::Models::SplitConfigView]
       def set_config(
         params = nil,
@@ -2749,15 +2888,18 @@ module Oblodai
         )
       end
 
-      # Текущее окно удержания
+      # Current hold window
       #
-      # Возвращает `refund_hold_seconds` проекта.
+      # Returns the project's `refund_hold_seconds`.
       #
-      # Error codes: auth.bad_timestamp, auth.body_too_large, auth.ip_not_allowed, internal,
-      # merchant.bad_signature, merchant.key_mode_mismatch, merchant.rate_limited,
-      # merchant.secret_decrypt, merchant.suspended, merchant.unknown_key, request.body_read,
-      # request.control_char, request.duplicate_field, request.nul_byte, request.overloaded,
-      # request.rate_limited, request.too_deep, split.disabled
+      # Requires role: Viewer when called with a CLI key.
+      #
+      # Error codes: auth.bad_timestamp, auth.body_too_large, auth.ip_not_allowed,
+      # cli.permission_denied, internal, merchant.bad_signature, merchant.key_expired,
+      # merchant.key_mode_mismatch, merchant.rate_limited, merchant.secret_decrypt,
+      # merchant.suspended, merchant.unknown_key, request.body_read, request.control_char,
+      # request.duplicate_field, request.nul_byte, request.overloaded, request.rate_limited,
+      # request.too_deep, split.disabled
       #
       # @return [Oblodai::Models::SplitConfigView]
       def get_config(
@@ -2781,23 +2923,26 @@ module Oblodai
         )
       end
 
-      # Согласие принимать сплиты
+      # Consent to receive splits
       #
-      # `{enabled}` — разрешить другим мерчантам направлять доли своих платежей на ВАШ баланс. Пока
-      # выключено, никто не может создать внутреннее правило сплита с получателем-вами. Выключение
-      # не отзывает уже созданные правила (деньги по ним продолжают поступать), но блокирует новые.
+      # `{enabled}` — allow other merchants to route shares of their payments to YOUR balance. While
+      # disabled, nobody can create an internal split rule with you as the recipient. Disabling does
+      # not revoke rules already created (money keeps arriving under them), but blocks new ones.
       #
-      # Error codes: auth.bad_timestamp, auth.body_too_large, auth.ip_not_allowed, internal,
-      # merchant.bad_signature, merchant.key_mode_mismatch, merchant.rate_limited,
-      # merchant.secret_decrypt, merchant.suspended, merchant.unknown_key, request.bad_json,
-      # request.body_read, request.control_char, request.duplicate_field, request.missing_field,
-      # request.nul_byte, request.overloaded, request.rate_limited, request.too_deep, split.disabled
+      # Requires role: Finance when called with a CLI key.
+      #
+      # Error codes: auth.bad_timestamp, auth.body_too_large, auth.ip_not_allowed,
+      # cli.permission_denied, internal, merchant.bad_signature, merchant.key_expired,
+      # merchant.key_mode_mismatch, merchant.rate_limited, merchant.secret_decrypt,
+      # merchant.suspended, merchant.unknown_key, request.bad_json, request.body_read,
+      # request.control_char, request.duplicate_field, request.missing_field, request.nul_byte,
+      # request.overloaded, request.rate_limited, request.too_deep, split.disabled
       #
       # @param params [Oblodai::Models::SplitRecipientOptInRequest, Hash, nil] the request body as a
       #   model or a Hash; the keywords add to it
-      # @param enabled [Boolean, nil] Разрешить другим мерчантам направлять доли сплитов на ваш
-      #   баланс. true — включить приём, false — выключить (новые правила на вас перестанут
-      #   создаваться; уже созданные продолжают исполняться). An explicit nil sends null.
+      # @param enabled [Boolean, nil] Allow other merchants to route split shares to your balance.
+      #   true — enable receiving, false — disable (new rules targeting you can no longer be created;
+      #   existing ones keep executing). An explicit nil sends null.
       # @return [Oblodai::Models::SplitRecipientOptInView]
       def set_recipient_opt_in(
         params = nil,
@@ -2828,15 +2973,18 @@ module Oblodai
         )
       end
 
-      # Текущее согласие на приём сплитов
+      # Current consent to receive splits
       #
-      # Возвращает `enabled` — включён ли приём внутренних сплитов на ваш баланс.
+      # Returns `enabled` — whether receiving internal splits to your balance is enabled.
       #
-      # Error codes: auth.bad_timestamp, auth.body_too_large, auth.ip_not_allowed, internal,
-      # merchant.bad_signature, merchant.key_mode_mismatch, merchant.rate_limited,
-      # merchant.secret_decrypt, merchant.suspended, merchant.unknown_key, request.body_read,
-      # request.control_char, request.duplicate_field, request.nul_byte, request.overloaded,
-      # request.rate_limited, request.too_deep, split.disabled
+      # Requires role: Viewer when called with a CLI key.
+      #
+      # Error codes: auth.bad_timestamp, auth.body_too_large, auth.ip_not_allowed,
+      # cli.permission_denied, internal, merchant.bad_signature, merchant.key_expired,
+      # merchant.key_mode_mismatch, merchant.rate_limited, merchant.secret_decrypt,
+      # merchant.suspended, merchant.unknown_key, request.body_read, request.control_char,
+      # request.duplicate_field, request.nul_byte, request.overloaded, request.rate_limited,
+      # request.too_deep, split.disabled
       #
       # @return [Oblodai::Models::SplitRecipientOptInView]
       def get_recipient_opt_in(
@@ -2861,32 +3009,35 @@ module Oblodai
       end
     end
 
-    # Постоянные (статические) адреса пополнения под клиента.
+    # Permanent (static) deposit addresses assigned to a customer.
     class Wallets < Generated::Resource
-      # Создать (или получить) статический кошелёк
+      # Create (or get) a static wallet
       #
-      # Постоянный адрес пополнения, закреплённый за мерчантом (и, по желанию, за одним клиентом
-      # через `order_id`). Любое пополнение на него сразу падает вам на баланс + шлёт вебхук.
+      # A permanent deposit address assigned to the merchant (and, optionally, to one customer via
+      # `order_id`). Any deposit to it is credited to your balance immediately and triggers a
+      # webhook.
       #
-      # Идемпотентно по `(currency, network, order_id)`: тот же `order_id` вернёт тот же адрес —
-      # удобно закрепить адрес за каждым клиентом.
+      # Idempotent on `(currency, network, order_id)`: the same `order_id` returns the same address
+      # — handy for assigning an address to each customer.
       #
-      # Error codes: auth.bad_timestamp, auth.body_too_large, auth.ip_not_allowed, internal,
-      # invoice.daily_quota, merchant.acceptance_blocked, merchant.bad_signature,
-      # merchant.key_mode_mismatch, merchant.not_found, merchant.rate_limited,
-      # merchant.secret_decrypt, merchant.suspended, merchant.unknown_key, request.bad_json,
-      # request.body_read, request.control_char, request.duplicate_field, request.nul_byte,
-      # request.overloaded, request.rate_limited, request.too_deep, request.unknown_currency,
-      # wallet.abandoned, wallet.deposits_unavailable, wallet.no_network,
-      # wallet.sandbox_unsupported, wallet.static_disabled, wallet.static_exists,
+      # Requires role: Finance when called with a CLI key.
+      #
+      # Error codes: auth.bad_timestamp, auth.body_too_large, auth.ip_not_allowed,
+      # cli.permission_denied, internal, invoice.daily_quota, merchant.acceptance_blocked,
+      # merchant.bad_signature, merchant.key_expired, merchant.key_mode_mismatch,
+      # merchant.not_found, merchant.rate_limited, merchant.secret_decrypt, merchant.suspended,
+      # merchant.unknown_key, request.bad_json, request.body_read, request.control_char,
+      # request.duplicate_field, request.nul_byte, request.overloaded, request.rate_limited,
+      # request.too_deep, request.unknown_currency, wallet.abandoned, wallet.deposits_unavailable,
+      # wallet.no_network, wallet.sandbox_unsupported, wallet.static_disabled, wallet.static_exists,
       # wallet.static_not_found, wallet.unsupported_network
       #
       # @param params [Oblodai::Models::CreateWalletRequest, Hash, nil] the request body as a model
       #   or a Hash; the keywords add to it
-      # @param currency [String, nil] Символ валюты приёма (USDT, BTC, ETH, …)
-      # @param network [String, nil] Сеть приёма (tron, ethereum, bitcoin, …)
-      # @param order_id [String, nil] Ваш идентификатор клиента/заказа. Закрепляет отдельный
-      #   постоянный адрес за клиентом
+      # @param currency [String, nil] The symbol of the accepted currency (USDT, BTC, ETH, …)
+      # @param network [String, nil] The receiving network (tron, ethereum, bitcoin, …)
+      # @param order_id [String, nil] Your customer/order identifier. Assigns a dedicated permanent
+      #   address to the customer
       # @return [Oblodai::Models::StaticWalletView]
       def create(
         params = nil,
@@ -2920,23 +3071,26 @@ module Oblodai
         )
       end
 
-      # Заблокировать / разблокировать кошелёк
+      # Block / unblock a wallet
       #
-      # Заблокированный кошелёк перестаёт зачислять новые пополнения. `is_force_block` по умолчанию
-      # true (блокировать); передайте false, чтобы снять блокировку.
+      # A blocked wallet stops crediting new deposits. `is_force_block` defaults to true (block);
+      # pass false to lift the block.
       #
-      # Error codes: auth.bad_timestamp, auth.body_too_large, auth.ip_not_allowed, internal,
-      # merchant.bad_signature, merchant.key_mode_mismatch, merchant.rate_limited,
-      # merchant.secret_decrypt, merchant.suspended, merchant.unknown_key, request.bad_json,
-      # request.body_read, request.control_char, request.duplicate_field, request.nul_byte,
-      # request.overloaded, request.rate_limited, request.too_deep, wallet.no_address,
-      # wallet.static_disabled, wallet.static_not_found
+      # Requires role: Finance when called with a CLI key.
+      #
+      # Error codes: auth.bad_timestamp, auth.body_too_large, auth.ip_not_allowed,
+      # cli.permission_denied, internal, merchant.bad_signature, merchant.key_expired,
+      # merchant.key_mode_mismatch, merchant.rate_limited, merchant.secret_decrypt,
+      # merchant.suspended, merchant.unknown_key, request.bad_json, request.body_read,
+      # request.control_char, request.duplicate_field, request.nul_byte, request.overloaded,
+      # request.rate_limited, request.too_deep, wallet.no_address, wallet.static_disabled,
+      # wallet.static_not_found
       #
       # @param params [Oblodai::Models::BlockWalletRequest, Hash, nil] the request body as a model
       #   or a Hash; the keywords add to it
-      # @param address [String, nil] Адрес статического кошелька
-      # @param is_force_block [Boolean, nil] true — заблокировать (значение по умолчанию, если поле
-      #   опущено); false — снять блокировку
+      # @param address [String, nil] Static wallet address
+      # @param is_force_block [Boolean, nil] true — block (the default if the field is omitted);
+      #   false — lift the block
       # @return [Oblodai::Models::BlockWalletResult]
       def block(
         params = nil,
@@ -2968,19 +3122,23 @@ module Oblodai
         )
       end
 
-      # QR-код адреса
+      # Address QR code
       #
-      # Возвращает PNG data:-URI по полю `address` — для `<img src>`.
+      # Returns a PNG data: URI for the `address` field — for `<img src>`.
       #
-      # Error codes: auth.bad_timestamp, auth.body_too_large, auth.ip_not_allowed, internal,
-      # merchant.bad_signature, merchant.key_mode_mismatch, merchant.rate_limited,
-      # merchant.secret_decrypt, merchant.suspended, merchant.unknown_key, qr.no_address,
-      # request.bad_json, request.body_read, request.control_char, request.duplicate_field,
-      # request.nul_byte, request.overloaded, request.rate_limited, request.too_deep
+      # Requires role: Viewer when called with a CLI key.
+      #
+      # Error codes: auth.bad_timestamp, auth.body_too_large, auth.ip_not_allowed,
+      # cli.permission_denied, internal, merchant.bad_signature, merchant.key_expired,
+      # merchant.key_mode_mismatch, merchant.rate_limited, merchant.secret_decrypt,
+      # merchant.suspended, merchant.unknown_key, qr.no_address, request.bad_json,
+      # request.body_read, request.control_char, request.duplicate_field, request.nul_byte,
+      # request.overloaded, request.rate_limited, request.too_deep
       #
       # @param params [Oblodai::Models::QrRequest, Hash, nil] the request body as a model or a Hash;
       #   the keywords add to it
-      # @param address [String, nil] Произвольный адрес для рендера в QR-код (PNG как data:-URI).
+      # @param address [String, nil] An arbitrary address to render into a QR code (PNG as a data:
+      #   URI).
       # @return [Oblodai::Models::WalletQRResult]
       def get_qr(
         params = nil,
@@ -3011,17 +3169,20 @@ module Oblodai
       end
     end
 
-    # Балансы мерчанта и курсы обмена.
+    # Merchant balances and exchange rates.
     class Account < Generated::Resource
-      # Баланс мерчанта
+      # Merchant balance
       #
-      # Ваши доступные балансы по каждой валюте. Тело — пустой `{}`.
+      # Your available balances per currency. The body is an empty `{}`.
       #
-      # Error codes: auth.bad_timestamp, auth.body_too_large, auth.ip_not_allowed, internal,
-      # merchant.bad_signature, merchant.key_mode_mismatch, merchant.rate_limited,
-      # merchant.secret_decrypt, merchant.suspended, merchant.unknown_key, request.body_read,
-      # request.control_char, request.duplicate_field, request.nul_byte, request.overloaded,
-      # request.rate_limited, request.too_deep, request.unknown_currency
+      # Requires role: Viewer when called with a CLI key.
+      #
+      # Error codes: auth.bad_timestamp, auth.body_too_large, auth.ip_not_allowed,
+      # cli.permission_denied, internal, merchant.bad_signature, merchant.key_expired,
+      # merchant.key_mode_mismatch, merchant.rate_limited, merchant.secret_decrypt,
+      # merchant.suspended, merchant.unknown_key, request.body_read, request.control_char,
+      # request.duplicate_field, request.nul_byte, request.overloaded, request.rate_limited,
+      # request.too_deep, request.unknown_currency
       #
       # @return [Oblodai::Models::BalanceResult]
       def get_balance(
@@ -3045,23 +3206,25 @@ module Oblodai
         )
       end
 
-      # Итоги за период
+      # Period totals
       #
-      # Оборот окна `[from, to)` по монете оплаты (оплаченное по счетам в `paid`/`paid_over`,
-      # созданным в окне) и число выплат в работе прямо сейчас (без возвратов). Считается по всем
-      # записям, а не по странице истории.
+      # Turnover for the `[from, to)` window per payment coin (amounts paid on invoices in
+      # `paid`/`paid_over` created within the window) and the number of payouts in progress right
+      # now (excluding refunds). Computed over all records, not over a history page.
       #
-      # Error codes: auth.bad_timestamp, auth.body_too_large, auth.ip_not_allowed, internal,
-      # invoice.corrupt_pay_asset, merchant.bad_signature, merchant.key_mode_mismatch,
-      # merchant.rate_limited, merchant.secret_decrypt, merchant.suspended, merchant.unknown_key,
-      # request.bad_json, request.body_read, request.control_char, request.duplicate_field,
-      # request.nul_byte, request.overloaded, request.rate_limited, request.too_deep,
-      # summary.bad_window
+      # Requires role: Viewer when called with a CLI key.
+      #
+      # Error codes: auth.bad_timestamp, auth.body_too_large, auth.ip_not_allowed,
+      # cli.permission_denied, internal, invoice.corrupt_pay_asset, merchant.bad_signature,
+      # merchant.key_expired, merchant.key_mode_mismatch, merchant.rate_limited,
+      # merchant.secret_decrypt, merchant.suspended, merchant.unknown_key, request.bad_json,
+      # request.body_read, request.control_char, request.duplicate_field, request.nul_byte,
+      # request.overloaded, request.rate_limited, request.too_deep, summary.bad_window
       #
       # @param params [Oblodai::Models::SummaryRequest, Hash, nil] the request body as a model or a
       #   Hash; the keywords add to it
-      # @param from [String, nil] Начало окна, включительно (RFC 3339).
-      # @param to [String, nil] Конец окна, не включительно (RFC 3339).
+      # @param from [String, nil] Start of the window, inclusive (RFC 3339).
+      # @param to [String, nil] End of the window, exclusive (RFC 3339).
       # @return [Oblodai::Models::SummaryResult]
       def get_summary(
         params = nil,
@@ -3093,9 +3256,9 @@ module Oblodai
         )
       end
 
-      # Курсы обмена к USDT
+      # Exchange rates to USDT
       #
-      # Список курсов. Необязательный `currency_from` фильтрует по исходной валюте.
+      # List of rates. The optional `currency_from` filters by source currency.
       #
       # Error codes: convert.economy_unavailable, internal, personal.amount_invalid,
       # personal.bad_amount, rates.deviation, rates.no_source, rates.non_positive, rates.stale_rate,
@@ -3105,15 +3268,15 @@ module Oblodai
       #
       # @param params [Oblodai::Models::ExchangeRatesRequest, Hash, nil] the request body as a model
       #   or a Hash; the keywords add to it
-      # @param amount [BigDecimal, String, nil] Сумма в currency_from. Вместе с currency_from и
-      #   currency_to добавляет в ответ блок modes: обе цены конвертации (instant/economy) с
-      #   доступностью каждого режима
-      # @param currency_from [String, nil] Код валюты. Если задан — вернётся курс только по нему.
-      #   Если пусто или тело {} — по всем валютам
-      # @param currency_to [String, nil] Валюта котировки: по умолчанию USDT; любой прайсинговый
-      #   актив, включая фиаты с прямым фидом (EUR, RUB, …)
-      # @param limit [Integer, nil] Размер страницы, 1–100; по умолчанию 25
-      # @param offset [Integer, nil] Смещение от начала списка; по умолчанию 0
+      # @param amount [BigDecimal, String, nil] The amount in currency_from. Together with
+      #   currency_from and currency_to it adds a modes block to the response: both conversion prices
+      #   (instant/economy) with the availability of each mode
+      # @param currency_from [String, nil] Currency code. If set, only its rate is returned. If
+      #   empty or the body is {} — rates for all currencies
+      # @param currency_to [String, nil] Quote currency: USDT by default; any pricing asset,
+      #   including fiat currencies with a direct feed (EUR, RUB, …)
+      # @param limit [Integer, nil] Page size, 1–100; default 25
+      # @param offset [Integer, nil] Offset from the start of the list; default 0
       # @return [Oblodai::Page<Oblodai::Models::ExchangeRate>]
       def list_exchange_rates(
         params = nil,
@@ -3152,25 +3315,28 @@ module Oblodai
       end
     end
 
-    # Регистрация endpoint'а для коллбэков, тест и переотправка.
+    # Registering the callback endpoint, test deliveries and resends.
     class Webhooks < Generated::Resource
-      # Переотправить вебхук по платежу
+      # Resend the payment webhook
       #
-      # Заново поставит в очередь коллбэк по платежу (по `uuid`/`order_id`). Полезно, если ваш
-      # сервер был недоступен.
+      # Re-queues the payment callback (by `uuid`/`order_id`). Useful if your server was
+      # unavailable.
       #
-      # Error codes: auth.bad_timestamp, auth.body_too_large, auth.ip_not_allowed, internal,
-      # invoice.corrupt_pay_asset, merchant.bad_signature, merchant.key_mode_mismatch,
-      # merchant.rate_limited, merchant.secret_decrypt, merchant.suspended, merchant.unknown_key,
-      # onramp.suppresses, payment.bad_uuid, payment.no_lookup, payment.not_found, request.bad_json,
-      # request.body_read, request.control_char, request.duplicate_field, request.nul_byte,
-      # request.overloaded, request.rate_limited, request.too_deep, webhook.no_endpoint
+      # Requires role: Finance when called with a CLI key.
+      #
+      # Error codes: auth.bad_timestamp, auth.body_too_large, auth.ip_not_allowed,
+      # cli.permission_denied, internal, invoice.corrupt_pay_asset, merchant.bad_signature,
+      # merchant.key_expired, merchant.key_mode_mismatch, merchant.rate_limited,
+      # merchant.secret_decrypt, merchant.suspended, merchant.unknown_key, onramp.suppresses,
+      # payment.bad_uuid, payment.no_lookup, payment.not_found, request.bad_json, request.body_read,
+      # request.control_char, request.duplicate_field, request.nul_byte, request.overloaded,
+      # request.rate_limited, request.too_deep, webhook.no_endpoint
       #
       # @param params [Oblodai::Models::LookupRequest, Hash, nil] the request body as a model or a
       #   Hash; the keywords add to it
-      # @param order_id [String, nil] Ваша ссылка на заказ.
-      # @param uuid [String, nil] Идентификатор счёта в Oblodai. Нужен uuid или order_id; приоритет
-      #   у uuid.
+      # @param order_id [String, nil] Your order reference.
+      # @param uuid [String, nil] The invoice id in Oblodai. Either uuid or order_id is required;
+      #   uuid takes precedence.
       # @return [Oblodai::Models::WebhookResendResult]
       def resend_payment(
         params = nil,
@@ -3202,22 +3368,25 @@ module Oblodai
         )
       end
 
-      # Зарегистрировать endpoint для коллбэков
+      # Register the callback endpoint
       #
-      # Задаёт URL проекта, куда слать вебхуки, и возвращает `secret` (показывается один раз) для
-      # проверки подписи `X-Webhook-Signature`. Проверив подпись, обработчик ОБЯЗАН отбросить тело с
-      # `test: true` — это репетиция с тестовой ручки, а не событие.
+      # Sets the project URL to send webhooks to and returns the `secret` (shown once) for verifying
+      # the `X-Webhook-Signature`. After verifying the signature, your handler MUST discard a body
+      # with `test: true` — it is a rehearsal from the test endpoint, not an event.
       #
-      # Error codes: auth.bad_timestamp, auth.body_too_large, auth.ip_not_allowed, internal,
-      # merchant.bad_signature, merchant.key_mode_mismatch, merchant.rate_limited,
-      # merchant.secret_decrypt, merchant.suspended, merchant.unknown_key, request.bad_json,
-      # request.body_read, request.control_char, request.duplicate_field, request.nul_byte,
-      # request.overloaded, request.rate_limited, request.too_deep, webhook.bad_url, webhook.no_url
+      # Requires role: Finance when called with a CLI key.
+      #
+      # Error codes: auth.bad_timestamp, auth.body_too_large, auth.ip_not_allowed,
+      # cli.permission_denied, internal, merchant.bad_signature, merchant.key_expired,
+      # merchant.key_mode_mismatch, merchant.rate_limited, merchant.secret_decrypt,
+      # merchant.suspended, merchant.unknown_key, request.bad_json, request.body_read,
+      # request.control_char, request.duplicate_field, request.nul_byte, request.overloaded,
+      # request.rate_limited, request.too_deep, webhook.bad_url, webhook.no_url
       #
       # @param params [Oblodai::Models::RegisterWebhookRequest, Hash, nil] the request body as a
       #   model or a Hash; the keywords add to it
-      # @param url [String, nil] HTTPS-URL коллбэка. SSRF-проверка: приватные и локальные адреса
-      #   запрещены.
+      # @param url [String, nil] HTTPS callback URL. SSRF check: private and local addresses are
+      #   forbidden.
       # @return [Oblodai::Models::RegisterWebhookResult]
       def register(
         params = nil,
@@ -3247,22 +3416,26 @@ module Oblodai
         )
       end
 
-      # Журнал доставок вебхуков
+      # Webhook delivery log
       #
-      # Последние доставки: URL, статус, число попыток, последняя ошибка — для отладки. Статусы:
-      # `pending` (в очереди или ждёт ретрая), `delivered`, `dead` (ретраи исчерпаны), `cancelled`
-      # (эндпоинт выключили, пока доставка ждала в очереди; причина — в `cancel_reason`).
+      # Recent deliveries: URL, status, attempt count, last error — for debugging. Statuses:
+      # `pending` (queued or waiting for a retry), `delivered`, `dead` (retries exhausted),
+      # `cancelled` (the endpoint was disabled while the delivery was waiting in the queue; the
+      # reason is in `cancel_reason`).
       #
-      # Error codes: auth.bad_timestamp, auth.body_too_large, auth.ip_not_allowed, internal,
-      # merchant.bad_signature, merchant.key_mode_mismatch, merchant.rate_limited,
-      # merchant.secret_decrypt, merchant.suspended, merchant.unknown_key, request.bad_json,
-      # request.body_read, request.control_char, request.duplicate_field, request.nul_byte,
-      # request.overloaded, request.rate_limited, request.too_deep
+      # Requires role: Viewer when called with a CLI key.
+      #
+      # Error codes: auth.bad_timestamp, auth.body_too_large, auth.ip_not_allowed,
+      # cli.permission_denied, internal, merchant.bad_signature, merchant.key_expired,
+      # merchant.key_mode_mismatch, merchant.rate_limited, merchant.secret_decrypt,
+      # merchant.suspended, merchant.unknown_key, request.bad_json, request.body_read,
+      # request.control_char, request.duplicate_field, request.nul_byte, request.overloaded,
+      # request.rate_limited, request.too_deep
       #
       # @param params [Oblodai::Models::PageRequest, Hash, nil] the request body as a model or a
       #   Hash; the keywords add to it
-      # @param limit [Integer, nil] Размер страницы, 1–100; вне диапазона — 25.
-      # @param offset [Integer, nil] Смещение от начала списка.
+      # @param limit [Integer, nil] Page size, 1–100; out of range — 25.
+      # @param offset [Integer, nil] Offset from the start of the list.
       # @return [Oblodai::Page<Oblodai::Models::WebhookDeliveryLogItem>]
       def list_deliveries(
         params = nil,
@@ -3294,26 +3467,28 @@ module Oblodai
         )
       end
 
-      # Переотправить доставку из журнала
+      # Resend a delivery from the log
       #
-      # Возвращает в очередь вашу доставку в статусе `dead` (ретраи исчерпаны) или `cancelled`
-      # (эндпоинт выключали): новая лестница ретраев, подпись текущим секретом. Тело доставки то же,
-      # что было в журнале, — для отправки ТЕКУЩЕГО состояния платежа есть `POST
-      # /v1/payment/resend`. Повтор вызова безопасен: доставка, уже стоящая в очереди или
-      # доставленная, возвращается как есть с `ok: false`. Чужая доставка — 404
-      # `webhook.delivery_not_found`; выключенный эндпоинт — 409 `webhook.endpoint_disabled`
-      # (сначала включите его).
+      # Re-queues your delivery in status `dead` (retries exhausted) or `cancelled` (the endpoint
+      # was disabled): a fresh retry schedule, signed with the current secret. The delivery body is
+      # the same as in the log — to send the CURRENT state of a payment use `POST
+      # /v1/payment/resend`. Repeating the call is safe: a delivery already queued or delivered is
+      # returned as is with `ok: false`. Someone else's delivery — 404 `webhook.delivery_not_found`;
+      # a disabled endpoint — 409 `webhook.endpoint_disabled` (enable it first).
       #
-      # Error codes: auth.bad_timestamp, auth.body_too_large, auth.ip_not_allowed, internal,
-      # merchant.bad_signature, merchant.key_mode_mismatch, merchant.rate_limited,
-      # merchant.secret_decrypt, merchant.suspended, merchant.unknown_key, request.bad_id,
-      # request.bad_json, request.body_read, request.control_char, request.duplicate_field,
-      # request.nul_byte, request.overloaded, request.rate_limited, request.too_deep,
-      # webhook.delivery_not_found, webhook.endpoint_disabled
+      # Requires role: Finance when called with a CLI key.
+      #
+      # Error codes: auth.bad_timestamp, auth.body_too_large, auth.ip_not_allowed,
+      # cli.permission_denied, internal, merchant.bad_signature, merchant.key_expired,
+      # merchant.key_mode_mismatch, merchant.rate_limited, merchant.secret_decrypt,
+      # merchant.suspended, merchant.unknown_key, request.bad_id, request.bad_json,
+      # request.body_read, request.control_char, request.duplicate_field, request.nul_byte,
+      # request.overloaded, request.rate_limited, request.too_deep, webhook.delivery_not_found,
+      # webhook.endpoint_disabled
       #
       # @param params [Oblodai::Models::RequeueWebhookDeliveryRequest, Hash, nil] the request body
       #   as a model or a Hash; the keywords add to it
-      # @param id [String, nil] Идентификатор доставки из журнала (POST /v1/webhooks/deliveries).
+      # @param id [String, nil] The delivery id from the log (POST /v1/webhooks/deliveries).
       # @return [Oblodai::Models::RequeueWebhookDeliveryResult]
       def requeue_delivery(
         params = nil,
@@ -3343,26 +3518,29 @@ module Oblodai
         )
       end
 
-      # Тестовый вебхук на URL (старый вариант)
+      # Test webhook to a URL (legacy)
       #
-      # Шлёт пробное тело на указанный `url` — проверить, что ваш обработчик работает. Тело
-      # репетиции несёт `"test": true` (внутри подписи) и заголовок `X-Webhook-Test: true`, а
-      # `sequence` в нём всегда 0. Боевое событие этих признаков НЕ несёт никогда: обработчик обязан
-      # игнорировать тело с `test: true`, даже если подпись верна.
+      # Sends a sample body to the given `url` — to check that your handler works. The rehearsal
+      # body carries `"test": true` (inside the signature) and the `X-Webhook-Test: true` header,
+      # and its `sequence` is always 0. A live event NEVER carries these markers: your handler must
+      # ignore a body with `test: true` even if the signature is valid.
       #
-      # Error codes: auth.bad_timestamp, auth.body_too_large, auth.ip_not_allowed, internal,
-      # merchant.bad_signature, merchant.key_mode_mismatch, merchant.rate_limited,
-      # merchant.secret_decrypt, merchant.suspended, merchant.unknown_key, request.bad_json,
-      # request.body_read, request.control_char, request.duplicate_field, request.nul_byte,
-      # request.overloaded, request.rate_limited, request.too_deep, webhook.bad_currency,
-      # webhook.bad_status, webhook.bad_url, webhook.bad_uuid, webhook.no_endpoint
+      # Requires role: Finance when called with a CLI key.
+      #
+      # Error codes: auth.bad_timestamp, auth.body_too_large, auth.ip_not_allowed,
+      # cli.permission_denied, internal, merchant.bad_signature, merchant.key_expired,
+      # merchant.key_mode_mismatch, merchant.rate_limited, merchant.secret_decrypt,
+      # merchant.suspended, merchant.unknown_key, request.bad_json, request.body_read,
+      # request.control_char, request.duplicate_field, request.nul_byte, request.overloaded,
+      # request.rate_limited, request.too_deep, webhook.bad_currency, webhook.bad_status,
+      # webhook.bad_url, webhook.bad_uuid, webhook.no_endpoint
       #
       # @param params [Oblodai::Models::TestWebhookRequest, Hash, nil] the request body as a model
       #   or a Hash; the keywords add to it
-      # @param status [String, nil] Статус в теле. По умолчанию paid
-      # @param url [String, nil] Куда отправить пробное тело. Не передан — доставка уходит на
-      #   зарегистрированный endpoint проекта; без endpoint — ошибка webhook.no_endpoint. Подпись —
-      #   секретом endpoint'а проекта, в том числе при явном url
+      # @param status [String, nil] The status in the body. Default paid
+      # @param url [String, nil] Where to send the sample body. If omitted, the delivery goes to the
+      #   project's registered endpoint; without an endpoint — the webhook.no_endpoint error. Signed
+      #   with the project endpoint's secret, including when url is given explicitly
       # @return [Oblodai::Models::TestWebhookResult]
       def send_legacy_test(
         params = nil,
@@ -3394,31 +3572,34 @@ module Oblodai
         )
       end
 
-      # Тестовый вебхук ПЛАТЕЖА
+      # Test PAYMENT webhook
       #
-      # Доставит пробный вебхук типа payment на `url_callback`. Тело репетиции несёт `"test": true`
-      # (внутри подписи) и заголовок `X-Webhook-Test: true`, а `sequence` в нём всегда 0. Боевое
-      # событие этих признаков НЕ несёт никогда: обработчик обязан игнорировать тело с `test: true`,
-      # даже если подпись верна.
+      # Delivers a sample webhook of type payment to `url_callback`. The rehearsal body carries
+      # `"test": true` (inside the signature) and the `X-Webhook-Test: true` header, and its
+      # `sequence` is always 0. A live event NEVER carries these markers: your handler must ignore a
+      # body with `test: true` even if the signature is valid.
       #
-      # Error codes: auth.bad_timestamp, auth.body_too_large, auth.ip_not_allowed, internal,
-      # merchant.bad_signature, merchant.key_mode_mismatch, merchant.rate_limited,
-      # merchant.secret_decrypt, merchant.suspended, merchant.unknown_key, request.bad_json,
-      # request.body_read, request.control_char, request.duplicate_field, request.nul_byte,
-      # request.overloaded, request.rate_limited, request.too_deep, webhook.bad_currency,
-      # webhook.bad_status, webhook.bad_url, webhook.bad_uuid, webhook.no_url, webhook.test_failed
+      # Requires role: Finance when called with a CLI key.
+      #
+      # Error codes: auth.bad_timestamp, auth.body_too_large, auth.ip_not_allowed,
+      # cli.permission_denied, internal, merchant.bad_signature, merchant.key_expired,
+      # merchant.key_mode_mismatch, merchant.rate_limited, merchant.secret_decrypt,
+      # merchant.suspended, merchant.unknown_key, request.bad_json, request.body_read,
+      # request.control_char, request.duplicate_field, request.nul_byte, request.overloaded,
+      # request.rate_limited, request.too_deep, webhook.bad_currency, webhook.bad_status,
+      # webhook.bad_url, webhook.bad_uuid, webhook.no_url, webhook.test_failed
       #
       # @param params [Oblodai::Models::TestWebhookKindRequest, Hash, nil] the request body as a
       #   model or a Hash; the keywords add to it
-      # @param currency [String, nil] Валюта в теле
-      # @param network [String, nil] Сеть в теле
-      # @param order_id [String, nil] Ваш order_id, который попадёт в пробное тело события
-      # @param status [String, nil] Статус в теле — только те, с которыми боевой вебхук этого вида
-      #   действительно приходит (кошелёк — только paid); иначе 400 webhook.bad_status. По умолчанию
-      #   paid (для выплаты — confirmed, для конвертации — completed)
-      # @param url_callback [String, nil] Куда отправить пробное тело
-      # @param uuid [String, nil] UUID объекта (платежа, кошелька или выплаты), который попадёт в
-      #   пробное тело события
+      # @param currency [String, nil] Currency in the body
+      # @param network [String, nil] Network in the body
+      # @param order_id [String, nil] Your order_id placed in the sample event body
+      # @param status [String, nil] The status in the body — only those with which a live webhook of
+      #   this kind actually arrives (wallet — paid only); otherwise 400 webhook.bad_status. Default
+      #   paid (for a payout — confirmed, for a conversion — completed)
+      # @param url_callback [String, nil] Where to send the sample body
+      # @param uuid [String, nil] The UUID of the object (payment, wallet or payout) placed in the
+      #   sample event body
       # @return [Oblodai::Models::TestWebhookKindResult]
       def send_test_payment(
         params = nil,
@@ -3458,31 +3639,34 @@ module Oblodai
         )
       end
 
-      # Тестовый вебхук КОШЕЛЬКА
+      # Test WALLET webhook
       #
-      # Доставит пробный вебхук типа wallet (пополнение статик-кошелька). Тело репетиции несёт
-      # `"test": true` (внутри подписи) и заголовок `X-Webhook-Test: true`, а `sequence` в нём
-      # всегда 0. Боевое событие этих признаков НЕ несёт никогда: обработчик обязан игнорировать
-      # тело с `test: true`, даже если подпись верна.
+      # Delivers a sample webhook of type wallet (a static wallet deposit). The rehearsal body
+      # carries `"test": true` (inside the signature) and the `X-Webhook-Test: true` header, and its
+      # `sequence` is always 0. A live event NEVER carries these markers: your handler must ignore a
+      # body with `test: true` even if the signature is valid.
       #
-      # Error codes: auth.bad_timestamp, auth.body_too_large, auth.ip_not_allowed, internal,
-      # merchant.bad_signature, merchant.key_mode_mismatch, merchant.rate_limited,
-      # merchant.secret_decrypt, merchant.suspended, merchant.unknown_key, request.bad_json,
-      # request.body_read, request.control_char, request.duplicate_field, request.nul_byte,
-      # request.overloaded, request.rate_limited, request.too_deep, webhook.bad_currency,
-      # webhook.bad_status, webhook.bad_url, webhook.bad_uuid, webhook.no_url, webhook.test_failed
+      # Requires role: Finance when called with a CLI key.
+      #
+      # Error codes: auth.bad_timestamp, auth.body_too_large, auth.ip_not_allowed,
+      # cli.permission_denied, internal, merchant.bad_signature, merchant.key_expired,
+      # merchant.key_mode_mismatch, merchant.rate_limited, merchant.secret_decrypt,
+      # merchant.suspended, merchant.unknown_key, request.bad_json, request.body_read,
+      # request.control_char, request.duplicate_field, request.nul_byte, request.overloaded,
+      # request.rate_limited, request.too_deep, webhook.bad_currency, webhook.bad_status,
+      # webhook.bad_url, webhook.bad_uuid, webhook.no_url, webhook.test_failed
       #
       # @param params [Oblodai::Models::TestWebhookKindRequest, Hash, nil] the request body as a
       #   model or a Hash; the keywords add to it
-      # @param currency [String, nil] Валюта в теле
-      # @param network [String, nil] Сеть в теле
-      # @param order_id [String, nil] Ваш order_id, который попадёт в пробное тело события
-      # @param status [String, nil] Статус в теле — только те, с которыми боевой вебхук этого вида
-      #   действительно приходит (кошелёк — только paid); иначе 400 webhook.bad_status. По умолчанию
-      #   paid (для выплаты — confirmed, для конвертации — completed)
-      # @param url_callback [String, nil] Куда отправить пробное тело
-      # @param uuid [String, nil] UUID объекта (платежа, кошелька или выплаты), который попадёт в
-      #   пробное тело события
+      # @param currency [String, nil] Currency in the body
+      # @param network [String, nil] Network in the body
+      # @param order_id [String, nil] Your order_id placed in the sample event body
+      # @param status [String, nil] The status in the body — only those with which a live webhook of
+      #   this kind actually arrives (wallet — paid only); otherwise 400 webhook.bad_status. Default
+      #   paid (for a payout — confirmed, for a conversion — completed)
+      # @param url_callback [String, nil] Where to send the sample body
+      # @param uuid [String, nil] The UUID of the object (payment, wallet or payout) placed in the
+      #   sample event body
       # @return [Oblodai::Models::TestWebhookKindResult]
       def send_test_wallet(
         params = nil,
@@ -3522,31 +3706,34 @@ module Oblodai
         )
       end
 
-      # Тестовый вебхук ВЫПЛАТЫ
+      # Test PAYOUT webhook
       #
-      # Доставит пробный вебхук типа payout. Тело репетиции несёт `"test": true` (внутри подписи) и
-      # заголовок `X-Webhook-Test: true`, а `sequence` в нём всегда 0. Боевое событие этих признаков
-      # НЕ несёт никогда: обработчик обязан игнорировать тело с `test: true`, даже если подпись
-      # верна.
+      # Delivers a sample webhook of type payout. The rehearsal body carries `"test": true` (inside
+      # the signature) and the `X-Webhook-Test: true` header, and its `sequence` is always 0. A live
+      # event NEVER carries these markers: your handler must ignore a body with `test: true` even if
+      # the signature is valid.
       #
-      # Error codes: auth.bad_timestamp, auth.body_too_large, auth.ip_not_allowed, internal,
-      # merchant.bad_signature, merchant.key_mode_mismatch, merchant.rate_limited,
-      # merchant.secret_decrypt, merchant.suspended, merchant.unknown_key, request.bad_json,
-      # request.body_read, request.control_char, request.duplicate_field, request.nul_byte,
-      # request.overloaded, request.rate_limited, request.too_deep, webhook.bad_currency,
-      # webhook.bad_status, webhook.bad_url, webhook.bad_uuid, webhook.no_url, webhook.test_failed
+      # Requires role: Finance when called with a CLI key.
+      #
+      # Error codes: auth.bad_timestamp, auth.body_too_large, auth.ip_not_allowed,
+      # cli.permission_denied, internal, merchant.bad_signature, merchant.key_expired,
+      # merchant.key_mode_mismatch, merchant.rate_limited, merchant.secret_decrypt,
+      # merchant.suspended, merchant.unknown_key, request.bad_json, request.body_read,
+      # request.control_char, request.duplicate_field, request.nul_byte, request.overloaded,
+      # request.rate_limited, request.too_deep, webhook.bad_currency, webhook.bad_status,
+      # webhook.bad_url, webhook.bad_uuid, webhook.no_url, webhook.test_failed
       #
       # @param params [Oblodai::Models::TestWebhookKindRequest, Hash, nil] the request body as a
       #   model or a Hash; the keywords add to it
-      # @param currency [String, nil] Валюта в теле
-      # @param network [String, nil] Сеть в теле
-      # @param order_id [String, nil] Ваш order_id, который попадёт в пробное тело события
-      # @param status [String, nil] Статус в теле — только те, с которыми боевой вебхук этого вида
-      #   действительно приходит (кошелёк — только paid); иначе 400 webhook.bad_status. По умолчанию
-      #   paid (для выплаты — confirmed, для конвертации — completed)
-      # @param url_callback [String, nil] Куда отправить пробное тело
-      # @param uuid [String, nil] UUID объекта (платежа, кошелька или выплаты), который попадёт в
-      #   пробное тело события
+      # @param currency [String, nil] Currency in the body
+      # @param network [String, nil] Network in the body
+      # @param order_id [String, nil] Your order_id placed in the sample event body
+      # @param status [String, nil] The status in the body — only those with which a live webhook of
+      #   this kind actually arrives (wallet — paid only); otherwise 400 webhook.bad_status. Default
+      #   paid (for a payout — confirmed, for a conversion — completed)
+      # @param url_callback [String, nil] Where to send the sample body
+      # @param uuid [String, nil] The UUID of the object (payment, wallet or payout) placed in the
+      #   sample event body
       # @return [Oblodai::Models::TestWebhookKindResult]
       def send_test_payout(
         params = nil,
@@ -3586,32 +3773,36 @@ module Oblodai
         )
       end
 
-      # Тестовый вебхук КОНВЕРТАЦИИ
+      # Test CONVERSION webhook
       #
-      # Доставит пробный вебхук типа conversion (события `conversion.completed` /
-      # `conversion.refunded` по заявкам режима economy; `status` — completed или refunded, по
-      # умолчанию completed). Тело репетиции несёт `"test": true` (внутри подписи) и заголовок
-      # `X-Webhook-Test: true`, а `sequence` в нём всегда 0. Боевое событие этих признаков НЕ несёт
-      # никогда: обработчик обязан игнорировать тело с `test: true`, даже если подпись верна.
+      # Delivers a sample webhook of type conversion (the `conversion.completed` /
+      # `conversion.refunded` events for economy-mode orders; `status` — completed or refunded,
+      # default completed). The rehearsal body carries `"test": true` (inside the signature) and the
+      # `X-Webhook-Test: true` header, and its `sequence` is always 0. A live event NEVER carries
+      # these markers: your handler must ignore a body with `test: true` even if the signature is
+      # valid.
       #
-      # Error codes: auth.bad_timestamp, auth.body_too_large, auth.ip_not_allowed, internal,
-      # merchant.bad_signature, merchant.key_mode_mismatch, merchant.rate_limited,
-      # merchant.secret_decrypt, merchant.suspended, merchant.unknown_key, request.bad_json,
-      # request.body_read, request.control_char, request.duplicate_field, request.nul_byte,
-      # request.overloaded, request.rate_limited, request.too_deep, webhook.bad_currency,
-      # webhook.bad_status, webhook.bad_url, webhook.bad_uuid, webhook.no_url, webhook.test_failed
+      # Requires role: Finance when called with a CLI key.
+      #
+      # Error codes: auth.bad_timestamp, auth.body_too_large, auth.ip_not_allowed,
+      # cli.permission_denied, internal, merchant.bad_signature, merchant.key_expired,
+      # merchant.key_mode_mismatch, merchant.rate_limited, merchant.secret_decrypt,
+      # merchant.suspended, merchant.unknown_key, request.bad_json, request.body_read,
+      # request.control_char, request.duplicate_field, request.nul_byte, request.overloaded,
+      # request.rate_limited, request.too_deep, webhook.bad_currency, webhook.bad_status,
+      # webhook.bad_url, webhook.bad_uuid, webhook.no_url, webhook.test_failed
       #
       # @param params [Oblodai::Models::TestWebhookKindRequest, Hash, nil] the request body as a
       #   model or a Hash; the keywords add to it
-      # @param currency [String, nil] Валюта в теле
-      # @param network [String, nil] Сеть в теле
-      # @param order_id [String, nil] Ваш order_id, который попадёт в пробное тело события
-      # @param status [String, nil] Статус в теле — только те, с которыми боевой вебхук этого вида
-      #   действительно приходит (кошелёк — только paid); иначе 400 webhook.bad_status. По умолчанию
-      #   paid (для выплаты — confirmed, для конвертации — completed)
-      # @param url_callback [String, nil] Куда отправить пробное тело
-      # @param uuid [String, nil] UUID объекта (платежа, кошелька или выплаты), который попадёт в
-      #   пробное тело события
+      # @param currency [String, nil] Currency in the body
+      # @param network [String, nil] Network in the body
+      # @param order_id [String, nil] Your order_id placed in the sample event body
+      # @param status [String, nil] The status in the body — only those with which a live webhook of
+      #   this kind actually arrives (wallet — paid only); otherwise 400 webhook.bad_status. Default
+      #   paid (for a payout — confirmed, for a conversion — completed)
+      # @param url_callback [String, nil] Where to send the sample body
+      # @param uuid [String, nil] The UUID of the object (payment, wallet or payout) placed in the
+      #   sample event body
       # @return [Oblodai::Models::TestWebhookKindResult]
       def send_test_conversion(
         params = nil,
@@ -3651,17 +3842,20 @@ module Oblodai
         )
       end
 
-      # Перевыпустить секрет подписи вебхуков
+      # Rotate the webhook signing secret
       #
-      # Единственный момент, когда новый секрет показывается. До `previous_secret_valid_until`
-      # доставки дополнительно несут `X-Webhook-Signature-Prev` со старым секретом — время докатить
-      # замену без потери проверки.
+      # The only time the new secret is shown. Until `previous_secret_valid_until`, deliveries
+      # additionally carry `X-Webhook-Signature-Prev` signed with the old secret — time to roll out
+      # the change without losing verification.
       #
-      # Error codes: auth.bad_timestamp, auth.body_too_large, auth.ip_not_allowed, internal,
-      # merchant.bad_signature, merchant.key_mode_mismatch, merchant.rate_limited,
-      # merchant.secret_decrypt, merchant.suspended, merchant.unknown_key, request.body_read,
-      # request.control_char, request.duplicate_field, request.nul_byte, request.overloaded,
-      # request.rate_limited, request.too_deep, webhook.no_endpoint, webhook.rotation_in_overlap
+      # Requires role: Finance when called with a CLI key.
+      #
+      # Error codes: auth.bad_timestamp, auth.body_too_large, auth.ip_not_allowed,
+      # cli.permission_denied, internal, merchant.bad_signature, merchant.key_expired,
+      # merchant.key_mode_mismatch, merchant.rate_limited, merchant.secret_decrypt,
+      # merchant.suspended, merchant.unknown_key, request.body_read, request.control_char,
+      # request.duplicate_field, request.nul_byte, request.overloaded, request.rate_limited,
+      # request.too_deep, webhook.no_endpoint, webhook.rotation_in_overlap
       #
       # @return [Oblodai::Models::RotateWebhookSecretResult]
       def rotate_secret(
@@ -3685,27 +3879,29 @@ module Oblodai
         )
       end
 
-      # Включить или выключить доставку вебхуков
+      # Enable or disable webhook delivery
       #
-      # Выключенный эндпоинт перестаёт получать доставки: новые события по этому проекту в очередь
-      # не ставятся, а уже стоящие в очереди отменяются (статус `cancelled`) и после включения сами
-      # не уходят. Нужен, когда приёмник выведен из эксплуатации, — иначе каждое событие ретраилось
-      # бы ~3 суток и уходило в dead-letter бессрочно. Секрет и URL сохраняются: включение
-      # возвращает всё как было. Эндпоинт, у которого 3 суток подряд не прошла ни одна попытка,
-      # выключается автоматически — очередь отменяется, владельцу магазина уходит письмо; после
-      # починки приёмника включите его этой ручкой.
+      # A disabled endpoint stops receiving deliveries: new events for this project are not queued,
+      # and those already queued are cancelled (status `cancelled`) and are not sent automatically
+      # after re-enabling. Needed when a receiver is decommissioned — otherwise every event would be
+      # retried for ~3 days and end up in the dead-letter queue indefinitely. The secret and URL are
+      # kept: enabling restores everything as it was. An endpoint for which not a single attempt has
+      # succeeded for 3 days in a row is disabled automatically — its queue is cancelled and the
+      # store owner gets an email; after fixing the receiver, enable it with this endpoint.
       #
-      # Error codes: auth.bad_timestamp, auth.body_too_large, auth.ip_not_allowed, internal,
-      # merchant.bad_signature, merchant.key_mode_mismatch, merchant.rate_limited,
-      # merchant.secret_decrypt, merchant.suspended, merchant.unknown_key, request.bad_json,
-      # request.body_read, request.control_char, request.duplicate_field, request.nul_byte,
-      # request.overloaded, request.rate_limited, request.too_deep, webhook.no_active,
-      # webhook.no_endpoint
+      # Requires role: Finance when called with a CLI key.
+      #
+      # Error codes: auth.bad_timestamp, auth.body_too_large, auth.ip_not_allowed,
+      # cli.permission_denied, internal, merchant.bad_signature, merchant.key_expired,
+      # merchant.key_mode_mismatch, merchant.rate_limited, merchant.secret_decrypt,
+      # merchant.suspended, merchant.unknown_key, request.bad_json, request.body_read,
+      # request.control_char, request.duplicate_field, request.nul_byte, request.overloaded,
+      # request.rate_limited, request.too_deep, webhook.no_active, webhook.no_endpoint
       #
       # @param params [Oblodai::Models::SetWebhookActiveRequest, Hash, nil] the request body as a
       #   model or a Hash; the keywords add to it
-      # @param active [Boolean, nil] true — доставка возобновляется, false — прекращается (очередь
-      #   по этому проекту больше не наполняется). An explicit nil sends null.
+      # @param active [Boolean, nil] true — delivery resumes, false — it stops (the queue for this
+      #   project is no longer filled). An explicit nil sends null.
       # @return [Oblodai::Models::SetWebhookActiveResult]
       def set_active(
         params = nil,
@@ -3737,24 +3933,27 @@ module Oblodai
       end
     end
 
-    # Настройки магазина: допуск сумм, скидки, автовозвраты, валюты, авто-вывод.
+    # Store settings: amount tolerance, discounts, auto-refunds, currencies, auto-withdrawal.
     class Settings < Generated::Resource
-      # Настроить допуск недо/переплаты
+      # Configure underpayment/overpayment tolerance
       #
-      # «Точность платежей»: `enabled` + `accuracy_percent` 1–5. В пределах допуска платёж считается
-      # оплаченным. Выключено — нужна точная сумма.
+      # "Payment accuracy": `enabled` + `accuracy_percent` 1–5. Within the tolerance a payment
+      # counts as paid. Disabled — the exact amount is required.
+      #
+      # Requires role: Finance when called with a CLI key.
       #
       # Error codes: accuracy.out_of_range, auth.bad_timestamp, auth.body_too_large,
-      # auth.ip_not_allowed, internal, merchant.bad_signature, merchant.key_mode_mismatch,
-      # merchant.rate_limited, merchant.secret_decrypt, merchant.suspended, merchant.unknown_key,
-      # request.bad_json, request.body_read, request.control_char, request.duplicate_field,
-      # request.nul_byte, request.overloaded, request.rate_limited, request.too_deep
+      # auth.ip_not_allowed, cli.permission_denied, internal, merchant.bad_signature,
+      # merchant.key_expired, merchant.key_mode_mismatch, merchant.rate_limited,
+      # merchant.secret_decrypt, merchant.suspended, merchant.unknown_key, request.bad_json,
+      # request.body_read, request.control_char, request.duplicate_field, request.nul_byte,
+      # request.overloaded, request.rate_limited, request.too_deep
       #
       # @param params [Oblodai::Models::SetAccuracyRequest, Hash, nil] the request body as a model
       #   or a Hash; the keywords add to it
-      # @param accuracy_percent [Integer, nil] Допуск в процентах, 1–5. Обязателен при enabled:
-      #   true; при enabled: false игнорируется (сбрасывается в 0). Кэп 5 %
-      # @param enabled [Boolean, nil] Включить/выключить допуск
+      # @param accuracy_percent [Integer, nil] Tolerance in percent, 1–5. Required when enabled:
+      #   true; ignored (reset to 0) when enabled: false. Capped at 5 %
+      # @param enabled [Boolean, nil] Enable/disable the tolerance
       # @return [Oblodai::Models::AccuracyResult]
       def set_accuracy(
         params = nil,
@@ -3786,13 +3985,16 @@ module Oblodai
         )
       end
 
-      # Прочитать допуск сумм
+      # Read the amount tolerance
       #
-      # Error codes: auth.bad_timestamp, auth.body_too_large, auth.ip_not_allowed, internal,
-      # merchant.bad_signature, merchant.key_mode_mismatch, merchant.rate_limited,
-      # merchant.secret_decrypt, merchant.suspended, merchant.unknown_key, request.body_read,
-      # request.control_char, request.duplicate_field, request.nul_byte, request.overloaded,
-      # request.rate_limited, request.too_deep
+      # Requires role: Viewer when called with a CLI key.
+      #
+      # Error codes: auth.bad_timestamp, auth.body_too_large, auth.ip_not_allowed,
+      # cli.permission_denied, internal, merchant.bad_signature, merchant.key_expired,
+      # merchant.key_mode_mismatch, merchant.rate_limited, merchant.secret_decrypt,
+      # merchant.suspended, merchant.unknown_key, request.body_read, request.control_char,
+      # request.duplicate_field, request.nul_byte, request.overloaded, request.rate_limited,
+      # request.too_deep
       #
       # @return [Oblodai::Models::AccuracyResult]
       def get_accuracy(
@@ -3816,22 +4018,25 @@ module Oblodai
         )
       end
 
-      # Настроить автовозвраты
+      # Configure auto-refunds
       #
-      # `overpay` — авто-возврат излишка переплаты; `underpay` — авто-возврат при истёкшей
-      # недоплате. Оба по умолчанию ВКЛ. Возврат идёт на адрес плательщика (EVM/Tron/TON/Solana; на
-      # Bitcoin/UTXO — вручную).
+      # `overpay` — auto-refund of the overpaid excess; `underpay` — auto-refund of an expired
+      # underpayment. Both are ON by default. The refund goes to the payer's address
+      # (EVM/Tron/TON/Solana; on Bitcoin/UTXO — manually).
       #
-      # Error codes: auth.bad_timestamp, auth.body_too_large, auth.ip_not_allowed, internal,
-      # merchant.bad_signature, merchant.key_mode_mismatch, merchant.rate_limited,
-      # merchant.secret_decrypt, merchant.suspended, merchant.unknown_key, request.bad_json,
-      # request.body_read, request.control_char, request.duplicate_field, request.nul_byte,
-      # request.overloaded, request.rate_limited, request.too_deep
+      # Requires role: Finance when called with a CLI key.
+      #
+      # Error codes: auth.bad_timestamp, auth.body_too_large, auth.ip_not_allowed,
+      # cli.permission_denied, internal, merchant.bad_signature, merchant.key_expired,
+      # merchant.key_mode_mismatch, merchant.rate_limited, merchant.secret_decrypt,
+      # merchant.suspended, merchant.unknown_key, request.bad_json, request.body_read,
+      # request.control_char, request.duplicate_field, request.nul_byte, request.overloaded,
+      # request.rate_limited, request.too_deep
       #
       # @param params [Oblodai::Models::SetAutoRefundRequest, Hash, nil] the request body as a model
       #   or a Hash; the keywords add to it
-      # @param overpay [Boolean, nil] Возвращать излишек при переплате (paid_over)
-      # @param underpay [Boolean, nil] Возвращать средства при истёкшей недоплате (wrong_amount)
+      # @param overpay [Boolean, nil] Refund the excess of an overpayment (paid_over)
+      # @param underpay [Boolean, nil] Refund the funds of an expired underpayment (wrong_amount)
       # @return [Oblodai::Models::SetAutoRefundRequest]
       def set_auto_refund(
         params = nil,
@@ -3863,13 +4068,16 @@ module Oblodai
         )
       end
 
-      # Прочитать настройку автовозвратов
+      # Read the auto-refund settings
       #
-      # Error codes: auth.bad_timestamp, auth.body_too_large, auth.ip_not_allowed, internal,
-      # merchant.bad_signature, merchant.key_mode_mismatch, merchant.rate_limited,
-      # merchant.secret_decrypt, merchant.suspended, merchant.unknown_key, request.body_read,
-      # request.control_char, request.duplicate_field, request.nul_byte, request.overloaded,
-      # request.rate_limited, request.too_deep
+      # Requires role: Viewer when called with a CLI key.
+      #
+      # Error codes: auth.bad_timestamp, auth.body_too_large, auth.ip_not_allowed,
+      # cli.permission_denied, internal, merchant.bad_signature, merchant.key_expired,
+      # merchant.key_mode_mismatch, merchant.rate_limited, merchant.secret_decrypt,
+      # merchant.suspended, merchant.unknown_key, request.body_read, request.control_char,
+      # request.duplicate_field, request.nul_byte, request.overloaded, request.rate_limited,
+      # request.too_deep
       #
       # @return [Oblodai::Models::AutoRefundPolicyResult]
       def get_auto_refund(
@@ -3893,25 +4101,29 @@ module Oblodai
         )
       end
 
-      # Скидка/наценка на способ оплаты
+      # Discount/surcharge for a payment method
       #
-      # Положительный `discount_percent` — скидка плательщику за оплату этой монетой; отрицательный
-      # — наценка. Пустая `currency` задаёт правило по умолчанию для всех монет, пустая `network` —
-      # для любой сети выбранной монеты. В ответе — сохранённое правило в КАНОНИЧЕСКОМ виде (символ
-      # монеты в верхнем регистре, сеть в нижнем).
+      # A positive `discount_percent` is a discount to the payer for paying with this coin; a
+      # negative one is a surcharge. An empty `currency` sets the default rule for all coins, an
+      # empty `network` — for any network of the chosen coin. The response contains the saved rule
+      # in CANONICAL form (coin symbol uppercase, network lowercase).
+      #
+      # Requires role: Finance when called with a CLI key.
       #
       # Error codes: auth.bad_timestamp, auth.body_too_large, auth.ip_not_allowed,
-      # discount.network_required, discount.out_of_range, discount.unsupported_network, internal,
-      # merchant.bad_signature, merchant.key_mode_mismatch, merchant.rate_limited,
-      # merchant.secret_decrypt, merchant.suspended, merchant.unknown_key, request.bad_json,
-      # request.body_read, request.control_char, request.duplicate_field, request.nul_byte,
-      # request.overloaded, request.rate_limited, request.too_deep, request.unknown_currency
+      # cli.permission_denied, discount.network_required, discount.out_of_range,
+      # discount.unsupported_network, internal, merchant.bad_signature, merchant.key_expired,
+      # merchant.key_mode_mismatch, merchant.rate_limited, merchant.secret_decrypt,
+      # merchant.suspended, merchant.unknown_key, request.bad_json, request.body_read,
+      # request.control_char, request.duplicate_field, request.nul_byte, request.overloaded,
+      # request.rate_limited, request.too_deep, request.unknown_currency
       #
       # @param params [Oblodai::Models::SetDiscountRequest, Hash, nil] the request body as a model
       #   or a Hash; the keywords add to it
-      # @param currency [String, nil] Валюта. Пусто = глобальный дефолт для всех монет
-      # @param discount_percent [Integer, nil] Процент, от -99 до 99. Плюс — скидка, минус — наценка
-      # @param network [String, nil] Сеть. Пусто = любая сеть данной валюты
+      # @param currency [String, nil] Currency. Empty = the global default for all coins
+      # @param discount_percent [Integer, nil] Percent, from -99 to 99. Plus — a discount, minus — a
+      #   surcharge
+      # @param network [String, nil] Network. Empty = any network of the given currency
       # @return [Oblodai::Models::PaymentDiscountRule]
       def set_discount(
         params = nil,
@@ -3945,22 +4157,25 @@ module Oblodai
         )
       end
 
-      # Список скидок/наценок
+      # List discounts/surcharges
       #
-      # Настроенные правила: `items` (по одному на пару «монета+сеть») + блок `paginate` (`total`,
-      # `per_page`, `offset`, `has_pages`). Поля правила — те же, что отдаёт
+      # Configured rules: `items` (one per coin+network pair) plus a `paginate` block (`total`,
+      # `per_page`, `offset`, `has_pages`). Rule fields are the same as returned by
       # `/v1/payment/discount/set`.
       #
-      # Error codes: auth.bad_timestamp, auth.body_too_large, auth.ip_not_allowed, internal,
-      # merchant.bad_signature, merchant.key_mode_mismatch, merchant.rate_limited,
-      # merchant.secret_decrypt, merchant.suspended, merchant.unknown_key, request.bad_json,
-      # request.body_read, request.control_char, request.duplicate_field, request.nul_byte,
-      # request.overloaded, request.rate_limited, request.too_deep
+      # Requires role: Viewer when called with a CLI key.
+      #
+      # Error codes: auth.bad_timestamp, auth.body_too_large, auth.ip_not_allowed,
+      # cli.permission_denied, internal, merchant.bad_signature, merchant.key_expired,
+      # merchant.key_mode_mismatch, merchant.rate_limited, merchant.secret_decrypt,
+      # merchant.suspended, merchant.unknown_key, request.bad_json, request.body_read,
+      # request.control_char, request.duplicate_field, request.nul_byte, request.overloaded,
+      # request.rate_limited, request.too_deep
       #
       # @param params [Oblodai::Models::PageRequest, Hash, nil] the request body as a model or a
       #   Hash; the keywords add to it
-      # @param limit [Integer, nil] Размер страницы, 1–100; вне диапазона — 25.
-      # @param offset [Integer, nil] Смещение от начала списка.
+      # @param limit [Integer, nil] Page size, 1–100; out of range — 25.
+      # @param offset [Integer, nil] Offset from the start of the list.
       # @return [Oblodai::Page<Oblodai::Models::PaymentDiscountRule>]
       def list_discounts(
         params = nil,
@@ -3992,28 +4207,30 @@ module Oblodai
         )
       end
 
-      # Лог запросов вашего ключа
+      # Request log for your key
       #
-      # Дата, метод с путём, код ответа, длительность и IP — по вашему мерчанту и только по нему.
-      # Строки живут 90 дней (`retention_days` в ответе). Строка запроса (query) НЕ хранится: в ней
-      # ездят идентификаторы того, что фильтровали, а вторая копия чужих платёжных идентификаторов —
-      # это обязательство, а не удобство. `to` включает день целиком.
+      # Date, method with path, response code, duration and IP — for your merchant and only for it.
+      # Rows are kept for 90 days (`retention_days` in the response). The query string is NOT
+      # stored: it carries identifiers of what was filtered, and a second copy of someone else's
+      # payment identifiers is a liability, not a convenience. `to` includes the whole day.
+      #
+      # Requires role: Viewer when called with a CLI key.
       #
       # Error codes: apilog.bad_date, apilog.bad_status, apilog.count, apilog.disabled, apilog.list,
-      # auth.bad_timestamp, auth.body_too_large, auth.ip_not_allowed, internal,
-      # merchant.bad_signature, merchant.key_mode_mismatch, merchant.rate_limited,
-      # merchant.secret_decrypt, merchant.suspended, merchant.unknown_key, request.bad_json,
-      # request.body_read, request.control_char, request.duplicate_field, request.nul_byte,
-      # request.overloaded, request.rate_limited, request.too_deep
+      # auth.bad_timestamp, auth.body_too_large, auth.ip_not_allowed, cli.permission_denied,
+      # internal, merchant.bad_signature, merchant.key_expired, merchant.key_mode_mismatch,
+      # merchant.rate_limited, merchant.secret_decrypt, merchant.suspended, merchant.unknown_key,
+      # request.bad_json, request.body_read, request.control_char, request.duplicate_field,
+      # request.nul_byte, request.overloaded, request.rate_limited, request.too_deep
       #
       # @param params [Oblodai::Models::APILogRequest, Hash, nil] the request body as a model or a
       #   Hash; the keywords add to it
-      # @param from [String, nil] Начало периода, YYYY-MM-DD, включительно.
-      # @param limit [Integer, nil] Размер страницы, 1..200; по умолчанию 20.
-      # @param page [Integer, nil] Страница, с 1.
-      # @param q [String, nil] Подстрока по «МЕТОД путь» — то, что человек видит в таблице.
-      # @param status [Integer, nil] Точный код ответа; 0 — все.
-      # @param to [String, nil] Конец периода, YYYY-MM-DD, ВКЛЮЧИТЕЛЬНО (день целиком).
+      # @param from [String, nil] Start of the period, YYYY-MM-DD, inclusive.
+      # @param limit [Integer, nil] Page size, 1..200; default 20.
+      # @param page [Integer, nil] Page, starting from 1.
+      # @param q [String, nil] A substring of "METHOD path" — what a person sees in the table.
+      # @param status [Integer, nil] The exact response code; 0 — all.
+      # @param to [String, nil] End of the period, YYYY-MM-DD, INCLUSIVE (the whole day).
       # @return [Oblodai::Models::APILogResult]
       def list_api_log(
         params = nil,
@@ -4053,17 +4270,20 @@ module Oblodai
         )
       end
 
-      # Авто-конвертация выручки: текущий приказ
+      # Revenue auto-conversion: current order
       #
-      # `configured:false` — приказа нет, остальные поля тогда пустые/умолчания. `min_usd_cents` —
-      # пол одной конвертации: ниже него спред стоит дороже, чем сводить.
+      # `configured:false` — there is no order; the other fields are then empty/defaults.
+      # `min_usd_cents` — the floor for a single conversion: below it the spread costs more than the
+      # conversion is worth.
+      #
+      # Requires role: Viewer when called with a CLI key.
       #
       # Error codes: auth.bad_timestamp, auth.body_too_large, auth.ip_not_allowed,
-      # autoconvert.disabled, autoconvert.scan, internal, merchant.bad_signature,
-      # merchant.key_mode_mismatch, merchant.rate_limited, merchant.secret_decrypt,
-      # merchant.suspended, merchant.unknown_key, request.body_read, request.control_char,
-      # request.duplicate_field, request.nul_byte, request.overloaded, request.rate_limited,
-      # request.too_deep
+      # autoconvert.disabled, autoconvert.scan, cli.permission_denied, internal,
+      # merchant.bad_signature, merchant.key_expired, merchant.key_mode_mismatch,
+      # merchant.rate_limited, merchant.secret_decrypt, merchant.suspended, merchant.unknown_key,
+      # request.body_read, request.control_char, request.duplicate_field, request.nul_byte,
+      # request.overloaded, request.rate_limited, request.too_deep
       #
       # @return [Oblodai::Models::AutoConvertResult]
       def get_auto_convert(
@@ -4087,40 +4307,45 @@ module Oblodai
         )
       end
 
-      # Авто-конвертация выручки: задать приказ
+      # Revenue auto-conversion: set the order
       #
-      # Сводит перечисленные монеты в `target` фоновым сводом, не в момент зачисления депозита. ⚠
-      # ИСТОЧНИКИ — ПО МОНЕТЕ, А НЕ ПО ПАРЕ «МОНЕТА+СЕТЬ»: обязательства мерчанта ведутся по активу,
-      # и у принимающего USDT в Tron и в BSC баланс USDT ОДИН — включить свод для одной пары и не
-      # включить для второй нечего. Целевая монета проверяется на возможность ликвидации ЗДЕСЬ, при
-      # сохранении: отказ в момент выбора можно исправить, отказ через неделю в фоне — это выручка,
-      # которая молча не сводилась. В ответе — СОХРАНЁННЫЙ приказ: монеты, которые свод не примет
-      # (сама цель, дубли), из него убраны.
+      # Converts the listed coins into `target` in a background sweep, not at the moment a deposit
+      # is credited. ⚠ SOURCES ARE PER COIN, NOT PER COIN+NETWORK PAIR: merchant liabilities are
+      # tracked per asset, and a merchant accepting USDT on Tron and on BSC has ONE USDT balance —
+      # there is nothing to enable the sweep for one pair and not the other. The target coin is
+      # checked for liquidity HERE, on save: a rejection at selection time can be fixed, a rejection
+      # a week later in the background is revenue that silently was not converted. The response
+      # contains the SAVED order: coins the sweep will not accept (the target itself, duplicates)
+      # are removed from it.
+      #
+      # Requires role: Finance when called with a CLI key.
       #
       # Error codes: auth.bad_timestamp, auth.body_too_large, auth.ip_not_allowed,
       # autoconvert.bad_floor, autoconvert.disabled, autoconvert.no_target, autoconvert.scan,
       # autoconvert.source_unsupported, autoconvert.target_unsupported, autoconvert.upsert,
-      # autoconvert.vanished, internal, merchant.bad_signature, merchant.key_mode_mismatch,
-      # merchant.rate_limited, merchant.secret_decrypt, merchant.suspended, merchant.unknown_key,
-      # request.bad_json, request.body_read, request.control_char, request.duplicate_field,
-      # request.invalid_mode, request.nul_byte, request.overloaded, request.rate_limited,
-      # request.too_deep, request.unknown_currency, treasury.no_ccy_map
+      # autoconvert.vanished, cli.permission_denied, internal, merchant.bad_signature,
+      # merchant.key_expired, merchant.key_mode_mismatch, merchant.rate_limited,
+      # merchant.secret_decrypt, merchant.suspended, merchant.unknown_key, request.bad_json,
+      # request.body_read, request.control_char, request.duplicate_field, request.invalid_mode,
+      # request.nul_byte, request.overloaded, request.rate_limited, request.too_deep,
+      # request.unknown_currency, treasury.no_ccy_map
       #
       # @param params [Oblodai::Models::SetAutoConvertRequest, Hash, nil] the request body as a
       #   model or a Hash; the keywords add to it
-      # @param enabled [Boolean, nil] Выключатель приказа целиком. Не передан — считается
-      #   включённым. An explicit nil sends null.
-      # @param min_amount [String, nil] Пол одной конвертации в долларах, десятичной строкой; пусто
-      #   — умолчание процесса ($10). Ниже него спред съедает больше, чем сводит.
-      # @param mode [String, nil] Режим зачисления: "economy" — заявка в партию казначейской
-      #   ликвидации, зачисляется факт исполнения (комиссия минимальная); "instant" — мгновенно по
-      #   спред-курсу. Не передан — instant: автообмен включают ради мгновенного зачисления, а ждать
-      #   партию — осознанный выбор. Иное значение — 400 request.invalid_mode. Values:
+      # @param enabled [Boolean, nil] The master switch for the whole order. If omitted, it is
+      #   considered enabled. An explicit nil sends null.
+      # @param min_amount [String, nil] The floor for a single conversion in dollars, as a decimal
+      #   string; empty — the process default ($10). Below it the spread eats more than the conversion
+      #   is worth.
+      # @param mode [String, nil] The crediting mode: "economy" — an order in a treasury liquidation
+      #   batch, the actual execution is credited (minimal fee); "instant" — immediately at the spread
+      #   rate. Omitted — instant: auto-exchange is enabled for instant crediting, and waiting for a
+      #   batch is a deliberate choice. Any other value — 400 request.invalid_mode. Values:
       #   {Oblodai::Enums::AutoConvertMode}. An explicit nil sends null.
-      # @param sources [Array<String>, nil] Монеты, которые сводить. Пусто — приказ есть, но не
-      #   включён ни для чего.
-      # @param target [String, nil] Монета, в которую сводится выручка (стейбл). Проверяется на
-      #   возможность ликвидации при сохранении.
+      # @param sources [Array<String>, nil] The coins to convert. Empty — the order exists but is
+      #   not enabled for anything.
+      # @param target [String, nil] The coin revenue is converted into (a stablecoin). Checked for
+      #   liquidity on save.
       # @return [Oblodai::Models::AutoConvertResult]
       def set_auto_convert(
         params = nil,
@@ -4159,21 +4384,25 @@ module Oblodai
         )
       end
 
-      # Настроить принимаемые валюты магазина
+      # Configure the store's accepted currencies
       #
-      # Задаёт, какие валюты/сети магазин принимает.
+      # Sets which currencies/networks the store accepts.
+      #
+      # Requires role: Finance when called with a CLI key.
       #
       # Error codes: accepted.no_network, accepted.unknown_method, auth.bad_timestamp,
-      # auth.body_too_large, auth.ip_not_allowed, internal, merchant.bad_signature,
-      # merchant.key_mode_mismatch, merchant.rate_limited, merchant.secret_decrypt,
-      # merchant.suspended, merchant.unknown_key, request.bad_json, request.body_read,
-      # request.control_char, request.duplicate_field, request.nul_byte, request.overloaded,
-      # request.rate_limited, request.too_deep, request.unknown_currency
+      # auth.body_too_large, auth.ip_not_allowed, cli.permission_denied, internal,
+      # merchant.bad_signature, merchant.key_expired, merchant.key_mode_mismatch,
+      # merchant.rate_limited, merchant.secret_decrypt, merchant.suspended, merchant.unknown_key,
+      # request.bad_json, request.body_read, request.control_char, request.duplicate_field,
+      # request.nul_byte, request.overloaded, request.rate_limited, request.too_deep,
+      # request.unknown_currency
       #
       # @param params [Oblodai::Models::AcceptedSetRequest, Hash, nil] the request body as a model
       #   or a Hash; the keywords add to it
-      # @param accepted [Array<Oblodai::Models::AcceptedMethod, Hash>, nil] Полный список пар
-      #   валюта+сеть, которыми разрешено платить; пустой список — принимать всё из каталога.
+      # @param accepted [Array<Oblodai::Models::AcceptedMethod, Hash>, nil] The full list of
+      #   currency+network pairs allowed for payment; an empty list — accept everything in the
+      #   catalog.
       # @return [Oblodai::Models::AcceptedSetResult]
       def set_accepted_currencies(
         params = nil,
@@ -4203,18 +4432,21 @@ module Oblodai
         )
       end
 
-      # Список принимаемых валют
+      # List accepted currencies
       #
-      # Error codes: auth.bad_timestamp, auth.body_too_large, auth.ip_not_allowed, internal,
-      # merchant.bad_signature, merchant.key_mode_mismatch, merchant.rate_limited,
-      # merchant.secret_decrypt, merchant.suspended, merchant.unknown_key, request.bad_json,
-      # request.body_read, request.control_char, request.duplicate_field, request.nul_byte,
-      # request.overloaded, request.rate_limited, request.too_deep
+      # Requires role: Viewer when called with a CLI key.
+      #
+      # Error codes: auth.bad_timestamp, auth.body_too_large, auth.ip_not_allowed,
+      # cli.permission_denied, internal, merchant.bad_signature, merchant.key_expired,
+      # merchant.key_mode_mismatch, merchant.rate_limited, merchant.secret_decrypt,
+      # merchant.suspended, merchant.unknown_key, request.bad_json, request.body_read,
+      # request.control_char, request.duplicate_field, request.nul_byte, request.overloaded,
+      # request.rate_limited, request.too_deep
       #
       # @param params [Oblodai::Models::PageRequest, Hash, nil] the request body as a model or a
       #   Hash; the keywords add to it
-      # @param limit [Integer, nil] Размер страницы, 1–100; вне диапазона — 25.
-      # @param offset [Integer, nil] Смещение от начала списка.
+      # @param limit [Integer, nil] Page size, 1–100; out of range — 25.
+      # @param offset [Integer, nil] Offset from the start of the list.
       # @return [Oblodai::Page<Oblodai::Models::AcceptedConfiguredMethod>]
       def list_accepted_currencies(
         params = nil,
@@ -4246,21 +4478,24 @@ module Oblodai
         )
       end
 
-      # Кто платит сетевую комиссию выплаты
+      # Who pays the payout network fee
       #
-      # `fee_on_recipient: true` — комиссию сети платит получатель (ему приходит сумма минус
-      # комиссия).
+      # `fee_on_recipient: true` — the network fee is paid by the recipient (they receive the amount
+      # minus the fee).
       #
-      # Error codes: auth.bad_timestamp, auth.body_too_large, auth.ip_not_allowed, internal,
-      # merchant.bad_signature, merchant.key_mode_mismatch, merchant.rate_limited,
-      # merchant.secret_decrypt, merchant.suspended, merchant.unknown_key, request.bad_json,
-      # request.body_read, request.control_char, request.duplicate_field, request.nul_byte,
-      # request.overloaded, request.rate_limited, request.too_deep
+      # Requires role: Finance when called with a CLI key.
+      #
+      # Error codes: auth.bad_timestamp, auth.body_too_large, auth.ip_not_allowed,
+      # cli.permission_denied, internal, merchant.bad_signature, merchant.key_expired,
+      # merchant.key_mode_mismatch, merchant.rate_limited, merchant.secret_decrypt,
+      # merchant.suspended, merchant.unknown_key, request.bad_json, request.body_read,
+      # request.control_char, request.duplicate_field, request.nul_byte, request.overloaded,
+      # request.rate_limited, request.too_deep
       #
       # @param params [Oblodai::Models::SetPayoutFeeRequest, Hash, nil] the request body as a model
       #   or a Hash; the keywords add to it
-      # @param fee_on_recipient [Boolean, nil] true — сетевую комиссию платит получатель (получает
-      #   меньше); false — комиссию несёт мерчант
+      # @param fee_on_recipient [Boolean, nil] true — the network fee is paid by the recipient (who
+      #   receives less); false — the merchant bears the fee
       # @return [Oblodai::Models::SetPayoutFeeRequest]
       def set_payout_fee_config(
         params = nil,
@@ -4290,13 +4525,16 @@ module Oblodai
         )
       end
 
-      # Прочитать настройку комиссии выплат
+      # Read the payout fee setting
       #
-      # Error codes: auth.bad_timestamp, auth.body_too_large, auth.ip_not_allowed, internal,
-      # merchant.bad_signature, merchant.key_mode_mismatch, merchant.rate_limited,
-      # merchant.secret_decrypt, merchant.suspended, merchant.unknown_key, request.body_read,
-      # request.control_char, request.duplicate_field, request.nul_byte, request.overloaded,
-      # request.rate_limited, request.too_deep
+      # Requires role: Viewer when called with a CLI key.
+      #
+      # Error codes: auth.bad_timestamp, auth.body_too_large, auth.ip_not_allowed,
+      # cli.permission_denied, internal, merchant.bad_signature, merchant.key_expired,
+      # merchant.key_mode_mismatch, merchant.rate_limited, merchant.secret_decrypt,
+      # merchant.suspended, merchant.unknown_key, request.body_read, request.control_char,
+      # request.duplicate_field, request.nul_byte, request.overloaded, request.rate_limited,
+      # request.too_deep
       #
       # @return [Oblodai::Models::PayoutFeeResult]
       def get_payout_fee_config(
@@ -4320,21 +4558,24 @@ module Oblodai
         )
       end
 
-      # Кто платит нашу комиссию при возврате
+      # Who pays our fee on a refund
       #
-      # `fee_on_customer: true` — при возврате нашу комиссию несёт клиент (возврат за вычетом
-      # комиссии); false — несёт мерчант.
+      # `fee_on_customer: true` — on a refund our fee is borne by the customer (refund minus the
+      # fee); false — borne by the merchant.
       #
-      # Error codes: auth.bad_timestamp, auth.body_too_large, auth.ip_not_allowed, internal,
-      # merchant.bad_signature, merchant.key_mode_mismatch, merchant.rate_limited,
-      # merchant.secret_decrypt, merchant.suspended, merchant.unknown_key, request.bad_json,
-      # request.body_read, request.control_char, request.duplicate_field, request.nul_byte,
-      # request.overloaded, request.rate_limited, request.too_deep
+      # Requires role: Finance when called with a CLI key.
+      #
+      # Error codes: auth.bad_timestamp, auth.body_too_large, auth.ip_not_allowed,
+      # cli.permission_denied, internal, merchant.bad_signature, merchant.key_expired,
+      # merchant.key_mode_mismatch, merchant.rate_limited, merchant.secret_decrypt,
+      # merchant.suspended, merchant.unknown_key, request.bad_json, request.body_read,
+      # request.control_char, request.duplicate_field, request.nul_byte, request.overloaded,
+      # request.rate_limited, request.too_deep
       #
       # @param params [Oblodai::Models::SetRefundFeeRequest, Hash, nil] the request body as a model
       #   or a Hash; the keywords add to it
-      # @param fee_on_customer [Boolean, nil] true — клиент получает net (комиссию платит клиент);
-      #   false — мерчант платит комиссию, клиент получает gross
+      # @param fee_on_customer [Boolean, nil] true — the customer receives net (the customer pays
+      #   the fee); false — the merchant pays the fee, the customer receives gross
       # @return [Oblodai::Models::SetRefundFeeRequest]
       def set_refund_fee_config(
         params = nil,
@@ -4364,13 +4605,16 @@ module Oblodai
         )
       end
 
-      # Прочитать настройку комиссии возврата
+      # Read the refund fee setting
       #
-      # Error codes: auth.bad_timestamp, auth.body_too_large, auth.ip_not_allowed, internal,
-      # merchant.bad_signature, merchant.key_mode_mismatch, merchant.rate_limited,
-      # merchant.secret_decrypt, merchant.suspended, merchant.unknown_key, request.body_read,
-      # request.control_char, request.duplicate_field, request.nul_byte, request.overloaded,
-      # request.rate_limited, request.too_deep
+      # Requires role: Viewer when called with a CLI key.
+      #
+      # Error codes: auth.bad_timestamp, auth.body_too_large, auth.ip_not_allowed,
+      # cli.permission_denied, internal, merchant.bad_signature, merchant.key_expired,
+      # merchant.key_mode_mismatch, merchant.rate_limited, merchant.secret_decrypt,
+      # merchant.suspended, merchant.unknown_key, request.body_read, request.control_char,
+      # request.duplicate_field, request.nul_byte, request.overloaded, request.rate_limited,
+      # request.too_deep
       #
       # @return [Oblodai::Models::RefundFeeResult]
       def get_refund_fee_config(
@@ -4394,24 +4638,27 @@ module Oblodai
         )
       end
 
-      # Кто платит нашу комиссию при приёме платежа
+      # Who pays our fee when accepting a payment
       #
-      # `payer_pays_percent: 0` — комиссию платит мерчант (по умолчанию); `100` — платит покупатель:
-      # счёт выставляется с наценкой, и мерчант получает ровно ту сумму, которую назвал.
-      # Промежуточные значения делят комиссию. Действует на счета, созданные ПОСЛЕ изменения;
-      # параметр `subtract` в самом счёте перекрывает эту настройку.
+      # `payer_pays_percent: 0` — the fee is paid by the merchant (default); `100` — paid by the
+      # buyer: the invoice is issued with a markup, and the merchant receives exactly the amount
+      # they specified. Intermediate values split the fee. Applies to invoices created AFTER the
+      # change; the `subtract` parameter of an invoice overrides this setting.
       #
-      # Error codes: auth.bad_timestamp, auth.body_too_large, auth.ip_not_allowed, internal,
-      # merchant.bad_fee_bearer, merchant.bad_signature, merchant.key_mode_mismatch,
-      # merchant.rate_limited, merchant.secret_decrypt, merchant.suspended, merchant.unknown_key,
-      # request.bad_json, request.body_read, request.control_char, request.duplicate_field,
-      # request.nul_byte, request.overloaded, request.rate_limited, request.too_deep
+      # Requires role: Finance when called with a CLI key.
+      #
+      # Error codes: auth.bad_timestamp, auth.body_too_large, auth.ip_not_allowed,
+      # cli.permission_denied, internal, merchant.bad_fee_bearer, merchant.bad_signature,
+      # merchant.key_expired, merchant.key_mode_mismatch, merchant.rate_limited,
+      # merchant.secret_decrypt, merchant.suspended, merchant.unknown_key, request.bad_json,
+      # request.body_read, request.control_char, request.duplicate_field, request.nul_byte,
+      # request.overloaded, request.rate_limited, request.too_deep
       #
       # @param params [Oblodai::Models::SetPaymentFeeRequest, Hash, nil] the request body as a model
       #   or a Hash; the keywords add to it
-      # @param payer_pays_percent [Integer, nil] Доля НАШЕЙ комиссии, которую платит покупатель: 0 —
-      #   платит мерчант (как сейчас), 100 — платит покупатель, счёт выставляется с наценкой.
-      #   Действует на счета, созданные ПОСЛЕ изменения.
+      # @param payer_pays_percent [Integer, nil] The share of OUR fee paid by the buyer: 0 — the
+      #   merchant pays (as now), 100 — the buyer pays, the invoice is issued with a markup. Applies
+      #   to invoices created AFTER the change.
       # @return [Oblodai::Models::SetPaymentFeeRequest]
       def set_payment_fee_config(
         params = nil,
@@ -4441,18 +4688,21 @@ module Oblodai
         )
       end
 
-      # Прочитать, кто платит комиссию за приём
+      # Read who pays the acceptance fee
       #
-      # Также возвращает ваш тариф: `fee_percent` — ставка, которую зафиксирует СЛЕДУЮЩИЙ созданный
-      # счёт; `fee_fixed_usd` — фиксированный сбор с платежа, USD строкой ("0.30"; прежнее
-      # `fee_fixed_usd_cents` — то же в центах числом, устарело); `fee_individual: true` — тариф
-      # назначен вам индивидуально, false — действует тариф платформы.
+      # Also returns your pricing: `fee_percent` — the rate the NEXT created invoice will lock in;
+      # `fee_fixed_usd` — the fixed per-payment fee, USD as a string ("0.30"; the former
+      # `fee_fixed_usd_cents` is the same in cents as a number, deprecated); `fee_individual: true`
+      # — the pricing is assigned to you individually, false — the platform pricing applies.
       #
-      # Error codes: auth.bad_timestamp, auth.body_too_large, auth.ip_not_allowed, internal,
-      # merchant.bad_signature, merchant.key_mode_mismatch, merchant.not_found,
-      # merchant.rate_limited, merchant.secret_decrypt, merchant.suspended, merchant.unknown_key,
-      # request.body_read, request.control_char, request.duplicate_field, request.nul_byte,
-      # request.overloaded, request.rate_limited, request.too_deep
+      # Requires role: Finance when called with a CLI key.
+      #
+      # Error codes: auth.bad_timestamp, auth.body_too_large, auth.ip_not_allowed,
+      # cli.permission_denied, internal, merchant.bad_signature, merchant.key_expired,
+      # merchant.key_mode_mismatch, merchant.not_found, merchant.rate_limited,
+      # merchant.secret_decrypt, merchant.suspended, merchant.unknown_key, request.body_read,
+      # request.control_char, request.duplicate_field, request.nul_byte, request.overloaded,
+      # request.rate_limited, request.too_deep
       #
       # @return [Oblodai::Models::PaymentFeeResult]
       def get_payment_fee_config(
@@ -4476,27 +4726,29 @@ module Oblodai
         )
       end
 
-      # Настроить авто-вывод
+      # Configure auto-withdrawal
       #
-      # Автоматически выводить поступления на заданный адрес.
+      # Automatically withdraw incoming funds to a given address.
+      #
+      # Requires role: Finance when called with a CLI key.
       #
       # Error codes: auth.bad_timestamp, auth.body_too_large, auth.ip_not_allowed,
       # autowithdraw.bad_min, autowithdraw.missing, autowithdraw.network_required,
-      # autowithdraw.unsupported_network, internal, merchant.bad_signature,
-      # merchant.key_mode_mismatch, merchant.rate_limited, merchant.secret_decrypt,
-      # merchant.suspended, merchant.unknown_key, payout.address_network_mismatch,
-      # payout.bad_address, payout.bad_memo, payout.memo_conflict, payout.memo_required,
-      # payout.memo_too_long, request.bad_json, request.body_read, request.control_char,
-      # request.duplicate_field, request.nul_byte, request.overloaded, request.rate_limited,
-      # request.too_deep, request.unknown_currency
+      # autowithdraw.unsupported_network, cli.permission_denied, internal, merchant.bad_signature,
+      # merchant.key_expired, merchant.key_mode_mismatch, merchant.rate_limited,
+      # merchant.secret_decrypt, merchant.suspended, merchant.unknown_key,
+      # payout.address_network_mismatch, payout.bad_address, payout.bad_memo, payout.memo_conflict,
+      # payout.memo_required, payout.memo_too_long, request.bad_json, request.body_read,
+      # request.control_char, request.duplicate_field, request.nul_byte, request.overloaded,
+      # request.rate_limited, request.too_deep, request.unknown_currency
       #
       # @param params [Oblodai::Models::AutoWithdrawSetRequest, Hash, nil] the request body as a
       #   model or a Hash; the keywords add to it
-      # @param address [String, nil] Адрес назначения (внешний кошелёк мерчанта).
-      # @param currency [String, nil] Актив, который выводить автоматически.
-      # @param min_amount [String, nil] Порог: вывод срабатывает, когда доступный баланс актива не
-      #   меньше этой суммы; пусто — сетевой минимум.
-      # @param network [String, nil] Сеть адреса назначения.
+      # @param address [String, nil] Destination address (the merchant's external wallet).
+      # @param currency [String, nil] The asset to withdraw automatically.
+      # @param min_amount [String, nil] Threshold: the withdrawal triggers when the asset's
+      #   available balance is at least this amount; empty — the network minimum.
+      # @param network [String, nil] The destination address network.
       # @return [Oblodai::Models::AutoWithdrawListResult]
       def set_auto_withdraw_rule(
         params = nil,
@@ -4532,13 +4784,16 @@ module Oblodai
         )
       end
 
-      # Список правил авто-вывода
+      # List auto-withdrawal rules
       #
-      # Error codes: auth.bad_timestamp, auth.body_too_large, auth.ip_not_allowed, internal,
-      # merchant.bad_signature, merchant.key_mode_mismatch, merchant.rate_limited,
-      # merchant.secret_decrypt, merchant.suspended, merchant.unknown_key, request.body_read,
-      # request.control_char, request.duplicate_field, request.nul_byte, request.overloaded,
-      # request.rate_limited, request.too_deep
+      # Requires role: Viewer when called with a CLI key.
+      #
+      # Error codes: auth.bad_timestamp, auth.body_too_large, auth.ip_not_allowed,
+      # cli.permission_denied, internal, merchant.bad_signature, merchant.key_expired,
+      # merchant.key_mode_mismatch, merchant.rate_limited, merchant.secret_decrypt,
+      # merchant.suspended, merchant.unknown_key, request.body_read, request.control_char,
+      # request.duplicate_field, request.nul_byte, request.overloaded, request.rate_limited,
+      # request.too_deep
       #
       # @return [Oblodai::Models::AutoWithdrawListResult]
       def list_auto_withdraw_rules(
@@ -4562,17 +4817,20 @@ module Oblodai
         )
       end
 
-      # Удалить правило авто-вывода
+      # Delete an auto-withdrawal rule
       #
-      # Error codes: auth.bad_timestamp, auth.body_too_large, auth.ip_not_allowed, internal,
-      # merchant.bad_signature, merchant.key_mode_mismatch, merchant.rate_limited,
-      # merchant.secret_decrypt, merchant.suspended, merchant.unknown_key, request.bad_json,
-      # request.body_read, request.control_char, request.duplicate_field, request.nul_byte,
-      # request.overloaded, request.rate_limited, request.too_deep
+      # Requires role: Finance when called with a CLI key.
+      #
+      # Error codes: auth.bad_timestamp, auth.body_too_large, auth.ip_not_allowed,
+      # cli.permission_denied, internal, merchant.bad_signature, merchant.key_expired,
+      # merchant.key_mode_mismatch, merchant.rate_limited, merchant.secret_decrypt,
+      # merchant.suspended, merchant.unknown_key, request.bad_json, request.body_read,
+      # request.control_char, request.duplicate_field, request.nul_byte, request.overloaded,
+      # request.rate_limited, request.too_deep
       #
       # @param params [Oblodai::Models::AutoWithdrawDeleteRequest, Hash, nil] the request body as a
       #   model or a Hash; the keywords add to it
-      # @param currency [String, nil] Актив, автовывод которого выключить.
+      # @param currency [String, nil] The asset whose auto-withdrawal to disable.
       # @return [Oblodai::Models::AutoWithdrawListResult]
       def delete_auto_withdraw_rule(
         params = nil,
@@ -4602,20 +4860,23 @@ module Oblodai
         )
       end
 
-      # Авто-конверт волатильных монет в USDT (VRCS)
+      # Auto-convert volatile coins to USDT (VRCS)
       #
-      # Включает автоматическую конвертацию поступающих волатильных монет в стейбл USDT.
+      # Enables automatic conversion of incoming volatile coins into the USDT stablecoin.
       #
-      # Error codes: auth.bad_timestamp, auth.body_too_large, auth.ip_not_allowed, internal,
-      # merchant.bad_signature, merchant.key_mode_mismatch, merchant.rate_limited,
-      # merchant.secret_decrypt, merchant.suspended, merchant.unknown_key, request.bad_json,
-      # request.body_read, request.control_char, request.duplicate_field, request.nul_byte,
-      # request.overloaded, request.rate_limited, request.too_deep, vrcs.read
+      # Requires role: Finance when called with a CLI key.
+      #
+      # Error codes: auth.bad_timestamp, auth.body_too_large, auth.ip_not_allowed,
+      # cli.permission_denied, internal, merchant.bad_signature, merchant.key_expired,
+      # merchant.key_mode_mismatch, merchant.rate_limited, merchant.secret_decrypt,
+      # merchant.suspended, merchant.unknown_key, request.bad_json, request.body_read,
+      # request.control_char, request.duplicate_field, request.nul_byte, request.overloaded,
+      # request.rate_limited, request.too_deep, vrcs.read
       #
       # @param params [Oblodai::Models::VRCSRequest, Hash, nil] the request body as a model or a
       #   Hash; the keywords add to it
-      # @param enabled [Boolean, nil] true — включить автоконвертацию волатильных поступлений в
-      #   USDT, false — выключить; без поля — только прочитать текущее состояние. An explicit nil
+      # @param enabled [Boolean, nil] true — enable auto-conversion of volatile incoming funds to
+      #   USDT, false — disable it; without the field — only read the current state. An explicit nil
       #   sends null.
       # @return [Oblodai::Models::VRCSResult]
       def configure_vrcs(
@@ -4648,15 +4909,18 @@ module Oblodai
       end
     end
 
-    # Ротация ключей и IP-allowlist API.
+    # Key rotation and the API IP allowlist.
     class ApiAllowlist < Generated::Resource
-      # Список разрешённых IP
+      # List allowed IPs
       #
-      # Error codes: auth.bad_timestamp, auth.body_too_large, auth.ip_not_allowed, internal,
-      # merchant.bad_signature, merchant.key_mode_mismatch, merchant.rate_limited,
-      # merchant.secret_decrypt, merchant.suspended, merchant.unknown_key, request.body_read,
-      # request.control_char, request.duplicate_field, request.nul_byte, request.overloaded,
-      # request.rate_limited, request.too_deep
+      # Requires role: Viewer when called with a CLI key.
+      #
+      # Error codes: auth.bad_timestamp, auth.body_too_large, auth.ip_not_allowed,
+      # cli.permission_denied, internal, merchant.bad_signature, merchant.key_expired,
+      # merchant.key_mode_mismatch, merchant.rate_limited, merchant.secret_decrypt,
+      # merchant.suspended, merchant.unknown_key, request.body_read, request.control_char,
+      # request.duplicate_field, request.nul_byte, request.overloaded, request.rate_limited,
+      # request.too_deep
       #
       # @return [Oblodai::Models::APIAllowListResult]
       def list(
@@ -4680,17 +4944,20 @@ module Oblodai
         )
       end
 
-      # Добавить IP в allowlist
+      # Add an IP to the allowlist
+      #
+      # Not available to CLI keys: call it with the integration key.
       #
       # Error codes: apiallow.bad_cidr, apiallow.too_many, auth.bad_timestamp, auth.body_too_large,
-      # auth.ip_not_allowed, internal, merchant.bad_signature, merchant.key_mode_mismatch,
-      # merchant.rate_limited, merchant.secret_decrypt, merchant.suspended, merchant.unknown_key,
-      # request.bad_json, request.body_read, request.control_char, request.duplicate_field,
-      # request.nul_byte, request.overloaded, request.rate_limited, request.too_deep
+      # auth.ip_not_allowed, cli.permission_denied, internal, merchant.bad_signature,
+      # merchant.key_expired, merchant.key_mode_mismatch, merchant.rate_limited,
+      # merchant.secret_decrypt, merchant.suspended, merchant.unknown_key, request.bad_json,
+      # request.body_read, request.control_char, request.duplicate_field, request.nul_byte,
+      # request.overloaded, request.rate_limited, request.too_deep
       #
       # @param params [Oblodai::Models::APIAllowEntryRequest, Hash, nil] the request body as a model
       #   or a Hash; the keywords add to it
-      # @param cidr [String, nil] IP или подсеть в CIDR (203.0.113.7 или 203.0.113.0/24).
+      # @param cidr [String, nil] An IP or a CIDR subnet (203.0.113.7 or 203.0.113.0/24).
       # @return [Oblodai::Models::APIAllowListResult]
       def add_entry(
         params = nil,
@@ -4720,18 +4987,20 @@ module Oblodai
         )
       end
 
-      # Удалить IP из allowlist
+      # Remove an IP from the allowlist
+      #
+      # Not available to CLI keys: call it with the integration key.
       #
       # Error codes: apiallow.last_entry, auth.bad_timestamp, auth.body_too_large,
-      # auth.ip_not_allowed, internal, merchant.bad_signature, merchant.key_mode_mismatch,
-      # merchant.rate_limited, merchant.secret_decrypt, merchant.suspended, merchant.unknown_key,
-      # postgres.lock_pool_busy, request.bad_json, request.body_read, request.control_char,
-      # request.duplicate_field, request.nul_byte, request.overloaded, request.rate_limited,
-      # request.too_deep
+      # auth.ip_not_allowed, cli.permission_denied, internal, merchant.bad_signature,
+      # merchant.key_expired, merchant.key_mode_mismatch, merchant.rate_limited,
+      # merchant.secret_decrypt, merchant.suspended, merchant.unknown_key, postgres.lock_pool_busy,
+      # request.bad_json, request.body_read, request.control_char, request.duplicate_field,
+      # request.nul_byte, request.overloaded, request.rate_limited, request.too_deep
       #
       # @param params [Oblodai::Models::APIAllowEntryRequest, Hash, nil] the request body as a model
       #   or a Hash; the keywords add to it
-      # @param cidr [String, nil] IP или подсеть в CIDR (203.0.113.7 или 203.0.113.0/24).
+      # @param cidr [String, nil] An IP or a CIDR subnet (203.0.113.7 or 203.0.113.0/24).
       # @return [Oblodai::Models::APIAllowListResult]
       def remove_entry(
         params = nil,
@@ -4761,21 +5030,24 @@ module Oblodai
         )
       end
 
-      # Вкл/выкл IP-allowlist
+      # Enable/disable the IP allowlist
       #
-      # Когда включён — запросы с IP не из списка отклоняются.
+      # When enabled, requests from IPs not on the list are rejected.
+      #
+      # Not available to CLI keys: call it with the integration key.
       #
       # Error codes: apiallow.empty, apiallow.platform_unidentifiable, auth.bad_timestamp,
-      # auth.body_too_large, auth.ip_not_allowed, internal, merchant.bad_signature,
-      # merchant.key_mode_mismatch, merchant.rate_limited, merchant.secret_decrypt,
-      # merchant.suspended, merchant.unknown_key, postgres.lock_pool_busy, request.bad_json,
-      # request.body_read, request.control_char, request.duplicate_field, request.nul_byte,
-      # request.overloaded, request.rate_limited, request.too_deep
+      # auth.body_too_large, auth.ip_not_allowed, cli.permission_denied, internal,
+      # merchant.bad_signature, merchant.key_expired, merchant.key_mode_mismatch,
+      # merchant.rate_limited, merchant.secret_decrypt, merchant.suspended, merchant.unknown_key,
+      # postgres.lock_pool_busy, request.bad_json, request.body_read, request.control_char,
+      # request.duplicate_field, request.nul_byte, request.overloaded, request.rate_limited,
+      # request.too_deep
       #
       # @param params [Oblodai::Models::APIAllowEnableRequest, Hash, nil] the request body as a
       #   model or a Hash; the keywords add to it
-      # @param enabled [Boolean, nil] true — принимать API-вызовы только с адресов из списка; false
-      #   — список хранится, но не применяется.
+      # @param enabled [Boolean, nil] true — accept API calls only from addresses on the list; false
+      #   — the list is kept but not enforced.
       # @return [Oblodai::Models::APIAllowListResult]
       def set_enabled(
         params = nil,
@@ -4806,17 +5078,20 @@ module Oblodai
       end
     end
 
-    # Реферальная программа.
+    # Referral program.
     class Referrals < Generated::Resource
-      # Реферальная информация
+      # Referral information
       #
-      # Ваш реферальный код, приглашённые и начисления.
+      # Your referral code, invitees and earnings.
       #
-      # Error codes: auth.bad_timestamp, auth.body_too_large, auth.ip_not_allowed, internal,
-      # merchant.bad_signature, merchant.key_mode_mismatch, merchant.rate_limited,
-      # merchant.secret_decrypt, merchant.suspended, merchant.unknown_key, request.body_read,
-      # request.control_char, request.duplicate_field, request.nul_byte, request.overloaded,
-      # request.rate_limited, request.too_deep
+      # Requires role: Viewer when called with a CLI key.
+      #
+      # Error codes: auth.bad_timestamp, auth.body_too_large, auth.ip_not_allowed,
+      # cli.permission_denied, internal, merchant.bad_signature, merchant.key_expired,
+      # merchant.key_mode_mismatch, merchant.rate_limited, merchant.secret_decrypt,
+      # merchant.suspended, merchant.unknown_key, request.body_read, request.control_char,
+      # request.duplicate_field, request.nul_byte, request.overloaded, request.rate_limited,
+      # request.too_deep
       #
       # @return [Oblodai::Models::ReferralInfoResult]
       def get_info(
@@ -4841,21 +5116,22 @@ module Oblodai
       end
     end
 
-    # PDF-документы операций: чеки, счета, отчёты за период.
+    # PDF documents for operations: receipts, invoices, period reports.
     class Documents < Generated::Resource
-      # PDF-документ операции (по подписанной ссылке)
+      # Operation PDF document (via a signed link)
       #
-      # Отдаёт фирменный PDF: чек платежа (`kind=payment`), чек выплаты или возврата
-      # (`kind=payout`), счёт (`kind=invoice`), плакат ссылки (`kind=paylink`), справку о реквизитах
-      # (`kind=wallet`), сплит-расчёт (`kind=split`), чек перевода (`kind=transfer`), чек
-      # конвертации (`kind=conversion`). Ссылку НЕ нужно строить самим: готовая приходит в
-      # `document_url` соответствующих ответов — подпись в `sig` и есть доступ, API-ключ не нужен. ⚠
-      # Ссылка ЖИВЁТ ОГРАНИЧЕННО (`exp` в query, по умолчанию 30 суток): скачанный PDF-файл —
-      # документ навсегда, а просроченная ссылка отвечает 403 `document.link_expired` — возьмите
-      # свежую из любого свежего ответа info/history той же операции. `?lang=` — один из 41 языка
-      # (en по умолчанию; полный список — в ошибке `document.unknown_lang`). Ответ —
-      # `application/pdf`; документ отражает текущий статус операции. На самом PDF ссылок нет —
-      # документы не раскрывают путь к себе при пересылке.
+      # Returns a branded PDF: payment receipt (`kind=payment`), payout or refund receipt
+      # (`kind=payout`), invoice (`kind=invoice`), link poster (`kind=paylink`), payment details
+      # certificate (`kind=wallet`), split settlement (`kind=split`), transfer receipt
+      # (`kind=transfer`), conversion receipt (`kind=conversion`). You do NOT need to build the link
+      # yourself: a ready one comes in `document_url` of the corresponding responses — the signature
+      # in `sig` is the access grant, no API key needed. ⚠ The link has A LIMITED LIFETIME (`exp` in
+      # the query, 30 days by default): a downloaded PDF file is a document forever, while an
+      # expired link responds 403 `document.link_expired` — take a fresh one from any fresh
+      # info/history response for the same operation. `?lang=` — one of 41 languages (en by default;
+      # the full list is in the `document.unknown_lang` error). The response is `application/pdf`;
+      # the document reflects the current status of the operation. The PDF itself contains no links
+      # — documents do not reveal their own URL when forwarded.
       #
       # Error codes: document.bad_id, document.bad_signature, document.disabled,
       # document.encode_failed, document.link_expired, document.not_found, document.render_failed,
@@ -4867,9 +5143,9 @@ module Oblodai
       #
       # @param kind [String]
       # @param id [String]
-      # @param exp [Integer, nil] Срок действия ссылки (unix-время) из document_url.
-      # @param sig [String, nil] Подпись ссылки из document_url.
-      # @param lang [String, nil] Язык документа (по умолчанию en); список — document.Languages.
+      # @param exp [Integer, nil] The link expiry (Unix time) from document_url.
+      # @param sig [String, nil] The link signature from document_url.
+      # @param lang [String, nil] Document language (en by default); the list is document.Languages.
       # @return [Oblodai::FileResult]
       def get_signed(
         kind,
@@ -4909,22 +5185,24 @@ module Oblodai
         )
       end
 
-      # Справка о балансе (PDF)
+      # Balance certificate (PDF)
       #
-      # Фирменная PDF-справка: available-балансы мерчанта по валютам на момент формирования, со
-      # штампом. Для контрагентов и бухгалтерии. `?lang=` — 41 язык (en по умолчанию). Ответ —
-      # `application/pdf`.
+      # A branded PDF certificate: the merchant's available balances per currency at the time of
+      # generation, with a stamp. For counterparties and accounting. `?lang=` — 41 languages (en by
+      # default). The response is `application/pdf`.
+      #
+      # Requires role: Viewer when called with a CLI key.
       #
       # Error codes: auth.bad_timestamp, auth.body_too_large, auth.ip_not_allowed,
-      # document.balance_unavailable, document.disabled, document.encode_failed,
-      # document.render_failed, document.render_rejected, document.render_unavailable,
-      # document.unknown_lang, internal, merchant.bad_signature, merchant.key_mode_mismatch,
-      # merchant.not_found, merchant.rate_limited, merchant.secret_decrypt, merchant.suspended,
-      # merchant.unknown_key, report.too_large, request.body_read, request.control_char,
-      # request.duplicate_field, request.nul_byte, request.overloaded, request.rate_limited,
-      # request.too_deep
+      # cli.permission_denied, document.balance_unavailable, document.disabled,
+      # document.encode_failed, document.render_failed, document.render_rejected,
+      # document.render_unavailable, document.unknown_lang, internal, merchant.bad_signature,
+      # merchant.key_expired, merchant.key_mode_mismatch, merchant.not_found, merchant.rate_limited,
+      # merchant.secret_decrypt, merchant.suspended, merchant.unknown_key, report.too_large,
+      # request.body_read, request.control_char, request.duplicate_field, request.nul_byte,
+      # request.overloaded, request.rate_limited, request.too_deep
       #
-      # @param lang [String, nil] Язык документа (по умолчанию en); список — document.Languages.
+      # @param lang [String, nil] Document language (en by default); the list is document.Languages.
       # @return [Oblodai::FileResult]
       def get_balance(
         lang: nil,
@@ -4954,30 +5232,32 @@ module Oblodai
         )
       end
 
-      # Отчёт о комиссиях за период (PDF)
+      # Fee report for a period (PDF)
       #
-      # Сколько удержано за период: комиссия сервиса с каждого зачтённого платежа и сетевые комиссии
-      # выплат/возвратов, с итогами по валютам. `?from=YYYY-MM-DD&to=YYYY-MM-DD` (включительно,
-      # максимум год; по умолчанию — текущий месяц), `?lang=` — 41 язык (en по умолчанию). Ответ —
-      # `application/pdf`.
+      # How much was withheld over the period: the service fee on each credited payment and the
+      # network fees of payouts/refunds, with totals per currency. `?from=YYYY-MM-DD&to=YYYY-MM-DD`
+      # (inclusive, at most one year; defaults to the current month), `?lang=` — 41 languages (en by
+      # default). The response is `application/pdf`.
+      #
+      # Requires role: Viewer when called with a CLI key.
       #
       # Error codes: auth.bad_timestamp, auth.body_too_large, auth.ip_not_allowed,
-      # document.disabled, document.encode_failed, document.fees_unavailable,
+      # cli.permission_denied, document.disabled, document.encode_failed, document.fees_unavailable,
       # document.render_failed, document.render_rejected, document.render_unavailable,
       # document.unknown_lang, internal, invoice.corrupt_pay_asset, merchant.bad_signature,
-      # merchant.key_mode_mismatch, merchant.not_found, merchant.rate_limited,
+      # merchant.key_expired, merchant.key_mode_mismatch, merchant.not_found, merchant.rate_limited,
       # merchant.secret_decrypt, merchant.suspended, merchant.unknown_key, payment.not_found,
       # payout.not_found, report.too_large, request.body_read, request.control_char,
       # request.duplicate_field, request.nul_byte, request.overloaded, request.rate_limited,
       # request.too_deep, statement.bad_from, statement.bad_range, statement.bad_to,
       # statement.range_too_long
       #
-      # @param from [String, nil] Начало периода, YYYY-MM-DD (по умолчанию — первое число текущего
-      #   месяца).
-      # @param to [String, nil] Конец периода включительно, YYYY-MM-DD (по умолчанию — сегодня);
-      #   период — до года.
-      # @param lang [String, nil] Язык документа (по умолчанию en); список — document.Languages.
-      # @param format_ [String, nil] Формат файла: pdf (по умолчанию) или csv.
+      # @param from [String, nil] Start of the period, YYYY-MM-DD (defaults to the first day of the
+      #   current month).
+      # @param to [String, nil] End of the period, inclusive, YYYY-MM-DD (defaults to today); the
+      #   period is up to one year.
+      # @param lang [String, nil] Document language (en by default); the list is document.Languages.
+      # @param format_ [String, nil] File format: pdf (default) or csv.
       # @return [Oblodai::FileResult]
       def get_fees(
         from: nil,
@@ -5013,31 +5293,34 @@ module Oblodai
         )
       end
 
-      # Выписка по счёту (PDF)
+      # Account statement (PDF)
       #
-      # ВСЕ движения available-баланса за период — включая комиссии, доли сплитов и внутренние
-      # переводы, которых нет в отчёте по операциям. Приход/расход помечены, итоги по валютам. Нужен
-      # АКТ СВЕРКИ (с сальдо на начало и конец периода)? Закажите тот же отчёт фоном — `POST
-      # /v1/documents/jobs` с `kind=ledger`: сальдо требует агрегата по всей истории и потому
-      # считается только в фоновой задаче, не в синхронной ручке. `?from&to` как у отчёта, `?lang=`
-      # — 41 язык (en по умолчанию). Ответ — `application/pdf`.
+      # ALL movements of the available balance over the period — including fees, split shares and
+      # internal transfers that are not in the operations report. Credits/debits are marked, with
+      # totals per currency. Need a RECONCILIATION STATEMENT (with opening and closing balances for
+      # the period)? Order the same report in the background — `POST /v1/documents/jobs` with
+      # `kind=ledger`: the balances require an aggregate over the whole history and are therefore
+      # computed only in a background job, not in a synchronous endpoint. `?from&to` as in the
+      # report, `?lang=` — 41 languages (en by default). The response is `application/pdf`.
+      #
+      # Requires role: Viewer when called with a CLI key.
       #
       # Error codes: auth.bad_timestamp, auth.body_too_large, auth.ip_not_allowed,
-      # document.disabled, document.encode_failed, document.ledger_unavailable,
-      # document.render_failed, document.render_rejected, document.render_unavailable,
-      # document.unknown_lang, internal, merchant.bad_signature, merchant.key_mode_mismatch,
-      # merchant.not_found, merchant.rate_limited, merchant.secret_decrypt, merchant.suspended,
-      # merchant.unknown_key, report.too_large, request.body_read, request.control_char,
-      # request.duplicate_field, request.nul_byte, request.overloaded, request.rate_limited,
-      # request.too_deep, statement.bad_from, statement.bad_range, statement.bad_to,
-      # statement.range_too_long
+      # cli.permission_denied, document.disabled, document.encode_failed,
+      # document.ledger_unavailable, document.render_failed, document.render_rejected,
+      # document.render_unavailable, document.unknown_lang, internal, merchant.bad_signature,
+      # merchant.key_expired, merchant.key_mode_mismatch, merchant.not_found, merchant.rate_limited,
+      # merchant.secret_decrypt, merchant.suspended, merchant.unknown_key, report.too_large,
+      # request.body_read, request.control_char, request.duplicate_field, request.nul_byte,
+      # request.overloaded, request.rate_limited, request.too_deep, statement.bad_from,
+      # statement.bad_range, statement.bad_to, statement.range_too_long
       #
-      # @param from [String, nil] Начало периода, YYYY-MM-DD (по умолчанию — первое число текущего
-      #   месяца).
-      # @param to [String, nil] Конец периода включительно, YYYY-MM-DD (по умолчанию — сегодня);
-      #   период — до года.
-      # @param lang [String, nil] Язык документа (по умолчанию en); список — document.Languages.
-      # @param format_ [String, nil] Формат файла: pdf (по умолчанию) или csv.
+      # @param from [String, nil] Start of the period, YYYY-MM-DD (defaults to the first day of the
+      #   current month).
+      # @param to [String, nil] End of the period, inclusive, YYYY-MM-DD (defaults to today); the
+      #   period is up to one year.
+      # @param lang [String, nil] Document language (en by default); the list is document.Languages.
+      # @param format_ [String, nil] File format: pdf (default) or csv.
       # @return [Oblodai::FileResult]
       def get_ledger(
         from: nil,
@@ -5073,24 +5356,27 @@ module Oblodai
         )
       end
 
-      # Справка о сплит-расчёте платежа (PDF)
+      # Payment split settlement certificate (PDF)
       #
-      # Как распределился конкретный платёж между получателями: доли, суммы, статусы. `?uuid=<UUID
-      # платежа>`, `?lang=` — 41 язык (en по умолчанию). На самом документе напечатана подписанная
-      # публичная ссылка — её можно переслать партнёру. 404 `document.no_split`, если платёж ничего
-      # не разводил.
+      # How a specific payment was distributed between recipients: shares, amounts, statuses.
+      # `?uuid=<payment UUID>`, `?lang=` — 41 languages (en by default). A signed public link is
+      # printed on the document itself — it can be forwarded to a partner. 404 `document.no_split`
+      # if the payment was not split.
       #
-      # Error codes: auth.bad_timestamp, auth.body_too_large, auth.ip_not_allowed, document.bad_id,
-      # document.disabled, document.encode_failed, document.no_split, document.render_failed,
-      # document.render_rejected, document.render_unavailable, document.unknown_lang, internal,
-      # invoice.corrupt_pay_asset, merchant.bad_signature, merchant.key_mode_mismatch,
+      # Requires role: Viewer when called with a CLI key.
+      #
+      # Error codes: auth.bad_timestamp, auth.body_too_large, auth.ip_not_allowed,
+      # cli.permission_denied, document.bad_id, document.disabled, document.encode_failed,
+      # document.no_split, document.render_failed, document.render_rejected,
+      # document.render_unavailable, document.unknown_lang, internal, invoice.corrupt_pay_asset,
+      # merchant.bad_signature, merchant.key_expired, merchant.key_mode_mismatch,
       # merchant.not_found, merchant.rate_limited, merchant.secret_decrypt, merchant.suspended,
       # merchant.unknown_key, payment.not_found, payout.not_found, report.too_large,
       # request.body_read, request.control_char, request.duplicate_field, request.nul_byte,
       # request.overloaded, request.rate_limited, request.too_deep
       #
-      # @param uuid [String, nil] UUID платежа.
-      # @param lang [String, nil] Язык документа (по умолчанию en); список — document.Languages.
+      # @param uuid [String, nil] The payment UUID.
+      # @param lang [String, nil] Document language (en by default); the list is document.Languages.
       # @return [Oblodai::FileResult]
       def get_split(
         uuid: nil,
@@ -5122,28 +5408,32 @@ module Oblodai
         )
       end
 
-      # Крипточек (PDF, на предъявителя)
+      # Crypto cheque (PDF, bearer)
       #
-      # Печатный чек выплатной ссылки: сумма, срок и QR получения. Передайте `claim_token` из ответа
-      # создания ссылки — он хранится только хешем и повторно НЕ выдаётся, поэтому чек можно
-      # напечатать только пока токен у вас. ⚠ Документ — деньги: любой, у кого он есть, может
-      # получить средства. Ответ — `application/pdf`.
+      # A printable cheque for a payout link: the amount, the expiry and the claim QR code. Pass the
+      # `claim_token` from the link creation response — it is stored only as a hash and is NOT
+      # issued again, so the cheque can only be printed while you still have the token. ⚠ The
+      # document is money: anyone who has it can claim the funds. The response is `application/pdf`.
+      #
+      # Requires role: Finance when called with a CLI key.
       #
       # Error codes: auth.bad_timestamp, auth.body_too_large, auth.ip_not_allowed,
-      # cheque.token_required, document.disabled, document.encode_failed, document.render_failed,
-      # document.render_rejected, document.render_unavailable, document.unknown_lang, internal,
-      # merchant.bad_signature, merchant.key_mode_mismatch, merchant.not_found,
-      # merchant.rate_limited, merchant.secret_decrypt, merchant.suspended, merchant.unknown_key,
-      # payoutlink.disabled, payoutlink.not_found, report.too_large, request.bad_json,
-      # request.body_read, request.control_char, request.duplicate_field, request.nul_byte,
-      # request.overloaded, request.rate_limited, request.too_deep
+      # cheque.token_required, cli.permission_denied, document.disabled, document.encode_failed,
+      # document.render_failed, document.render_rejected, document.render_unavailable,
+      # document.unknown_lang, internal, merchant.bad_signature, merchant.key_expired,
+      # merchant.key_mode_mismatch, merchant.not_found, merchant.rate_limited,
+      # merchant.secret_decrypt, merchant.suspended, merchant.unknown_key, payoutlink.disabled,
+      # payoutlink.not_found, report.too_large, request.bad_json, request.body_read,
+      # request.control_char, request.duplicate_field, request.nul_byte, request.overloaded,
+      # request.rate_limited, request.too_deep
       #
       # @param params [Oblodai::Models::PayoutLinkChequeRequest, Hash, nil] the request body as a
       #   model or a Hash; the keywords add to it
-      # @param claim_token [String, nil] Секрет получения из ответа создания выплатной ссылки.
-      #   Хранится только хешем и повторно не выдаётся — чек можно напечатать, лишь пока токен у вас.
-      # @param lang [String, nil] Язык документа — один из 41 поддерживаемого кода (en по
-      #   умолчанию); полный список — в ошибке document.unknown_lang.
+      # @param claim_token [String, nil] The claim secret from the payout link creation response.
+      #   Stored only as a hash and not issued again — the cheque can be printed only while you still
+      #   have the token.
+      # @param lang [String, nil] Document language — one of the 41 supported codes (en by default);
+      #   the full list is in the document.unknown_lang error.
       # @return [Oblodai::FileResult]
       def get_payout_link_cheque(
         params = nil,
@@ -5175,28 +5465,32 @@ module Oblodai
         )
       end
 
-      # Отчёт по операциям за период (PDF)
+      # Operations report for a period (PDF)
       #
-      # Фирменный PDF-отчёт: платежи, выплаты и возвраты мерчанта за период, с итогами по валютам.
-      # `?from=YYYY-MM-DD&to=YYYY-MM-DD` (включительно, максимум год; по умолчанию — текущий месяц),
-      # `?lang=` — 41 язык (en по умолчанию). Ответ — `application/pdf`.
+      # A branded PDF report: the merchant's payments, payouts and refunds for the period, with
+      # totals per currency. `?from=YYYY-MM-DD&to=YYYY-MM-DD` (inclusive, at most one year; defaults
+      # to the current month), `?lang=` — 41 languages (en by default). The response is
+      # `application/pdf`.
+      #
+      # Requires role: Viewer when called with a CLI key.
       #
       # Error codes: auth.bad_timestamp, auth.body_too_large, auth.ip_not_allowed,
-      # document.disabled, document.encode_failed, document.render_failed, document.render_rejected,
-      # document.render_unavailable, document.unknown_lang, internal, invoice.corrupt_pay_asset,
-      # merchant.bad_signature, merchant.key_mode_mismatch, merchant.not_found,
-      # merchant.rate_limited, merchant.secret_decrypt, merchant.suspended, merchant.unknown_key,
-      # payment.not_found, payout.not_found, report.too_large, request.body_read,
-      # request.control_char, request.duplicate_field, request.nul_byte, request.overloaded,
-      # request.rate_limited, request.too_deep, statement.bad_from, statement.bad_range,
-      # statement.bad_to, statement.range_too_long, statement.unavailable
+      # cli.permission_denied, document.disabled, document.encode_failed, document.render_failed,
+      # document.render_rejected, document.render_unavailable, document.unknown_lang, internal,
+      # invoice.corrupt_pay_asset, merchant.bad_signature, merchant.key_expired,
+      # merchant.key_mode_mismatch, merchant.not_found, merchant.rate_limited,
+      # merchant.secret_decrypt, merchant.suspended, merchant.unknown_key, payment.not_found,
+      # payout.not_found, report.too_large, request.body_read, request.control_char,
+      # request.duplicate_field, request.nul_byte, request.overloaded, request.rate_limited,
+      # request.too_deep, statement.bad_from, statement.bad_range, statement.bad_to,
+      # statement.range_too_long, statement.unavailable
       #
-      # @param from [String, nil] Начало периода, YYYY-MM-DD (по умолчанию — первое число текущего
-      #   месяца).
-      # @param to [String, nil] Конец периода включительно, YYYY-MM-DD (по умолчанию — сегодня);
-      #   период — до года.
-      # @param lang [String, nil] Язык документа (по умолчанию en); список — document.Languages.
-      # @param format_ [String, nil] Формат файла: pdf (по умолчанию) или csv.
+      # @param from [String, nil] Start of the period, YYYY-MM-DD (defaults to the first day of the
+      #   current month).
+      # @param to [String, nil] End of the period, inclusive, YYYY-MM-DD (defaults to today); the
+      #   period is up to one year.
+      # @param lang [String, nil] Document language (en by default); the list is document.Languages.
+      # @param format_ [String, nil] File format: pdf (default) or csv.
       # @return [Oblodai::FileResult]
       def get_statement(
         from: nil,
@@ -5232,24 +5526,27 @@ module Oblodai
         )
       end
 
-      # Ведомость массовой операции (PDF)
+      # Batch operation register (PDF)
       #
-      # Итоги батча (`/v1/*/batch`) одним документом: сколько строк, сколько прошло и упало, каждая
-      # строка с получателем, суммой, статусом и машинным кодом причины отказа — тем же, что вернул
-      # бы одиночный вызов. `?uuid=<UUID батча>`, `?lang=` — 41 язык. Ответ — `application/pdf`.
+      # The results of a batch (`/v1/*/batch`) in one document: how many rows, how many succeeded
+      # and failed, each row with the recipient, amount, status and the machine code of the
+      # rejection reason — the same one a single call would return. `?uuid=<batch UUID>`, `?lang=` —
+      # 41 languages. The response is `application/pdf`.
+      #
+      # Requires role: Viewer when called with a CLI key.
       #
       # Error codes: auth.bad_timestamp, auth.body_too_large, auth.ip_not_allowed, batch.disabled,
-      # batch.not_found, document.bad_id, document.batch_unavailable, document.disabled,
-      # document.encode_failed, document.render_failed, document.render_rejected,
+      # batch.not_found, cli.permission_denied, document.bad_id, document.batch_unavailable,
+      # document.disabled, document.encode_failed, document.render_failed, document.render_rejected,
       # document.render_unavailable, document.unknown_lang, internal, merchant.bad_signature,
-      # merchant.key_mode_mismatch, merchant.not_found, merchant.rate_limited,
+      # merchant.key_expired, merchant.key_mode_mismatch, merchant.not_found, merchant.rate_limited,
       # merchant.secret_decrypt, merchant.suspended, merchant.unknown_key, report.too_large,
       # request.body_read, request.control_char, request.duplicate_field, request.nul_byte,
       # request.overloaded, request.rate_limited, request.too_deep
       #
-      # @param uuid [String, nil] UUID батча.
-      # @param lang [String, nil] Язык документа (по умолчанию en); список — document.Languages.
-      # @param format_ [String, nil] Формат файла: pdf (по умолчанию) или csv.
+      # @param uuid [String, nil] The batch UUID.
+      # @param lang [String, nil] Document language (en by default); the list is document.Languages.
+      # @param format_ [String, nil] File format: pdf (default) or csv.
       # @return [Oblodai::FileResult]
       def get_batch(
         uuid: nil,
@@ -5283,16 +5580,19 @@ module Oblodai
         )
       end
 
-      # Отчёт о сборах платёжной ссылки (PDF)
+      # Payment link collections report (PDF)
       #
-      # Сколько собрала конкретная платёжная ссылка: каждый порождённый платёж строкой, итог по
-      # валютам (только зачтённые). Для донатов и сборов. `?uuid=<UUID ссылки>`, `?from&to`
-      # (включительно, максимум год; по умолчанию — текущий месяц), `?lang=`. Ответ —
+      # How much a specific payment link has collected: each resulting payment as a row, totals per
+      # currency (credited only). For donations and fundraising. `?uuid=<link UUID>`, `?from&to`
+      # (inclusive, at most one year; defaults to the current month), `?lang=`. The response is
       # `application/pdf`.
       #
-      # Error codes: auth.bad_timestamp, auth.body_too_large, auth.ip_not_allowed, document.bad_id,
-      # document.disabled, document.encode_failed, document.render_failed, document.render_rejected,
-      # document.render_unavailable, document.unknown_lang, internal, merchant.bad_signature,
+      # Requires role: Viewer when called with a CLI key.
+      #
+      # Error codes: auth.bad_timestamp, auth.body_too_large, auth.ip_not_allowed,
+      # cli.permission_denied, document.bad_id, document.disabled, document.encode_failed,
+      # document.render_failed, document.render_rejected, document.render_unavailable,
+      # document.unknown_lang, internal, merchant.bad_signature, merchant.key_expired,
       # merchant.key_mode_mismatch, merchant.not_found, merchant.rate_limited,
       # merchant.secret_decrypt, merchant.suspended, merchant.unknown_key, paylink.disabled,
       # paylink.not_found, report.too_large, request.body_read, request.control_char,
@@ -5300,13 +5600,13 @@ module Oblodai
       # request.too_deep, statement.bad_from, statement.bad_range, statement.bad_to,
       # statement.range_too_long
       #
-      # @param uuid [String, nil] UUID платёжной ссылки.
-      # @param from [String, nil] Начало периода, YYYY-MM-DD (по умолчанию — первое число текущего
-      #   месяца).
-      # @param to [String, nil] Конец периода включительно, YYYY-MM-DD (по умолчанию — сегодня);
-      #   период — до года.
-      # @param lang [String, nil] Язык документа (по умолчанию en); список — document.Languages.
-      # @param format_ [String, nil] Формат файла: pdf (по умолчанию) или csv.
+      # @param uuid [String, nil] The payment link UUID.
+      # @param from [String, nil] Start of the period, YYYY-MM-DD (defaults to the first day of the
+      #   current month).
+      # @param to [String, nil] End of the period, inclusive, YYYY-MM-DD (defaults to today); the
+      #   period is up to one year.
+      # @param lang [String, nil] Document language (en by default); the list is document.Languages.
+      # @param format_ [String, nil] File format: pdf (default) or csv.
       # @return [Oblodai::FileResult]
       def get_payment_link(
         uuid: nil,
@@ -5344,29 +5644,32 @@ module Oblodai
         )
       end
 
-      # Выписка по статическому кошельку (PDF)
+      # Static wallet statement (PDF)
       #
-      # Движения, порождённые конкретным статик-кошельком (депозиты клиента на постоянный адрес), с
-      # реквизитами кошелька в шапке и итогами по валютам. `?uuid=<UUID кошелька>`, `?from&to`,
-      # `?lang=`. Ответ — `application/pdf`.
+      # Movements produced by a specific static wallet (customer deposits to a permanent address),
+      # with the wallet details in the header and totals per currency. `?uuid=<wallet UUID>`,
+      # `?from&to`, `?lang=`. The response is `application/pdf`.
       #
-      # Error codes: auth.bad_timestamp, auth.body_too_large, auth.ip_not_allowed, document.bad_id,
-      # document.disabled, document.encode_failed, document.ledger_unavailable,
-      # document.render_failed, document.render_rejected, document.render_unavailable,
-      # document.unknown_lang, internal, merchant.bad_signature, merchant.key_mode_mismatch,
-      # merchant.not_found, merchant.rate_limited, merchant.secret_decrypt, merchant.suspended,
-      # merchant.unknown_key, report.too_large, request.body_read, request.control_char,
-      # request.duplicate_field, request.nul_byte, request.overloaded, request.rate_limited,
-      # request.too_deep, statement.bad_from, statement.bad_range, statement.bad_to,
-      # statement.range_too_long, wallet.static_disabled, wallet.static_not_found
+      # Requires role: Viewer when called with a CLI key.
       #
-      # @param uuid [String, nil] UUID статического кошелька.
-      # @param from [String, nil] Начало периода, YYYY-MM-DD (по умолчанию — первое число текущего
-      #   месяца).
-      # @param to [String, nil] Конец периода включительно, YYYY-MM-DD (по умолчанию — сегодня);
-      #   период — до года.
-      # @param lang [String, nil] Язык документа (по умолчанию en); список — document.Languages.
-      # @param format_ [String, nil] Формат файла: pdf (по умолчанию) или csv.
+      # Error codes: auth.bad_timestamp, auth.body_too_large, auth.ip_not_allowed,
+      # cli.permission_denied, document.bad_id, document.disabled, document.encode_failed,
+      # document.ledger_unavailable, document.render_failed, document.render_rejected,
+      # document.render_unavailable, document.unknown_lang, internal, merchant.bad_signature,
+      # merchant.key_expired, merchant.key_mode_mismatch, merchant.not_found, merchant.rate_limited,
+      # merchant.secret_decrypt, merchant.suspended, merchant.unknown_key, report.too_large,
+      # request.body_read, request.control_char, request.duplicate_field, request.nul_byte,
+      # request.overloaded, request.rate_limited, request.too_deep, statement.bad_from,
+      # statement.bad_range, statement.bad_to, statement.range_too_long, wallet.static_disabled,
+      # wallet.static_not_found
+      #
+      # @param uuid [String, nil] The static wallet UUID.
+      # @param from [String, nil] Start of the period, YYYY-MM-DD (defaults to the first day of the
+      #   current month).
+      # @param to [String, nil] End of the period, inclusive, YYYY-MM-DD (defaults to today); the
+      #   period is up to one year.
+      # @param lang [String, nil] Document language (en by default); the list is document.Languages.
+      # @param format_ [String, nil] File format: pdf (default) or csv.
       # @return [Oblodai::FileResult]
       def get_wallet_statement(
         uuid: nil,
@@ -5404,26 +5707,29 @@ module Oblodai
         )
       end
 
-      # Отчёт о реферальных начислениях (PDF)
+      # Referral earnings report (PDF)
       #
-      # Начисления реферальной программы за период: каждая награда строкой (когда, за кого,
-      # сколько), итог по валютам. `?from&to`, `?lang=`. Ответ — `application/pdf`.
+      # Referral program earnings for the period: each reward as a row (when, for whom, how much),
+      # totals per currency. `?from&to`, `?lang=`. The response is `application/pdf`.
+      #
+      # Requires role: Viewer when called with a CLI key.
       #
       # Error codes: auth.bad_timestamp, auth.body_too_large, auth.ip_not_allowed,
-      # document.disabled, document.encode_failed, document.render_failed, document.render_rejected,
-      # document.render_unavailable, document.unknown_lang, internal, merchant.bad_signature,
-      # merchant.key_mode_mismatch, merchant.not_found, merchant.rate_limited,
-      # merchant.secret_decrypt, merchant.suspended, merchant.unknown_key, referral.disabled,
-      # report.too_large, request.body_read, request.control_char, request.duplicate_field,
-      # request.nul_byte, request.overloaded, request.rate_limited, request.too_deep,
-      # statement.bad_from, statement.bad_range, statement.bad_to, statement.range_too_long
+      # cli.permission_denied, document.disabled, document.encode_failed, document.render_failed,
+      # document.render_rejected, document.render_unavailable, document.unknown_lang, internal,
+      # merchant.bad_signature, merchant.key_expired, merchant.key_mode_mismatch,
+      # merchant.not_found, merchant.rate_limited, merchant.secret_decrypt, merchant.suspended,
+      # merchant.unknown_key, referral.disabled, report.too_large, request.body_read,
+      # request.control_char, request.duplicate_field, request.nul_byte, request.overloaded,
+      # request.rate_limited, request.too_deep, statement.bad_from, statement.bad_range,
+      # statement.bad_to, statement.range_too_long
       #
-      # @param from [String, nil] Начало периода, YYYY-MM-DD (по умолчанию — первое число текущего
-      #   месяца).
-      # @param to [String, nil] Конец периода включительно, YYYY-MM-DD (по умолчанию — сегодня);
-      #   период — до года.
-      # @param lang [String, nil] Язык документа (по умолчанию en); список — document.Languages.
-      # @param format_ [String, nil] Формат файла: pdf (по умолчанию) или csv.
+      # @param from [String, nil] Start of the period, YYYY-MM-DD (defaults to the first day of the
+      #   current month).
+      # @param to [String, nil] End of the period, inclusive, YYYY-MM-DD (defaults to today); the
+      #   period is up to one year.
+      # @param lang [String, nil] Document language (en by default); the list is document.Languages.
+      # @param format_ [String, nil] File format: pdf (default) or csv.
       # @return [Oblodai::FileResult]
       def get_referrals(
         from: nil,
@@ -5459,37 +5765,40 @@ module Oblodai
         )
       end
 
-      # Заказать тяжёлый отчёт (фоновая генерация)
+      # Order a heavy report (background generation)
       #
-      # Синхронные отчётные ручки ограничены по объёму; отчёт за большой период закажите фоном:
-      # `kind` — `statement`/`fees`/`ledger`, период — до двух лет. Задача попадает в очередь и
-      # собирается в течение суток (обычно — минуты); статус — `POST /v1/documents/jobs/info`,
-      # готовый файл — `GET /v1/documents/jobs/file`. Повторный заказ с теми же параметрами при
-      # живой задаче возвращает её же. `format` — `pdf` (по умолчанию) или `csv`: CSV собирается БЕЗ
-      # вёрстки (для тяжёлой квартальной выписки — ноль нагрузки на рендер, грузится в Excel/1С).
-      # Квоты: не больше 3 задач в работе и 20 за сутки. Готовый отчёт хранится 7 суток, затем
-      # удаляется — скачайте и храните файл у себя.
+      # Synchronous report endpoints are limited in volume; order a report for a long period in the
+      # background: `kind` — `statement`/`fees`/`ledger`, period — up to two years. The job is
+      # queued and built within a day (usually minutes); status — `POST /v1/documents/jobs/info`,
+      # the finished file — `GET /v1/documents/jobs/file`. Ordering again with the same parameters
+      # while a job is alive returns that job. `format` — `pdf` (default) or `csv`: CSV is built
+      # WITHOUT layout (for a heavy quarterly statement — zero rendering load, imports into
+      # Excel/1C). Quotas: at most 3 jobs in progress and 20 per day. A finished report is kept for
+      # 7 days and then deleted — download it and keep the file yourself.
+      #
+      # Requires role: Viewer when called with a CLI key.
       #
       # Error codes: auth.bad_timestamp, auth.body_too_large, auth.ip_not_allowed,
-      # document.bad_format, document.bad_kind, document.daily_quota, document.jobs_disabled,
-      # document.too_many_jobs, document.unknown_lang, internal, merchant.bad_signature,
-      # merchant.key_mode_mismatch, merchant.rate_limited, merchant.secret_decrypt,
-      # merchant.suspended, merchant.unknown_key, report.crashed, report.expired, report.too_large,
-      # request.bad_json, request.body_read, request.control_char, request.duplicate_field,
-      # request.nul_byte, request.overloaded, request.rate_limited, request.too_deep,
-      # statement.bad_from, statement.bad_range, statement.bad_to, statement.range_too_long
+      # cli.permission_denied, document.bad_format, document.bad_kind, document.daily_quota,
+      # document.jobs_disabled, document.too_many_jobs, document.unknown_lang, internal,
+      # merchant.bad_signature, merchant.key_expired, merchant.key_mode_mismatch,
+      # merchant.rate_limited, merchant.secret_decrypt, merchant.suspended, merchant.unknown_key,
+      # report.crashed, report.expired, report.too_large, request.bad_json, request.body_read,
+      # request.control_char, request.duplicate_field, request.nul_byte, request.overloaded,
+      # request.rate_limited, request.too_deep, statement.bad_from, statement.bad_range,
+      # statement.bad_to, statement.range_too_long
       #
       # @param params [Oblodai::Models::DocumentJobRequest, Hash, nil] the request body as a model
       #   or a Hash; the keywords add to it
-      # @param format_ [String, nil] Формат файла: pdf (по умолчанию) или csv. CSV собирается без
-      #   вёрстки — для тяжёлых выписок дешевле и грузится в Excel/1С.
-      # @param from [String, nil] Начало периода, YYYY-MM-DD (по умолчанию — первое число текущего
-      #   месяца).
-      # @param kind [String, nil] Вид отчёта: statement (операции), fees (комиссии) или ledger
-      #   (движения баланса). Values: {Oblodai::Enums::DocumentJobKind}.
-      # @param lang [String, nil] Язык документа (по умолчанию en).
-      # @param to [String, nil] Конец периода включительно, YYYY-MM-DD (по умолчанию — сегодня).
-      #   Период — до двух лет.
+      # @param format_ [String, nil] File format: pdf (default) or csv. CSV is built without layout
+      #   — cheaper for heavy statements and imports into Excel/1C.
+      # @param from [String, nil] Start of the period, YYYY-MM-DD (defaults to the first day of the
+      #   current month).
+      # @param kind [String, nil] Report kind: statement (operations), fees (fees) or ledger
+      #   (balance movements). Values: {Oblodai::Enums::DocumentJobKind}.
+      # @param lang [String, nil] Document language (en by default).
+      # @param to [String, nil] End of the period, inclusive, YYYY-MM-DD (defaults to today). The
+      #   period is up to two years.
       # @return [Oblodai::Models::DocumentJobAccepted]
       def create_job(
         params = nil,
@@ -5527,24 +5836,26 @@ module Oblodai
         )
       end
 
-      # Статус фонового отчёта
+      # Background report status
       #
-      # Статусы: `queued` → `processing` → `done` (в `file` — ссылка скачивания, размер, число строк
-      # и срок хранения) или `failed` (в `error` — машинный `code` и человекочитаемый `message`;
-      # например `report.too_large` — период надо разбить). `expired` — срок хранения вышел,
-      # закажите отчёт заново.
+      # Statuses: `queued` → `processing` → `done` (`file` contains the download link, size, row
+      # count and retention period) or `failed` (`error` contains a machine `code` and a
+      # human-readable `message`; e.g. `report.too_large` — the period must be split). `expired` —
+      # the retention period is over, order the report again.
+      #
+      # Requires role: Viewer when called with a CLI key.
       #
       # Error codes: auth.bad_timestamp, auth.body_too_large, auth.ip_not_allowed,
-      # document.bad_job_id, document.job_not_found, document.jobs_disabled, internal,
-      # merchant.bad_signature, merchant.key_mode_mismatch, merchant.rate_limited,
-      # merchant.secret_decrypt, merchant.suspended, merchant.unknown_key, report.crashed,
-      # report.expired, report.too_large, request.bad_json, request.body_read, request.control_char,
-      # request.duplicate_field, request.nul_byte, request.overloaded, request.rate_limited,
-      # request.too_deep
+      # cli.permission_denied, document.bad_job_id, document.job_not_found, document.jobs_disabled,
+      # internal, merchant.bad_signature, merchant.key_expired, merchant.key_mode_mismatch,
+      # merchant.rate_limited, merchant.secret_decrypt, merchant.suspended, merchant.unknown_key,
+      # report.crashed, report.expired, report.too_large, request.bad_json, request.body_read,
+      # request.control_char, request.duplicate_field, request.nul_byte, request.overloaded,
+      # request.rate_limited, request.too_deep
       #
       # @param params [Oblodai::Models::DocumentJobInfoRequest, Hash, nil] the request body as a
       #   model or a Hash; the keywords add to it
-      # @param job_id [String, nil] Идентификатор задачи из ответа создания.
+      # @param job_id [String, nil] The job id from the creation response.
       # @return [Oblodai::Models::DocumentJobView]
       def get_job(
         params = nil,
@@ -5574,22 +5885,24 @@ module Oblodai
         )
       end
 
-      # Скачать готовый фоновый отчёт (PDF)
+      # Download a finished background report (PDF)
       #
-      # `?job_id=<UUID задачи>`. Отдаёт `application/pdf` под тем же ключом мерчанта — публичных
-      # ссылок на файл не существует. 409 `document.job_not_ready`, пока задача в работе; 404
-      # `document.job_expired`, когда срок хранения вышел.
+      # `?job_id=<job UUID>`. Returns `application/pdf` under the same merchant key — public links
+      # to the file do not exist. 409 `document.job_not_ready` while the job is in progress; 404
+      # `document.job_expired` once the retention period is over.
+      #
+      # Requires role: Viewer when called with a CLI key.
       #
       # Error codes: auth.bad_timestamp, auth.body_too_large, auth.ip_not_allowed,
-      # document.bad_job_id, document.job_expired, document.job_failed, document.job_not_found,
-      # document.job_not_ready, document.jobs_disabled, internal, merchant.bad_signature,
-      # merchant.key_mode_mismatch, merchant.rate_limited, merchant.secret_decrypt,
-      # merchant.suspended, merchant.unknown_key, report.crashed, report.too_large,
-      # request.body_read, request.control_char, request.duplicate_field, request.nul_byte,
-      # request.overloaded, request.rate_limited, request.too_deep, s3.bad_endpoint, s3.not_found,
-      # s3.request, s3.unavailable
+      # cli.permission_denied, document.bad_job_id, document.job_expired, document.job_failed,
+      # document.job_not_found, document.job_not_ready, document.jobs_disabled, internal,
+      # merchant.bad_signature, merchant.key_expired, merchant.key_mode_mismatch,
+      # merchant.rate_limited, merchant.secret_decrypt, merchant.suspended, merchant.unknown_key,
+      # report.crashed, report.too_large, request.body_read, request.control_char,
+      # request.duplicate_field, request.nul_byte, request.overloaded, request.rate_limited,
+      # request.too_deep, s3.bad_endpoint, s3.not_found, s3.request, s3.unavailable
       #
-      # @param job_id [String, nil] Идентификатор задачи из ответа POST /v1/documents/jobs.
+      # @param job_id [String, nil] The job id from the POST /v1/documents/jobs response.
       # @return [Oblodai::FileResult]
       def download_job_file(
         job_id: nil,
@@ -5620,11 +5933,12 @@ module Oblodai
       end
     end
 
-    # Эндпоинты для страницы оплаты — работают без секрета.
+    # Endpoints for the payment page — they work without the secret.
     class Checkout < Generated::Resource
-      # Состояние анкеты (для плательщика)
+      # Questionnaire status (for the payer)
       #
-      # Публично, по токену из ссылки. Возвращает только статус — ни причины, ни классификации.
+      # Public, by the token from the link. Returns only the status — neither the reason nor the
+      # classification.
       #
       # Error codes: aml.sof_not_found, internal, request.overloaded, request.rate_limited
       #
@@ -5655,10 +5969,10 @@ module Oblodai
         )
       end
 
-      # Плательщик присылает происхождение средств
+      # The payer submits the source of funds
       #
-      # Публично, по токену из ссылки. Приём анкеты **не гарантирует** разблокировку средств: она
-      # даёт основание пересмотреть решение, и только.
+      # Public, by the token from the link. Accepting the questionnaire **does not guarantee** that
+      # the funds are unblocked: it provides grounds to reconsider the decision, nothing more.
       #
       # Error codes: aml.sof_closed, aml.sof_empty, aml.sof_not_found, aml.sof_too_large,
       # aml.sof_unavailable, internal, request.bad_json, request.body_read, request.control_char,
@@ -5668,10 +5982,9 @@ module Oblodai
       # @param token [String]
       # @param params [Oblodai::Models::SoFSubmitRequest, Hash, nil] the request body as a model or
       #   a Hash; the keywords add to it
-      # @param contact [String, nil] Как связаться для уточнений.
-      # @param evidence [String, nil] Чем подтверждается: ссылки на выписки, идентификаторы
-      #   транзакций.
-      # @param origin [String, nil] Откуда средства.
+      # @param contact [String, nil] How to get in touch for clarifications.
+      # @param evidence [String, nil] What supports it: links to statements, transaction ids.
+      # @param origin [String, nil] Where the funds come from.
       # @return [Oblodai::Models::SoFSubmitted]
       def submit_source_of_funds(
         token,
@@ -5709,9 +6022,9 @@ module Oblodai
         )
       end
 
-      # Конфиг платёжной ссылки (для страницы)
+      # Payment link configuration (for the page)
       #
-      # Публично: заголовок/описание/режим суммы/валюта — чтобы отрисовать страницу доната.
+      # Public: title/description/amount mode/currency — to render the donation page.
       #
       # Error codes: internal, paylink.bad_id, paylink.disabled, paylink.not_found,
       # request.overloaded, request.rate_limited
@@ -5743,11 +6056,11 @@ module Oblodai
         )
       end
 
-      # Оплатить по ссылке (создать платёж)
+      # Pay via a link (create a payment)
       #
-      # Публично: клиент вводит сумму (для open/range) и, если валюта не закреплена, выбирает
-      # валюту/сеть. Создаётся свежий инвойс — в ответе обычный объект платежа с `uuid` и `url`
-      # страницы оплаты.
+      # Public: the customer enters an amount (for open/range) and, if the currency is not pinned,
+      # picks the currency/network. A fresh invoice is created — the response is a regular payment
+      # object with `uuid` and the payment page `url`.
       #
       # Error codes: internal, merchant.not_found, paylink.above_max, paylink.amount_required,
       # paylink.bad_bounds, paylink.bad_id, paylink.bad_mode, paylink.below_min, paylink.disabled,
@@ -5759,17 +6072,17 @@ module Oblodai
       # @param id [String]
       # @param params [Oblodai::Models::LinkCheckoutRequest, Hash, nil] the request body as a model
       #   or a Hash; the keywords add to it
-      # @param amount [BigDecimal, String, nil] Сумма, которую ввёл покупатель, в валюте цены
-      #   ссылки; обязательна для open и range, для fixed игнорируется
-      # @param currency [String, nil] Валюта расчёта — монета, которой платит покупатель; нужна,
-      #   только если ссылка не закрепила pinned_currency
-      # @param network [String, nil] Сеть расчёта; нужна, только если ссылка не закрепила
+      # @param amount [BigDecimal, String, nil] The amount the buyer entered, in the link's price
+      #   currency; required for open and range, ignored for fixed
+      # @param currency [String, nil] The settlement currency — the coin the buyer pays with; needed
+      #   only if the link did not pin pinned_currency
+      # @param network [String, nil] The settlement network; needed only if the link did not pin
       #   pinned_network
-      # @param order_id [String, nil] Номер заказа магазина из встроенного виджета
-      #   (data-oblodai-order-id); переносится на счёт и в вебхук для сопоставления с заказом; не ключ
-      #   идемпотентности
-      # @param payer_email [String, nil] Email покупателя — на него автоматически уйдёт чек после
-      #   оплаты
+      # @param order_id [String, nil] The store's order number from the embedded widget
+      #   (data-oblodai-order-id); carried over to the invoice and the webhook for matching with the
+      #   order; not an idempotency key
+      # @param payer_email [String, nil] The buyer's email — a receipt is sent to it automatically
+      #   after payment
       # @return [Oblodai::Models::PublicPaymentView]
       def payment_link(
         id,
@@ -5811,23 +6124,23 @@ module Oblodai
         )
       end
 
-      # Список валют и сетей
+      # List currencies and networks
       #
-      # Публичный справочник. Возвращает два списка, и путать их не надо:
+      # A public reference. It returns two lists, and they must not be confused:
       #
-      # - `currencies` — в чём можно **получать**: монеты и их сети (плюс флаги доступности приёма и
-      # выплаты).
-      # - `pricing_currencies` — в чём можно **назначать цену** (`currency` при создании платежа):
-      # те же монеты **плюс 45 фиатных валют** (`{"symbol":"EUR","decimals":2,"fiat":true}`) — USD,
-      # EUR, GBP, RUB, UAH, PLN, CZK, TRY, CNY, INR, BRL, CAD, AUD, CHF, AED, ZAR, MXN, IDR, THB,
-      # VND, NGN, JPY, KRW, SGD, HKD, NZD, SEK, NOK, DKK, ILS, SAR, PHP, MYR, TWD, PKR, LKR, MMK,
-      # BDT, ARS, GEL, HUF, BMD, BHD, KWD, CLP. Число знаков после запятой у каждой в поле
-      # `decimals` (обычно 2; у JPY/KRW/VND/CLP — 0, у BHD/KWD — 3) — берите его из ответа, не
-      # хардкодьте. У фиата нет сетей и никогда не будет: в нём можно оценить счёт, но нельзя его
-      # получить.
+      # - `currencies` — what you can **receive**: coins and their networks (plus flags for whether
+      # accepting and payouts are available).
+      # - `pricing_currencies` — what you can **set a price in** (`currency` when creating a
+      # payment): the same coins **plus 45 fiat currencies**
+      # (`{"symbol":"EUR","decimals":2,"fiat":true}`) — USD, EUR, GBP, RUB, UAH, PLN, CZK, TRY, CNY,
+      # INR, BRL, CAD, AUD, CHF, AED, ZAR, MXN, IDR, THB, VND, NGN, JPY, KRW, SGD, HKD, NZD, SEK,
+      # NOK, DKK, ILS, SAR, PHP, MYR, TWD, PKR, LKR, MMK, BDT, ARS, GEL, HUF, BMD, BHD, KWD, CLP.
+      # The number of decimal places of each is in the `decimals` field (usually 2; JPY/KRW/VND/CLP
+      # — 0, BHD/KWD — 3) — take it from the response, do not hardcode it. Fiat has no networks and
+      # never will: you can price an invoice in it, but you cannot receive it.
       #
-      # Тенге, сом и сум пока не поддерживаются — источник курсов не котирует в них крипту напрямую,
-      # а выводить курс перемножением двух других мы не будем.
+      # The tenge, som and sum are not supported yet — the rate source does not quote crypto in them
+      # directly, and we will not derive a rate by multiplying two others.
       #
       # Error codes: internal, request.overloaded, request.rate_limited
       #
@@ -5853,10 +6166,10 @@ module Oblodai
         )
       end
 
-      # Публичный статус платежа (страница оплаты)
+      # Public payment status (payment page)
       #
-      # Без секрета — можно опрашивать прямо из браузера. Содержит `amount_remaining` для подсказки
-      # «доплатите X».
+      # No secret — can be polled directly from the browser. Contains `amount_remaining` for a "pay
+      # X more" hint.
       #
       # Error codes: internal, invoice.corrupt_pay_asset, onramp.bad_json, onramp.in_flight,
       # onramp.no_assets, onramp.no_live_key, onramp.no_test_key, onramp.read, onramp.request,
@@ -5892,9 +6205,10 @@ module Oblodai
         )
       end
 
-      # Выбрать валюту и сеть для валюто-агностичной ссылки
+      # Choose the currency and network for a currency-agnostic link
       #
-      # Клиент выбирает `currency` + `network`; после этого фиксируется курс и выделяется адрес.
+      # The customer picks `currency` + `network`; after that the rate is locked in and an address
+      # is allocated.
       #
       # Error codes: internal, invoice.address_failed, invoice.address_taken,
       # invoice.corrupt_pay_asset, invoice.expired, invoice.fiat_pay_asset, invoice.no_pay_asset,
@@ -5910,8 +6224,8 @@ module Oblodai
       # @param id [String]
       # @param params [Oblodai::Models::PaySelectRequest, Hash, nil] the request body as a model or
       #   a Hash; the keywords add to it
-      # @param currency [String, nil] Выбранная валюта оплаты.
-      # @param network [String, nil] Выбранная сеть.
+      # @param currency [String, nil] The chosen payment currency.
+      # @param network [String, nil] The chosen network.
       # @return [Oblodai::Models::PublicPaymentView]
       def select_method(
         id,
@@ -5947,15 +6261,16 @@ module Oblodai
         )
       end
 
-      # Оплатить фиатом: открыть покупку криптовалюты картой
+      # Pay with fiat: open a card purchase of crypto
       #
-      # Покупатель без криптовалюты платит картой стороннему рампу, а тот шлёт монеты прямо на
-      # депозитный адрес этого счёта. Ответ — ПОДПИСАННАЯ ссылка на виджет: подпись покрывает адрес
-      # получения и тег, поэтому переписать их в браузере нельзя. `url` пустой, когда покупка уже
-      # идёт (смотрите `status`) — второй виджет означал бы второе списание по одному заказу.
-      # `fiat_amount` — оценка: у рампов нет режима «зафиксировать сумму получения», сумму фиата мы
-      # считаем обратным ходом из их котировки и с запасом. Кнопку показывать только когда `GET
-      # /v1/pay/{id}` вернул `fiat_purchase_available: true`.
+      # A buyer without crypto pays by card to a third-party on-ramp, which sends the coins straight
+      # to this invoice's deposit address. The response is a SIGNED widget link: the signature
+      # covers the receiving address and tag, so they cannot be rewritten in the browser. `url` is
+      # empty when a purchase is already in progress (see `status`) — a second widget would mean a
+      # second charge for one order. `fiat_amount` is an estimate: on-ramps have no "fix the
+      # received amount" mode, so we compute the fiat amount backwards from their quote, with a
+      # margin. Show the button only when `GET /v1/pay/{id}` returned `fiat_purchase_available:
+      # true`.
       #
       # Error codes: internal, invoice.corrupt_pay_asset, onramp.admit, onramp.advance,
       # onramp.asset_unsupported, onramp.bad_ed25519, onramp.bad_invoice, onramp.bad_json,
@@ -5997,11 +6312,12 @@ module Oblodai
         )
       end
 
-      # Статус карточной покупки по счёту
+      # Status of the card purchase for an invoice
       #
-      # Что стало с покупкой: `new`, `pending`, `paid`, `completed`, `failed`, `canceled`, плюс
-      # `reason` — дословная причина отказа провайдера, когда она есть. Пустой `status` = живой
-      # покупки нет. Счёт при этом закрывают ДЕНЬГИ В ЦЕПОЧКЕ, а не этот статус.
+      # What happened to the purchase: `new`, `pending`, `paid`, `completed`, `failed`, `canceled`,
+      # plus `reason` — the provider's verbatim rejection reason, when there is one. An empty
+      # `status` = no live purchase. The invoice, however, is closed by the MONEY ON CHAIN, not by
+      # this status.
       #
       # Error codes: internal, invoice.corrupt_pay_asset, onramp.status_reason, pay.bad_uuid,
       # payment.not_found, request.overloaded, request.rate_limited
@@ -6033,10 +6349,10 @@ module Oblodai
         )
       end
 
-      # QR-код адреса оплаты
+      # Payment address QR code
       #
-      # PNG-картинка с QR того адреса (и суммы), которые уже вернул `GET /v1/pay/{id}`. Без ключа —
-      # её грузит браузер покупателя.
+      # A PNG image with the QR code of the address (and amount) already returned by `GET
+      # /v1/pay/{id}`. No key — the buyer's browser loads it.
       #
       # Error codes: internal, invoice.corrupt_pay_asset, pay.bad_uuid, payment.not_found,
       # request.overloaded, request.rate_limited
@@ -6069,13 +6385,13 @@ module Oblodai
       end
     end
 
-    # Dev-store: тестовые деньги, симуляция депозитов и повтор вебхуков.
+    # Dev store: test money, simulated deposits and webhook replay.
     class Sandbox < Generated::Resource
-      # Создать (или вернуть) dev-store мерчанта
+      # Create (or return) the merchant's dev store
       #
-      # Идемпотентно: у мерчанта максимум один dev-store, повторный вызов возвращает существующий.
-      # Тестовый ключ возвращается каждый раз — он не защищает ничего, кроме тестовых денег.
-      # Вызывается под онбординг-гейтом кабинета, не HMAC-ключом.
+      # Idempotent: a merchant has at most one dev store, a repeated call returns the existing one.
+      # The test key is returned every time — it protects nothing but test money. Called behind the
+      # dashboard onboarding gate, not with the HMAC key.
       #
       # Error codes: admin.bad_nonce, admin.bad_operator, admin.bad_signature, admin.bad_timestamp,
       # admin.disabled, admin.journal_unavailable, admin.replayed, admin.stale_signature,
@@ -6112,27 +6428,29 @@ module Oblodai
         )
       end
 
-      # Кран: пополнить тестовый баланс
+      # Faucet: top up the test balance
       #
-      # Только для тестового ключа dev-store. Начисляет тестовые деньги, чтобы гонять
-      # выплаты/возвраты, а не только приём.
+      # Dev-store test key only. Credits test money so you can exercise payouts/refunds, not just
+      # accepting payments.
       #
-      # Error codes: auth.bad_timestamp, auth.body_too_large, auth.ip_not_allowed, internal,
-      # ledger.account_not_found, ledger.asset_mismatch, ledger.bad_direction,
-      # ledger.duplicate_posting, ledger.fiat_asset, ledger.idempotency_conflict,
-      # ledger.missing_idempotency_key, ledger.no_lines, ledger.non_positive_amount,
-      # ledger.sandbox_live_mix, ledger.unbalanced, merchant.bad_signature,
-      # merchant.key_mode_mismatch, merchant.rate_limited, merchant.secret_decrypt,
-      # merchant.suspended, merchant.unknown_key, request.bad_json, request.body_read,
-      # request.control_char, request.duplicate_field, request.nul_byte, request.overloaded,
-      # request.rate_limited, request.too_deep, sandbox.amount_too_large, sandbox.bad_amount,
-      # sandbox.bad_asset, sandbox.live_key
+      # Requires role: Admin when called with a CLI key.
+      #
+      # Error codes: auth.bad_timestamp, auth.body_too_large, auth.ip_not_allowed,
+      # cli.permission_denied, internal, ledger.account_not_found, ledger.asset_mismatch,
+      # ledger.bad_direction, ledger.duplicate_posting, ledger.fiat_asset,
+      # ledger.idempotency_conflict, ledger.missing_idempotency_key, ledger.no_lines,
+      # ledger.non_positive_amount, ledger.sandbox_live_mix, ledger.unbalanced,
+      # merchant.bad_signature, merchant.key_expired, merchant.key_mode_mismatch,
+      # merchant.rate_limited, merchant.secret_decrypt, merchant.suspended, merchant.unknown_key,
+      # request.bad_json, request.body_read, request.control_char, request.duplicate_field,
+      # request.nul_byte, request.overloaded, request.rate_limited, request.too_deep,
+      # sandbox.amount_too_large, sandbox.bad_amount, sandbox.bad_asset, sandbox.live_key
       #
       # @param params [Oblodai::Models::FaucetRequest, Hash, nil] the request body as a model or a
       #   Hash; the keywords add to it
-      # @param amount [BigDecimal, String, nil] Сумма тестовых денег, строкой; потолок 1000000 за
-      #   вызов.
-      # @param asset [String, nil] Актив пополнения (USDT, BTC, …).
+      # @param amount [BigDecimal, String, nil] The amount of test money, as a string; capped at
+      #   1000000 per call.
+      # @param asset [String, nil] Deposit asset (USDT, BTC, …).
       # @return [Oblodai::Models::FaucetResult]
       def faucet(
         params = nil,
@@ -6165,54 +6483,56 @@ module Oblodai
         )
       end
 
-      # Симулировать он-чейн депозит
+      # Simulate an on-chain deposit
       #
-      # Проводит синтетический платёж через настоящий пайплайн зачисления. `amount` пустой —
-      # оплатить ровно сколько нужно; `confirmations` меньше требуемого — проверка перехода
-      # pending→confirmed (повторите тот же `txid` с большим числом); тот же `txid` повторно —
-      # проверка вашей идемпотентности.
+      # Runs a synthetic payment through the real crediting pipeline. Empty `amount` — pay exactly
+      # the amount due; `confirmations` below the required number — tests the pending→confirmed
+      # transition (repeat the same `txid` with a higher number); the same `txid` again — tests your
+      # idempotency.
+      #
+      # Requires role: Admin when called with a CLI key.
       #
       # Error codes: auth.bad_timestamp, auth.body_too_large, auth.ip_not_allowed,
-      # compliance.blocked, compliance.blocked_address, compliance.blocklist_unavailable,
-      # compliance.no_destination, compliance.no_network, compliance.sanctioned_address,
-      # compliance.sanctions_unavailable, deposit.generation_stale, internal, invoice.bad_deposit,
-      # invoice.corrupt_pay_asset, invoice.deposit_asset_mismatch, invoice.generation_stale,
-      # ledger.account_not_found, ledger.asset_mismatch, ledger.bad_direction,
-      # ledger.duplicate_posting, ledger.fiat_asset, ledger.idempotency_conflict,
-      # ledger.missing_idempotency_key, ledger.no_lines, ledger.non_positive_amount,
-      # ledger.sandbox_live_mix, ledger.unbalanced, merchant.bad_signature,
-      # merchant.key_mode_mismatch, merchant.not_found, merchant.rate_limited,
-      # merchant.secret_decrypt, merchant.suspended, merchant.unknown_key, onramp.suppresses,
-      # payment.not_found, payout.above_limit, payout.address_network_mismatch,
-      # payout.amount_below_fee, payout.approver_is_creator, payout.asset_mismatch,
-      # payout.bad_address, payout.bad_amount, payout.bad_memo, payout.bad_owner_kind,
-      # payout.cap_unpriceable, payout.convert_bad_amount, payout.convert_frozen,
-      # payout.convert_idempotency_conflict, payout.convert_insufficient, payout.convert_no_rate,
-      # payout.convert_same_asset, payout.convert_unsupported, payout.daily_cap,
-      # payout.destination_not_activated, payout.duplicate_reference, payout.fee_asset_mismatch,
-      # payout.freeze_unknown, payout.frozen, payout.funds_maturing, payout.funds_settling,
-      # payout.illegal_transition, payout.insufficient_funds, payout.memo_conflict,
-      # payout.memo_required, payout.memo_too_long, payout.merchant_frozen, payout.no_destination,
-      # payout.no_owner, payout.not_found, payout.not_pending, payout.reference_collision,
-      # postgres.lock_pool_busy, rates.deviation, rates.fiat_pay_asset, rates.no_pay_asset,
-      # rates.no_source, rates.non_positive, rates.stale_rate, rates.unavailable,
-      # refund.destination_internal, refund.dust, refund.exceeds_excess, refund.exceeds_refundable,
-      # refund.fence_check, refund.from_currency_personal_account, refund.nothing_to_refund,
-      # refund.omnibus_destination, refund.paid_internally, refund.reference_collision,
-      # request.bad_json, request.body_read, request.control_char, request.duplicate_field,
-      # request.nul_byte, request.overloaded, request.rate_limited, request.too_deep,
-      # sandbox.bad_amount, sandbox.bad_invoice, sandbox.invoice_not_found, sandbox.live_key,
-      # treasury.no_ccy_map, wallet.static_not_found
+      # cli.permission_denied, compliance.blocked, compliance.blocked_address,
+      # compliance.blocklist_unavailable, compliance.no_destination, compliance.no_network,
+      # compliance.sanctioned_address, compliance.sanctions_unavailable, deposit.generation_stale,
+      # internal, invoice.bad_deposit, invoice.corrupt_pay_asset, invoice.deposit_asset_mismatch,
+      # invoice.generation_stale, ledger.account_not_found, ledger.asset_mismatch,
+      # ledger.bad_direction, ledger.duplicate_posting, ledger.fiat_asset,
+      # ledger.idempotency_conflict, ledger.missing_idempotency_key, ledger.no_lines,
+      # ledger.non_positive_amount, ledger.sandbox_live_mix, ledger.unbalanced,
+      # merchant.bad_signature, merchant.key_expired, merchant.key_mode_mismatch,
+      # merchant.not_found, merchant.rate_limited, merchant.secret_decrypt, merchant.suspended,
+      # merchant.unknown_key, onramp.suppresses, payment.not_found, payout.above_limit,
+      # payout.address_network_mismatch, payout.amount_below_fee, payout.approver_is_creator,
+      # payout.asset_mismatch, payout.bad_address, payout.bad_amount, payout.bad_memo,
+      # payout.bad_owner_kind, payout.cap_unpriceable, payout.convert_bad_amount,
+      # payout.convert_frozen, payout.convert_idempotency_conflict, payout.convert_insufficient,
+      # payout.convert_no_rate, payout.convert_same_asset, payout.convert_unsupported,
+      # payout.daily_cap, payout.destination_not_activated, payout.duplicate_reference,
+      # payout.fee_asset_mismatch, payout.freeze_unknown, payout.frozen, payout.funds_maturing,
+      # payout.funds_settling, payout.illegal_transition, payout.insufficient_funds,
+      # payout.memo_conflict, payout.memo_required, payout.memo_too_long, payout.merchant_frozen,
+      # payout.no_destination, payout.no_owner, payout.not_found, payout.not_pending,
+      # payout.reference_collision, postgres.lock_pool_busy, rates.deviation, rates.fiat_pay_asset,
+      # rates.no_pay_asset, rates.no_source, rates.non_positive, rates.stale_rate,
+      # rates.unavailable, refund.destination_internal, refund.dust, refund.exceeds_excess,
+      # refund.exceeds_refundable, refund.fence_check, refund.from_currency_personal_account,
+      # refund.nothing_to_refund, refund.omnibus_destination, refund.paid_internally,
+      # refund.reference_collision, request.bad_json, request.body_read, request.control_char,
+      # request.duplicate_field, request.nul_byte, request.overloaded, request.rate_limited,
+      # request.too_deep, sandbox.bad_amount, sandbox.bad_invoice, sandbox.invoice_not_found,
+      # sandbox.live_key, treasury.no_ccy_map, wallet.static_not_found
       #
       # @param params [Oblodai::Models::SimulateDepositRequest, Hash, nil] the request body as a
       #   model or a Hash; the keywords add to it
-      # @param amount [String, nil] Сумма в валюте счёта; пусто — оплатить ровно сколько нужно, иное
-      #   — способ получить недо/переплату.
-      # @param confirmations [Integer, nil] С каким числом подтверждений пришёл депозит; 0 —
-      #   полностью подтверждён; меньше требуемого — способ проверить переход pending→confirmed
-      #   (повторите тот же txid с большим числом).
-      # @param invoice_id [String, nil] UUID тестового счёта, который «оплачивается».
-      # @param txid [String, nil] Повтор того же txid проверяет вашу идемпотентность; пусто — новый
+      # @param amount [String, nil] The amount in the invoice currency; empty — pay exactly the
+      #   amount due, anything else — a way to produce an under/overpayment.
+      # @param confirmations [Integer, nil] The number of confirmations the deposit arrived with; 0
+      #   — fully confirmed; fewer than required — a way to test the pending→confirmed transition
+      #   (repeat the same txid with a higher number).
+      # @param invoice_id [String, nil] The UUID of the test invoice being "paid".
+      # @param txid [String, nil] Repeating the same txid tests your idempotency; empty — a new
       #   txid.
       # @return [Oblodai::Models::SimulateDepositResult]
       def simulate_deposit(
@@ -6249,19 +6569,21 @@ module Oblodai
         )
       end
 
-      # Сбросить dev-store к чистому состоянию
+      # Reset the dev store to a clean state
       #
-      # Error codes: auth.bad_timestamp, auth.body_too_large, auth.ip_not_allowed, internal,
-      # invoice.already_paid, invoice.corrupt_pay_asset, invoice.deposit_pending,
-      # ledger.account_not_found, ledger.asset_mismatch, ledger.bad_direction,
-      # ledger.duplicate_posting, ledger.fiat_asset, ledger.idempotency_conflict,
-      # ledger.missing_idempotency_key, ledger.no_lines, ledger.non_positive_amount,
-      # ledger.sandbox_live_mix, ledger.unbalanced, merchant.bad_signature,
-      # merchant.key_mode_mismatch, merchant.rate_limited, merchant.secret_decrypt,
-      # merchant.suspended, merchant.unknown_key, payment.not_found, payout.not_found,
-      # payoutlink.not_found, payoutlink.not_funded, request.body_read, request.control_char,
-      # request.duplicate_field, request.nul_byte, request.overloaded, request.rate_limited,
-      # request.too_deep, sandbox.live_key
+      # Requires role: Admin when called with a CLI key.
+      #
+      # Error codes: auth.bad_timestamp, auth.body_too_large, auth.ip_not_allowed,
+      # cli.permission_denied, internal, invoice.already_paid, invoice.corrupt_pay_asset,
+      # invoice.deposit_pending, ledger.account_not_found, ledger.asset_mismatch,
+      # ledger.bad_direction, ledger.duplicate_posting, ledger.fiat_asset,
+      # ledger.idempotency_conflict, ledger.missing_idempotency_key, ledger.no_lines,
+      # ledger.non_positive_amount, ledger.sandbox_live_mix, ledger.unbalanced,
+      # merchant.bad_signature, merchant.key_expired, merchant.key_mode_mismatch,
+      # merchant.rate_limited, merchant.secret_decrypt, merchant.suspended, merchant.unknown_key,
+      # payment.not_found, payout.not_found, payoutlink.not_found, payoutlink.not_funded,
+      # request.body_read, request.control_char, request.duplicate_field, request.nul_byte,
+      # request.overloaded, request.rate_limited, request.too_deep, sandbox.live_key
       #
       # @return [Oblodai::Models::ResetResult]
       def reset(
@@ -6285,16 +6607,19 @@ module Oblodai
         )
       end
 
-      # Журнал доставок вебхуков dev-store
+      # Dev-store webhook delivery log
       #
-      # Error codes: auth.bad_timestamp, auth.body_too_large, auth.ip_not_allowed, internal,
-      # merchant.bad_signature, merchant.key_mode_mismatch, merchant.rate_limited,
-      # merchant.secret_decrypt, merchant.suspended, merchant.unknown_key, request.body_read,
-      # request.control_char, request.duplicate_field, request.nul_byte, request.overloaded,
-      # request.rate_limited, request.too_deep, sandbox.live_key
+      # Requires role: Viewer when called with a CLI key.
       #
-      # @param limit [Integer, nil] Размер страницы (1–100, по умолчанию 25).
-      # @param offset [Integer, nil] Смещение страницы.
+      # Error codes: auth.bad_timestamp, auth.body_too_large, auth.ip_not_allowed,
+      # cli.permission_denied, internal, merchant.bad_signature, merchant.key_expired,
+      # merchant.key_mode_mismatch, merchant.rate_limited, merchant.secret_decrypt,
+      # merchant.suspended, merchant.unknown_key, request.body_read, request.control_char,
+      # request.duplicate_field, request.nul_byte, request.overloaded, request.rate_limited,
+      # request.too_deep, sandbox.live_key
+      #
+      # @param limit [Integer, nil] Page size (1–100, default 25).
+      # @param offset [Integer, nil] Page offset.
       # @return [Oblodai::Page<Oblodai::Models::SandboxDelivery>]
       def list_webhooks(
         limit: nil,
@@ -6326,21 +6651,24 @@ module Oblodai
         )
       end
 
-      # Переотправить доставку вебхука
+      # Resend a webhook delivery
       #
-      # Ставит доставку заново в очередь настоящего диспетчера — с его ретраями и подписью, как в
-      # проде.
+      # Re-queues the delivery into the real dispatcher — with its retries and signature, as in
+      # production.
       #
-      # Error codes: auth.bad_timestamp, auth.body_too_large, auth.ip_not_allowed, internal,
-      # merchant.bad_signature, merchant.key_mode_mismatch, merchant.rate_limited,
-      # merchant.secret_decrypt, merchant.suspended, merchant.unknown_key, request.bad_json,
-      # request.body_read, request.control_char, request.duplicate_field, request.nul_byte,
-      # request.overloaded, request.rate_limited, request.too_deep, sandbox.bad_delivery,
-      # sandbox.delivery_not_found, sandbox.live_key
+      # Requires role: Admin when called with a CLI key.
+      #
+      # Error codes: auth.bad_timestamp, auth.body_too_large, auth.ip_not_allowed,
+      # cli.permission_denied, internal, merchant.bad_signature, merchant.key_expired,
+      # merchant.key_mode_mismatch, merchant.rate_limited, merchant.secret_decrypt,
+      # merchant.suspended, merchant.unknown_key, request.bad_json, request.body_read,
+      # request.control_char, request.duplicate_field, request.nul_byte, request.overloaded,
+      # request.rate_limited, request.too_deep, sandbox.bad_delivery, sandbox.delivery_not_found,
+      # sandbox.live_key
       #
       # @param params [Oblodai::Models::ReplayRequest, Hash, nil] the request body as a model or a
       #   Hash; the keywords add to it
-      # @param delivery_id [String, nil] Идентификатор доставки из GET /v1/sandbox/webhooks.
+      # @param delivery_id [String, nil] The delivery id from GET /v1/sandbox/webhooks.
       # @return [Oblodai::Models::ReplayResult]
       def replay_webhook(
         params = nil,
@@ -6367,6 +6695,143 @@ module Oblodai
             request_id:
           ),
           parse: Models::ReplayResult.method(:from_h)
+        )
+      end
+    end
+
+    # Browser login of the `oblodai` CLI (OAuth 2.0 device authorization, RFC 8628) and logout of
+    # its key.
+    class CliLogin < Generated::Resource
+      # Start a CLI browser login
+      #
+      # No key: this is how the CLI gets one. Returns `device_code` (the CLI's polling secret —
+      # never show it), `user_code` (`ABCD-EFGH`, shown to the user), `verification_uri` and
+      # `verification_uri_complete` (open the latter in the browser), `expires_in` (600) and
+      # `interval` (5). The user signs in to the cabinet, checks the device, picks a store and
+      # approves; the key gets that member's team role. At most 10 requests per minute per address
+      # (`cli.rate_limited`, Retry-After).
+      #
+      # Error codes: cli.bad_name, cli.rate_limited, cli.unavailable, internal, request.bad_json,
+      # request.body_read, request.control_char, request.duplicate_field, request.nul_byte,
+      # request.overloaded, request.rate_limited, request.too_deep
+      #
+      # @param params [Oblodai::Models::CLIDeviceRequest, Hash, nil] the request body as a model or
+      #   a Hash; the keywords add to it
+      # @param client_name [String, nil] The client asking for access (at most 64 characters); shown
+      #   in the cabinet. Empty — "oblodai".
+      # @param device_name [String, nil] The device (at most 100 characters); shown in the cabinet
+      #   and becomes the key label. Empty — "CLI".
+      # @return [Oblodai::Models::CLIDeviceAuthorization]
+      def start(
+        params = nil,
+        client_name: nil,
+        device_name: nil,
+        idempotency_key: nil,
+        timeout: nil,
+        max_retries: nil,
+        extra_headers: nil,
+        request_id: nil
+      )
+        _request(
+          Generated::ROUTES.fetch("startCliLogin"),
+          Generated::Codec.merge(
+            params,
+            {
+              "client_name" => client_name,
+              "device_name" => device_name
+            }
+          ),
+          Generated::RequestOptions.new(
+            idempotency_key:,
+            timeout:,
+            max_retries:,
+            extra_headers:,
+            request_id:
+          ),
+          parse: Models::CLIDeviceAuthorization.method(:from_h)
+        )
+      end
+
+      # Poll a CLI login for its key
+      #
+      # Poll with `device_code` every `interval` seconds until it succeeds or fails for good. Errors
+      # (400 unless noted): `cli.authorization_pending` — keep polling; `cli.slow_down` — polled too
+      # early, the interval grew by 5 seconds (`details.interval`); `cli.access_denied` (403) —
+      # denied in the browser; `cli.expired_token` — start over; `cli.invalid_device_code` —
+      # unknown, or the key was already handed out. Success returns the CLI key (`public_id`,
+      # `secret`, store, `mode`, `role`, `expires_at`) exactly once: the secret is erased on the
+      # server as it is handed out, and of two concurrent polls only one gets it.
+      #
+      # Error codes: cli.access_denied, cli.authorization_pending, cli.expired_token,
+      # cli.invalid_device_code, cli.slow_down, cli.unavailable, internal, merchant.secret_decrypt,
+      # request.bad_json, request.body_read, request.control_char, request.duplicate_field,
+      # request.nul_byte, request.overloaded, request.rate_limited, request.too_deep
+      #
+      # @param params [Oblodai::Models::CLITokenRequest, Hash, nil] the request body as a model or a
+      #   Hash; the keywords add to it
+      # @param device_code [String, nil] device_code from POST /v1/cli/device.
+      # @return [Oblodai::Models::CLIToken]
+      def poll(
+        params = nil,
+        device_code: nil,
+        idempotency_key: nil,
+        timeout: nil,
+        max_retries: nil,
+        extra_headers: nil,
+        request_id: nil
+      )
+        _request(
+          Generated::ROUTES.fetch("pollCliLogin"),
+          Generated::Codec.merge(
+            params,
+            {
+              "device_code" => device_code
+            }
+          ),
+          Generated::RequestOptions.new(
+            idempotency_key:,
+            timeout:,
+            max_retries:,
+            extra_headers:,
+            request_id:
+          ),
+          parse: Models::CLIToken.method(:from_h)
+        )
+      end
+
+      # Log out: revoke this CLI key
+      #
+      # Revokes the CLI key that signs the request; any role may call it. The integration key gets
+      # `cli.not_cli_key` (403) — it is rotated in the cabinet, never here.
+      #
+      # Requires role: Viewer when called with a CLI key.
+      #
+      # Error codes: auth.bad_timestamp, auth.body_too_large, auth.ip_not_allowed, cli.not_cli_key,
+      # cli.permission_denied, cli.unavailable, internal, merchant.bad_signature,
+      # merchant.key_expired, merchant.key_mode_mismatch, merchant.key_not_found,
+      # merchant.rate_limited, merchant.secret_decrypt, merchant.suspended, merchant.unknown_key,
+      # request.body_read, request.control_char, request.duplicate_field, request.nul_byte,
+      # request.overloaded, request.rate_limited, request.too_deep
+      #
+      # @return [Oblodai::Models::CLILogoutResult]
+      def logout_cli(
+        idempotency_key: nil,
+        timeout: nil,
+        max_retries: nil,
+        extra_headers: nil,
+        request_id: nil
+      )
+        _request(
+          Generated::ROUTES.fetch("logoutCli"),
+          nil,
+          Generated::RequestOptions.new(
+            idempotency_key:,
+            timeout:,
+            max_retries:,
+            extra_headers:,
+            request_id:
+          ),
+          parse: Models::CLILogoutResult.method(:from_h)
         )
       end
     end

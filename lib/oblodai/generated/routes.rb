@@ -1208,6 +1208,36 @@ module Oblodai
         safe: false,
         bare: false,
         list_kind: nil
+      ),
+      "startCliLogin" => RouteSpec.new(
+        operation_id: "startCliLogin",
+        method: "POST",
+        path: "/v1/cli/device",
+        auth: :public,
+        idempotent: false,
+        safe: false,
+        bare: false,
+        list_kind: nil
+      ),
+      "pollCliLogin" => RouteSpec.new(
+        operation_id: "pollCliLogin",
+        method: "POST",
+        path: "/v1/cli/token",
+        auth: :public,
+        idempotent: false,
+        safe: false,
+        bare: false,
+        list_kind: nil
+      ),
+      "logoutCli" => RouteSpec.new(
+        operation_id: "logoutCli",
+        method: "POST",
+        path: "/v1/cli/logout",
+        auth: :key,
+        idempotent: false,
+        safe: false,
+        bare: false,
+        list_kind: nil
       )
     }.freeze
   end
