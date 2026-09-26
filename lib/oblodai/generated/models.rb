@@ -3495,8 +3495,9 @@ module Oblodai
       #   clears; false — retrying is pointless without changing the request.
       attr_reader :retryable
       # @return [Hash{String => String}, nil] Machine-readable facts about this refusal, with keys
-      #   documented by its code (e.g. `cli.permission_denied` carries `required_role` and `role`).
-      #   Absent when the code has none.
+      #   documented by its code (e.g. `cli.permission_denied` carries `required_role`, `role` and,
+      #   for a money-out operation, `reason`; the keys and values are listed in
+      #   `x-oblodai-permissions.denied`). Absent when the code has none.
       attr_reader :details
       # @return [String, nil] The name of the request field the error refers to, spelled as sent.
       #   Absent if the error is not about a specific field.

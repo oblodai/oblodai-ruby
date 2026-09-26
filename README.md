@@ -161,7 +161,7 @@ table below is written by the generator from the contract.
 | `documents` | `get_signed` · `get_balance` · `get_fees` · `get_ledger` · `get_split` · `get_payout_link_cheque` · `get_statement` · `get_batch` · `get_payment_link` · `get_wallet_statement` · `get_referrals` · `create_job` · `get_job` · `download_job_file` |
 | `checkout` | `get_source_of_funds_form` · `submit_source_of_funds` · `get_public_payment_link` · `payment_link` · `list_currencies` · `get` · `select_method` · `start_onramp` · `get_onramp` · `get_qr` |
 | `sandbox` | `onboard_store` · `faucet` · `simulate_deposit` · `reset` · `list_webhooks` · `replay_webhook` |
-| `cli_login` | `start` · `poll` · `logout_cli` |
+| `cli_login` | `start` · `poll` · `logout` |
 <!-- /sdkgen:methods -->
 
 The request body of a method comes three ways — keywords, a Hash with the wire names, or a request
