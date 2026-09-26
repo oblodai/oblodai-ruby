@@ -3,6 +3,17 @@
 All notable changes to this gem. The format follows [Keep a Changelog](https://keepachangelog.com/),
 versions follow [SemVer](https://semver.org/).
 
+## Unreleased
+
+### Added
+
+- `client.cli_login` — `start`, `poll`, `logout_cli`: the browser login of the `oblodai` CLI (OAuth
+  2.0 device authorization) and logout of its key.
+- `Oblodai::Error#details`: the machine-readable facts of an error envelope's new `details` object
+  (for example `cli.permission_denied` carries `required_role` and `role`); only string values are
+  kept.
+- Every method's documentation names the minimum team role a CLI key needs to call it.
+
 ## [2.0.0] — 2026-09-25
 
 The SDK is generated from the gateway's OpenAPI contract (`services/core/api/openapi.json`) by the
