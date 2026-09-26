@@ -4005,12 +4005,12 @@ module Oblodai
       # JSON names of every field this release knows.
       FIELDS = %w[order_id uuid].freeze
 
-      # @return [String, nil] Your order_id of the object: the payment's for /v1/payment/info, the
-      #   payout's for /v1/payout/info.
+      # @return [String, nil] Your order_id of that object: the payment's in payment operations, the
+      #   payout's in payout operations. Used only when uuid is empty.
       attr_reader :order_id
-      # @return [String, nil] The Oblodai id of the object being looked up: the invoice (payment)
-      #   for /v1/payment/info, the payout or refund for /v1/payout/info. Either uuid or order_id is
-      #   required; uuid takes precedence.
+      # @return [String, nil] Our id (a UUID) of the object the operation acts on: the payment
+      #   (invoice) in payment operations, the payout or refund in payout operations. Either uuid or
+      #   order_id is required; when both are passed, uuid is used and order_id is ignored.
       attr_reader :uuid
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -4954,7 +4954,10 @@ module Oblodai
         order_id payer_email subtract theme to_currency url_callback url_return url_success
       ].freeze
 
-      # @return [BigDecimal] The amount to pay in currency.
+      # @return [BigDecimal] The price in currency — what you are paid for the order. The payer can
+      #   be asked for more: the invoice's payer_amount adds the network surcharge (the cost of
+      #   accepting the deposit on the chosen network, see network_surcharge) and any per-method
+      #   discount or surcharge; your credit is amount minus the commission.
       attr_reader :amount
       # @return [String] The price currency code: any of the 23 fiat currencies (USD, EUR, RUB, …)
       #   or any coin (USDT, BTC, …). JPY and KRW have zero decimal places.
@@ -6714,7 +6717,10 @@ module Oblodai
         order_id payer_email subtract theme to_currency url_callback url_return url_success
       ].freeze
 
-      # @return [BigDecimal] The amount to pay in currency.
+      # @return [BigDecimal] The price in currency — what you are paid for the order. The payer can
+      #   be asked for more: the invoice's payer_amount adds the network surcharge (the cost of
+      #   accepting the deposit on the chosen network, see network_surcharge) and any per-method
+      #   discount or surcharge; your credit is amount minus the commission.
       attr_reader :amount
       # @return [String] The price currency code: any of the 23 fiat currencies (USD, EUR, RUB, …)
       #   or any coin (USDT, BTC, …). JPY and KRW have zero decimal places.
@@ -7623,20 +7629,26 @@ module Oblodai
 
       # @return [String] Payout asset.
       attr_reader :currency
-      # @return [String] Who pays the fee: gateway, merchant or recipient. Values:
-      #   {Oblodai::Enums::PayoutFeeBearer}.
+      # @return [String] Who pays the network fee: gateway (Oblodai absorbs it, commission is 0),
+      #   merchant (added to amount, the recipient gets the full sum) or recipient (deducted from
+      #   payer_amount). Values: {Oblodai::Enums::PayoutFeeBearer}.
       attr_reader :fee_bearer
       # @return [String] exact — the fee is contractual (the gateway absorbs it); estimated — an
       #   oracle estimate. Values: {Oblodai::Enums::FeeType}.
       attr_reader :fee_type
       # @return [String] The network — as it came in the request.
       attr_reader :network
-      # @return [BigDecimal, nil] How much will be debited from the balance; null — unknown (the fee
-      #   cannot be estimated).
+      # @return [BigDecimal, nil] How much will be debited from YOUR balance, in currency (the fee
+      #   included when you bear it); null — cannot be estimated right now (the fee is unknown and you
+      #   bear it).
       attr_reader :amount
-      # @return [BigDecimal, nil] Network fee; null — cannot be estimated right now.
+      # @return [BigDecimal, nil] The network fee of the payout, in currency; who bears it is
+      #   fee_bearer. null — cannot be estimated right now (the fee oracle or the rate is
+      #   unavailable), not zero: retry later.
       attr_reader :commission
-      # @return [BigDecimal, nil] How much the address will receive; null — unknown.
+      # @return [BigDecimal, nil] How much the RECIPIENT receives at the address, in currency (not
+      #   what you pay — that is amount). null — cannot be estimated right now (the fee is unknown and
+      #   the recipient bears it).
       attr_reader :payer_amount
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -9299,7 +9311,11 @@ module Oblodai
       #   balance, the recipient gets amount; false — the recipient gets amount-fee; omitted — the
       #   project's fee-config.
       attr_reader :is_subtract
-      # @return [String, nil] Destination tag/memo (TON Jetton). At most 120 characters.
+      # @return [String, nil] Destination tag / memo / comment, by network: XRP — the destination
+      #   tag, a uint32 (required unless the X-address carries one; 0 for a wallet without a tag);
+      #   Stellar — the memo id, a uint64 (required unless the muxed M… address carries one); TON — a
+      #   comment of at most 64 bytes (it must fit the transfer's message cell); other networks — at
+      #   most 120 bytes. Omit it where the network has none.
       attr_reader :memo
       # @return [String, nil] Network (tron, ethereum, …). Required for coins with several networks.
       attr_reader :network
@@ -9396,7 +9412,11 @@ module Oblodai
       #   balance, the recipient gets amount; false — the recipient gets amount-fee; omitted — the
       #   project's fee-config.
       attr_reader :is_subtract
-      # @return [String, nil] Destination tag/memo (TON Jetton). At most 120 characters.
+      # @return [String, nil] Destination tag / memo / comment, by network: XRP — the destination
+      #   tag, a uint32 (required unless the X-address carries one; 0 for a wallet without a tag);
+      #   Stellar — the memo id, a uint64 (required unless the muxed M… address carries one); TON — a
+      #   comment of at most 64 bytes (it must fit the transfer's message cell); other networks — at
+      #   most 120 bytes. Omit it where the network has none.
       attr_reader :memo
       # @return [String, nil] Network (tron, ethereum, …). Required for coins with several networks.
       attr_reader :network
@@ -9479,13 +9499,20 @@ module Oblodai
     # PayoutValidateResult of the API.
     class PayoutValidateResult < Generated::Model
       # JSON names of the fields the API always sends.
-      REQUIRED = %w[amount commission currency fee_bearer maturity_note network payer_amount valid].freeze
+      REQUIRED = %w[address amount commission currency fee_bearer maturity_note network payer_amount valid].freeze
       # JSON names of every field this release knows.
-      FIELDS = %w[amount commission currency fee_bearer funded_by maturity_note network payer_amount valid].freeze
+      FIELDS = %w[
+        address amount commission currency fee_bearer from_amount funded_by maturity_note network payer_amount rate
+        valid
+      ].freeze
 
-      # @return [BigDecimal] How much will be debited from the balance.
+      # @return [String] The destination address the payout will be sent to.
+      attr_reader :address
+      # @return [BigDecimal] How much will be debited from the balance, in currency (for a
+      #   from_currency payout the currency balance is first funded with it by the conversion, see
+      #   from_amount).
       attr_reader :amount
-      # @return [BigDecimal] Network fee.
+      # @return [BigDecimal] Network fee, in currency; who bears it is fee_bearer.
       attr_reader :commission
       # @return [String] Payout currency.
       attr_reader :currency
@@ -9496,18 +9523,26 @@ module Oblodai
       attr_reader :maturity_note
       # @return [String] The payout network in canonical spelling.
       attr_reader :network
-      # @return [BigDecimal] How much will reach the recipient.
+      # @return [BigDecimal] How much the recipient will receive at address, in currency.
       attr_reader :payer_amount
       # @return [Boolean] Always true: a failed check responds with an error carrying the reason
       #   code.
       attr_reader :valid
+      # @return [BigDecimal, nil] How much funded_by (USDT) the conversion will debit to fund
+      #   amount, at the current rate plus the conversion spread; the conversion re-prices at
+      #   execution, so the final figure can differ slightly. Present only on a from_currency payout.
+      attr_reader :from_amount
       # @return [String, nil] The currency whose conversion funds the payout (from_currency);
       #   present only on such a payout.
       attr_reader :funded_by
+      # @return [BigDecimal, nil] The rate the from_amount estimate used: USDT per 1 unit of
+      #   currency. Present only on a from_currency payout.
+      attr_reader :rate
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
 
       def initialize(
+        address:,
         amount:,
         commission:,
         currency:,
@@ -9516,10 +9551,13 @@ module Oblodai
         network:,
         payer_amount:,
         valid:,
+        from_amount: nil,
         funded_by: nil,
+        rate: nil,
         extra: {}
       )
         super()
+        @address = address
         @amount = amount
         @commission = commission
         @currency = currency
@@ -9528,7 +9566,9 @@ module Oblodai
         @network = network
         @payer_amount = payer_amount
         @valid = valid
+        @from_amount = from_amount
         @funded_by = funded_by
+        @rate = rate
         @extra = extra
         freeze
       end
@@ -9539,6 +9579,7 @@ module Oblodai
       def self.from_h(data)
         data = Generated::Codec.object(data)
         new(
+          address: Generated::Codec.read(data.fetch("address"), :string),
           amount: Generated::Codec.read(data.fetch("amount"), :decimal),
           commission: Generated::Codec.read(data.fetch("commission"), :decimal),
           currency: Generated::Codec.read(data.fetch("currency"), :string),
@@ -9547,7 +9588,9 @@ module Oblodai
           network: Generated::Codec.read(data.fetch("network"), :string),
           payer_amount: Generated::Codec.read(data.fetch("payer_amount"), :decimal),
           valid: Generated::Codec.read(data.fetch("valid"), :boolean),
+          from_amount: Generated::Codec.read(data["from_amount"], :decimal),
           funded_by: Generated::Codec.read(data["funded_by"], :string),
+          rate: Generated::Codec.read(data["rate"], :decimal),
           extra: Generated::Codec.extra(data, FIELDS)
         )
       end
@@ -9556,6 +9599,7 @@ module Oblodai
       # @return [Hash{String => Object}]
       def to_h
         out = @extra.dup
+        out["address"] = Generated::Codec.dump(@address)
         out["amount"] = Generated::Codec.dump(@amount)
         out["commission"] = Generated::Codec.dump(@commission)
         out["currency"] = Generated::Codec.dump(@currency)
@@ -9564,7 +9608,9 @@ module Oblodai
         out["network"] = Generated::Codec.dump(@network)
         out["payer_amount"] = Generated::Codec.dump(@payer_amount)
         out["valid"] = Generated::Codec.dump(@valid)
+        out["from_amount"] = Generated::Codec.dump(@from_amount) unless @from_amount.nil?
         out["funded_by"] = Generated::Codec.dump(@funded_by) unless @funded_by.nil?
+        out["rate"] = Generated::Codec.dump(@rate) unless @rate.nil?
         out
       end
     end
@@ -10809,10 +10855,12 @@ module Oblodai
       # @return [String, nil] Refund destination address. Defaults to the payment's payer_address;
       #   required only for Bitcoin/UTXO.
       attr_reader :address
-      # @return [BigDecimal, nil] The amount to refund, in the payment coin; overrides the default.
-      #   Without it the refund is the amount paid minus the payer's network surcharge and — when the
-      #   store's refund fee setting (getRefundFeeConfig) puts the commission on the customer — minus
-      #   the Oblodai commission too, never more than was credited to your balance for this payment.
+      # @return [BigDecimal, nil] The amount to refund, in the payment coin. Without it the refund
+      #   is what is still refundable: the amount paid minus the payer's network surcharge and — when
+      #   the store's refund fee setting (getRefundFeeConfig) puts the commission on the customer —
+      #   minus the Oblodai commission too, never more than was credited to your balance for this
+      #   payment, less the refunds already made. All refunds of a payment together cannot exceed that
+      #   refundable amount (refund.exceeds_refundable); POST /v1/payment/refund/calculate shows it.
       attr_reader :amount
       # @return [String, nil] Fund the refund by converting balance: USDT → the payment currency
       #   only. Needed when the payment coin has already been converted by auto-exchange.
@@ -10932,6 +10980,171 @@ module Oblodai
       end
     end
 
+    # RefundCalculation of the API.
+    class RefundCalculation < Generated::Model
+      # JSON names of the fields the API always sends.
+      REQUIRED = %w[
+        address address_is_payer amount amount_paid commission commission_bearer credited currency network order_id
+        refundable refunded remaining surcharge uuid
+      ].freeze
+      # JSON names of every field this release knows.
+      FIELDS = %w[
+        address address_is_payer amount amount_paid commission commission_bearer credited currency from_amount funded_by
+        network order_id rate refundable refunded remaining surcharge uuid
+      ].freeze
+
+      # @return [String] Where the refund would go.
+      attr_reader :address
+      # @return [Boolean] true — address was omitted and the refund goes to the recorded
+      #   payer_address (allowed only when payer_address_is_refundable = true); false — the address
+      #   you passed.
+      attr_reader :address_is_payer
+      # @return [BigDecimal] What this refund would send: the amount you passed, or by default the
+      #   remaining refundable amount.
+      attr_reader :amount
+      # @return [BigDecimal] What the buyer paid in total, including the network surcharge.
+      attr_reader :amount_paid
+      # @return [BigDecimal] The Oblodai commission withheld from the refund: the payment's
+      #   commission when commission_bearer is customer, 0 when it is merchant.
+      attr_reader :commission
+      # @return [String] Who bears the Oblodai commission on this refund (the store's refund fee
+      #   setting, getRefundFeeConfig): customer — it is deducted from the refund; merchant — it is
+      #   not. Values: {Oblodai::Enums::RefundCommissionBearer}.
+      attr_reader :commission_bearer
+      # @return [String] The refund coin — the one the buyer paid with.
+      attr_reader :currency
+      # @return [String] The network the refund would be sent on (canonical).
+      attr_reader :network
+      # @return [BigDecimal] The most that all refunds of this payment together may send:
+      #   amount_paid minus surcharge (minus commission when commission_bearer is customer), never
+      #   more than credited.
+      attr_reader :refundable
+      # @return [BigDecimal] Already refunded (live and completed refunds; failed and cancelled ones
+      #   do not count).
+      attr_reader :refunded
+      # @return [BigDecimal] refundable minus refunded: what can still be refunded before this
+      #   refund.
+      attr_reader :remaining
+      # @return [BigDecimal] The payer's network surcharge inside amount_paid: the cost of accepting
+      #   the deposit, never refunded from your balance.
+      attr_reader :surcharge
+      # @return [String] The payment id.
+      attr_reader :uuid
+      # @return [BigDecimal, nil] What this payment credited to your balance; null — cannot be
+      #   reconstructed (a legacy payment).
+      attr_reader :credited
+      # @return [BigDecimal, nil] How much USDT the funding conversion would debit, at the current
+      #   rate plus the conversion spread; it re-prices at execution. Present only with from_currency.
+      attr_reader :from_amount
+      # @return [String, nil] The currency whose conversion would fund the refund (from_currency);
+      #   present only then.
+      attr_reader :funded_by
+      # @return [String, nil] Your order_id of the payment; null if it has none.
+      attr_reader :order_id
+      # @return [BigDecimal, nil] USDT per 1 unit of currency used for from_amount. Present only
+      #   with from_currency.
+      attr_reader :rate
+      # @return [Hash{String => Object}] fields this release does not know yet, as sent
+      attr_reader :extra
+
+      def initialize(
+        address:,
+        address_is_payer:,
+        amount:,
+        amount_paid:,
+        commission:,
+        commission_bearer:,
+        currency:,
+        network:,
+        refundable:,
+        refunded:,
+        remaining:,
+        surcharge:,
+        uuid:,
+        credited: nil,
+        from_amount: nil,
+        funded_by: nil,
+        order_id: nil,
+        rate: nil,
+        extra: {}
+      )
+        super()
+        @address = address
+        @address_is_payer = address_is_payer
+        @amount = amount
+        @amount_paid = amount_paid
+        @commission = commission
+        @commission_bearer = commission_bearer
+        @currency = currency
+        @network = network
+        @refundable = refundable
+        @refunded = refunded
+        @remaining = remaining
+        @surcharge = surcharge
+        @uuid = uuid
+        @credited = credited
+        @from_amount = from_amount
+        @funded_by = funded_by
+        @order_id = order_id
+        @rate = rate
+        @extra = extra
+        freeze
+      end
+
+      # Build from a decoded JSON object (string or symbol keys).
+      # @param data [Hash]
+      # @return [RefundCalculation]
+      def self.from_h(data)
+        data = Generated::Codec.object(data)
+        new(
+          address: Generated::Codec.read(data.fetch("address"), :string),
+          address_is_payer: Generated::Codec.read(data.fetch("address_is_payer"), :boolean),
+          amount: Generated::Codec.read(data.fetch("amount"), :decimal),
+          amount_paid: Generated::Codec.read(data.fetch("amount_paid"), :decimal),
+          commission: Generated::Codec.read(data.fetch("commission"), :decimal),
+          commission_bearer: Generated::Codec.read(data.fetch("commission_bearer"), :string),
+          currency: Generated::Codec.read(data.fetch("currency"), :string),
+          network: Generated::Codec.read(data.fetch("network"), :string),
+          refundable: Generated::Codec.read(data.fetch("refundable"), :decimal),
+          refunded: Generated::Codec.read(data.fetch("refunded"), :decimal),
+          remaining: Generated::Codec.read(data.fetch("remaining"), :decimal),
+          surcharge: Generated::Codec.read(data.fetch("surcharge"), :decimal),
+          uuid: Generated::Codec.read(data.fetch("uuid"), :string),
+          credited: Generated::Codec.read(data["credited"], :decimal),
+          from_amount: Generated::Codec.read(data["from_amount"], :decimal),
+          funded_by: Generated::Codec.read(data["funded_by"], :string),
+          order_id: Generated::Codec.read(data["order_id"], :string),
+          rate: Generated::Codec.read(data["rate"], :decimal),
+          extra: Generated::Codec.extra(data, FIELDS)
+        )
+      end
+
+      # The wire form: JSON names, amounts as decimal strings, unknown fields kept.
+      # @return [Hash{String => Object}]
+      def to_h
+        out = @extra.dup
+        out["address"] = Generated::Codec.dump(@address)
+        out["address_is_payer"] = Generated::Codec.dump(@address_is_payer)
+        out["amount"] = Generated::Codec.dump(@amount)
+        out["amount_paid"] = Generated::Codec.dump(@amount_paid)
+        out["commission"] = Generated::Codec.dump(@commission)
+        out["commission_bearer"] = Generated::Codec.dump(@commission_bearer)
+        out["currency"] = Generated::Codec.dump(@currency)
+        out["network"] = Generated::Codec.dump(@network)
+        out["refundable"] = Generated::Codec.dump(@refundable)
+        out["refunded"] = Generated::Codec.dump(@refunded)
+        out["remaining"] = Generated::Codec.dump(@remaining)
+        out["surcharge"] = Generated::Codec.dump(@surcharge)
+        out["uuid"] = Generated::Codec.dump(@uuid)
+        out["credited"] = Generated::Codec.dump(@credited) unless @credited.nil?
+        out["from_amount"] = Generated::Codec.dump(@from_amount) unless @from_amount.nil?
+        out["funded_by"] = Generated::Codec.dump(@funded_by) unless @funded_by.nil?
+        out["order_id"] = Generated::Codec.dump(@order_id) unless @order_id.nil?
+        out["rate"] = Generated::Codec.dump(@rate) unless @rate.nil?
+        out
+      end
+    end
+
     # RefundFeeResult of the API.
     class RefundFeeResult < Generated::Model
       # JSON names of the fields the API always sends.
@@ -10992,10 +11205,12 @@ module Oblodai
       # @return [String, nil] Refund destination address. Defaults to the payment's payer_address;
       #   required only for Bitcoin/UTXO.
       attr_reader :address
-      # @return [BigDecimal, nil] The amount to refund, in the payment coin; overrides the default.
-      #   Without it the refund is the amount paid minus the payer's network surcharge and — when the
-      #   store's refund fee setting (getRefundFeeConfig) puts the commission on the customer — minus
-      #   the Oblodai commission too, never more than was credited to your balance for this payment.
+      # @return [BigDecimal, nil] The amount to refund, in the payment coin. Without it the refund
+      #   is what is still refundable: the amount paid minus the payer's network surcharge and — when
+      #   the store's refund fee setting (getRefundFeeConfig) puts the commission on the customer —
+      #   minus the Oblodai commission too, never more than was credited to your balance for this
+      #   payment, less the refunds already made. All refunds of a payment together cannot exceed that
+      #   refundable amount (refund.exceeds_refundable); POST /v1/payment/refund/calculate shows it.
       attr_reader :amount
       # @return [String, nil] Fund the refund by converting balance: USDT → the payment currency
       #   only. Needed when the payment coin has already been converted by auto-exchange.
@@ -13515,7 +13730,8 @@ module Oblodai
 
       # @return [String] Start of the window, inclusive (RFC 3339).
       attr_reader :from
-      # @return [String] End of the window, exclusive (RFC 3339).
+      # @return [String] End of the window, exclusive (RFC 3339); must be after from, otherwise
+      #   summary.bad_window.
       attr_reader :to
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -13873,7 +14089,8 @@ module Oblodai
       # @return [String] Currency code (cryptocurrency).
       attr_reader :currency
       # @return [String] Idempotency key: a retry with the same order_id is a no-op; required in a
-      #   transfer batch.
+      #   transfer batch. Always pass it (or an Idempotency-Key header, which the SDKs send for you):
+      #   without either, retrying the request after a network timeout creates a second transfer.
       attr_reader :order_id
       # @return [String] The recipient's platform user id (a UUID, not a username); a username is
       #   resolved to an id via the dashboard's public profile /public/users/{username}.
@@ -13986,7 +14203,8 @@ module Oblodai
       # @return [String] Currency code (cryptocurrency).
       attr_reader :currency
       # @return [String, nil] Idempotency key: a retry with the same order_id is a no-op. Always
-      #   pass it, otherwise retrying the request after a network timeout creates a second transfer.
+      #   pass it (or an Idempotency-Key header, which the SDKs send for you): without either,
+      #   retrying the request after a network timeout creates a second transfer.
       attr_reader :order_id
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -14182,7 +14400,9 @@ module Oblodai
       #   resolved to an id via the dashboard's public profile /public/users/{username}.
       attr_reader :to_user_id
       # @return [String, nil] Idempotency key: a retry with the same order_id is a no-op; required
-      #   in a transfer batch.
+      #   in a transfer batch. Always pass it (or an Idempotency-Key header, which the SDKs send for
+      #   you): without either, retrying the request after a network timeout creates a second
+      #   transfer.
       attr_reader :order_id
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra

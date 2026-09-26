@@ -878,6 +878,15 @@ module Oblodai
       end
     end
 
+    # Values of RefundCommissionBearer.
+    module RefundCommissionBearer
+      CUSTOMER = "customer"
+      MERCHANT = "merchant"
+
+      # Every value this release knows.
+      VALUES = [CUSTOMER, MERCHANT].freeze
+    end
+
     # Values of RefundRollup.
     module RefundRollup
       NONE = "none"

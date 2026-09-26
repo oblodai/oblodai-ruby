@@ -76,7 +76,10 @@ module Oblodai
       #   Overrides the merchant setting.
       # @param additional_data [String, nil] The merchant's private data, echoed in webhooks (not
       #   visible to the buyer).
-      # @param amount [BigDecimal, String, nil] The amount to pay in currency.
+      # @param amount [BigDecimal, String, nil] The price in currency — what you are paid for the
+      #   order. The payer can be asked for more: the invoice's payer_amount adds the network
+      #   surcharge (the cost of accepting the deposit on the chosen network, see network_surcharge)
+      #   and any per-method discount or surcharge; your credit is amount minus the commission.
       # @param currency [String, nil] The price currency code: any of the 23 fiat currencies (USD,
       #   EUR, RUB, …) or any coin (USDT, BTC, …). JPY and KRW have zero decimal places.
       # @param is_payment_multiple [Boolean, nil] Allow paying the remainder. An explicit nil sends
@@ -165,7 +168,7 @@ module Oblodai
       # Get payment status
       #
       # Pass `uuid` (ours) OR `order_id` (yours). Returns the current status and amounts. If both
-      # are given, `order_id` takes precedence.
+      # are given, `uuid` takes precedence and `order_id` is ignored.
       #
       # Requires role: Viewer when called with a CLI key.
       #
@@ -179,11 +182,11 @@ module Oblodai
       #
       # @param params [Oblodai::Models::LookupRequest, Hash, nil] the request body as a model or a
       #   Hash; the keywords add to it
-      # @param order_id [String, nil] Your order_id of the object: the payment's for
-      #   /v1/payment/info, the payout's for /v1/payout/info.
-      # @param uuid [String, nil] The Oblodai id of the object being looked up: the invoice
-      #   (payment) for /v1/payment/info, the payout or refund for /v1/payout/info. Either uuid or
-      #   order_id is required; uuid takes precedence.
+      # @param order_id [String, nil] Your order_id of that object: the payment's in payment
+      #   operations, the payout's in payout operations. Used only when uuid is empty.
+      # @param uuid [String, nil] Our id (a UUID) of the object the operation acts on: the payment
+      #   (invoice) in payment operations, the payout or refund in payout operations. Either uuid or
+      #   order_id is required; when both are passed, uuid is used and order_id is ignored.
       # @return [Oblodai::Models::PaymentInfoResult]
       def get_info(
         params = nil,
@@ -232,11 +235,11 @@ module Oblodai
       #
       # @param params [Oblodai::Models::LookupRequest, Hash, nil] the request body as a model or a
       #   Hash; the keywords add to it
-      # @param order_id [String, nil] Your order_id of the object: the payment's for
-      #   /v1/payment/info, the payout's for /v1/payout/info.
-      # @param uuid [String, nil] The Oblodai id of the object being looked up: the invoice
-      #   (payment) for /v1/payment/info, the payout or refund for /v1/payout/info. Either uuid or
-      #   order_id is required; uuid takes precedence.
+      # @param order_id [String, nil] Your order_id of that object: the payment's in payment
+      #   operations, the payout's in payout operations. Used only when uuid is empty.
+      # @param uuid [String, nil] Our id (a UUID) of the object the operation acts on: the payment
+      #   (invoice) in payment operations, the payout or refund in payout operations. Either uuid or
+      #   order_id is required; when both are passed, uuid is used and order_id is ignored.
       # @return [Oblodai::Models::PaymentQRResult]
       def get_qr(
         params = nil,
@@ -395,11 +398,11 @@ module Oblodai
       #
       # @param params [Oblodai::Models::LookupRequest, Hash, nil] the request body as a model or a
       #   Hash; the keywords add to it
-      # @param order_id [String, nil] Your order_id of the object: the payment's for
-      #   /v1/payment/info, the payout's for /v1/payout/info.
-      # @param uuid [String, nil] The Oblodai id of the object being looked up: the invoice
-      #   (payment) for /v1/payment/info, the payout or refund for /v1/payout/info. Either uuid or
-      #   order_id is required; uuid takes precedence.
+      # @param order_id [String, nil] Your order_id of that object: the payment's in payment
+      #   operations, the payout's in payout operations. Used only when uuid is empty.
+      # @param uuid [String, nil] Our id (a UUID) of the object the operation acts on: the payment
+      #   (invoice) in payment operations, the payout or refund in payout operations. Either uuid or
+      #   order_id is required; when both are passed, uuid is used and order_id is ignored.
       # @return [Oblodai::Models::PaymentView]
       def cancel(
         params = nil,
@@ -1002,14 +1005,16 @@ module Oblodai
       # the provider's omnibus hot wallet, not the buyer). A refund sent there is irrecoverably lost
       # to someone who never paid, so a request without `address` is rejected (`refund.no_address`):
       # ask the buyer for an address and pass it explicitly. The payment's `uuid`/`order_id` is
-      # required. By default the full received amount is refunded; you may specify a partial
-      # `amount`.
+      # required. By default the remaining refundable amount is refunded; you may specify a partial
+      # `amount`. All refunds of a payment together cannot exceed its `refundable` amount: what was
+      # paid minus the payer's network surcharge (minus our commission when the store's refund fee
+      # setting puts it on the customer), never more than was credited to your balance for it — POST
+      # /v1/payment/refund/calculate shows these numbers without refunding.
       #
-      # Idempotent on `(payment, address, amount)`; in total you cannot refund more than was paid.
-      # Refunds to any address are approved automatically. The only exception is a card payment via
-      # an on-ramp: a refund TO THE RECORDED PAYER ADDRESS of such an invoice is rejected
-      # (`refund.omnibus_destination`), because that address belongs to the provider, not the buyer
-      # — send the buyer's address explicitly.
+      # Idempotent on `(payment, address, amount)`. Refunds to any address are approved
+      # automatically. The only exception is a card payment via an on-ramp: a refund TO THE RECORDED
+      # PAYER ADDRESS of such an invoice is rejected (`refund.omnibus_destination`), because that
+      # address belongs to the provider, not the buyer — send the buyer's address explicitly.
       #
       # A refund is paid in THE SAME coin the buyer paid with. If it has already been converted into
       # a stablecoin by auto-conversion, pass `from_currency: "USDT"` — the refund is funded by
@@ -1057,11 +1062,13 @@ module Oblodai
       #   Hash; the keywords add to it
       # @param address [String, nil] Refund destination address. Defaults to the payment's
       #   payer_address; required only for Bitcoin/UTXO.
-      # @param amount [BigDecimal, String, nil] The amount to refund, in the payment coin; overrides
-      #   the default. Without it the refund is the amount paid minus the payer's network surcharge
-      #   and — when the store's refund fee setting (getRefundFeeConfig) puts the commission on the
-      #   customer — minus the Oblodai commission too, never more than was credited to your balance
-      #   for this payment.
+      # @param amount [BigDecimal, String, nil] The amount to refund, in the payment coin. Without
+      #   it the refund is what is still refundable: the amount paid minus the payer's network
+      #   surcharge and — when the store's refund fee setting (getRefundFeeConfig) puts the commission
+      #   on the customer — minus the Oblodai commission too, never more than was credited to your
+      #   balance for this payment, less the refunds already made. All refunds of a payment together
+      #   cannot exceed that refundable amount (refund.exceeds_refundable); POST
+      #   /v1/payment/refund/calculate shows it.
       # @param from_currency [String, nil] Fund the refund by converting balance: USDT → the payment
       #   currency only. Needed when the payment coin has already been converted by auto-exchange.
       # @param network [String, nil] Network.
@@ -1109,6 +1116,103 @@ module Oblodai
             request_id:
           ),
           parse: Models::PayoutView.method(:from_h)
+        )
+      end
+
+      # Calculate a refund without making it (dry run)
+      #
+      # Takes the same body as POST /v1/payment/refund and answers what that refund would send —
+      # `amount`, `currency`, `network`, `address` (and whether it is the recorded payer's) — and
+      # the numbers behind it: `amount_paid`, the payer's network `surcharge` (never refunded from
+      # your balance), the `commission` withheld and who bears it (`commission_bearer`, the store's
+      # refund fee setting), `credited`, the `refundable` ceiling for all refunds of the payment
+      # together, what is already `refunded` and what `remaining` can still go. With `from_currency`
+      # it also estimates the USDT the funding conversion would spend (`from_amount`).
+      #
+      # Runs the same checks as the refund itself and fails with the same error the refund would
+      # (`refund.exceeds_refundable`, `refund.dust`, `refund.no_address`,
+      # `refund.nothing_to_refund`, …) — except the destination address screening, which runs when
+      # the refund is made. Reserves and sends nothing; safe to retry.
+      #
+      # Requires role: Viewer when called with a CLI key.
+      #
+      # Error codes: auth.bad_timestamp, auth.body_too_large, auth.ip_not_allowed,
+      # cli.permission_denied, internal, invoice.corrupt_pay_asset, merchant.bad_signature,
+      # merchant.key_expired, merchant.key_mode_mismatch, merchant.rate_limited,
+      # merchant.secret_decrypt, merchant.suspended, merchant.unknown_key, onramp.suppresses,
+      # payment.bad_uuid, payment.no_lookup, payment.not_found, payout.above_limit,
+      # payout.address_network_mismatch, payout.bad_address, payout.bad_memo,
+      # payout.cap_unpriceable, payout.convert_bad_amount, payout.convert_no_rate,
+      # payout.convert_same_asset, payout.convert_unsupported, payout.daily_cap,
+      # payout.freeze_unknown, payout.frozen, payout.memo_conflict, payout.memo_required,
+      # payout.memo_too_long, payout.merchant_frozen, rates.deviation, rates.no_source,
+      # rates.non_positive, rates.stale_rate, refund.bad_amount, refund.chain_ambiguous,
+      # refund.destination_internal, refund.dust, refund.exceeds_refundable, refund.fence_check,
+      # refund.from_currency_personal_account, refund.from_currency_unsupported,
+      # refund.network_required, refund.no_address, refund.nothing_to_refund,
+      # refund.omnibus_destination, refund.paid_internally, refund.unsupported_network,
+      # request.bad_json, request.body_read, request.control_char, request.duplicate_field,
+      # request.nul_byte, request.overloaded, request.rate_limited, request.too_deep,
+      # sandbox.convert_not_available, treasury.no_ccy_map, wallet.static_not_found
+      #
+      # @param params [Oblodai::Models::RefundRequest, Hash, nil] the request body as a model or a
+      #   Hash; the keywords add to it
+      # @param address [String, nil] Refund destination address. Defaults to the payment's
+      #   payer_address; required only for Bitcoin/UTXO.
+      # @param amount [BigDecimal, String, nil] The amount to refund, in the payment coin. Without
+      #   it the refund is what is still refundable: the amount paid minus the payer's network
+      #   surcharge and — when the store's refund fee setting (getRefundFeeConfig) puts the commission
+      #   on the customer — minus the Oblodai commission too, never more than was credited to your
+      #   balance for this payment, less the refunds already made. All refunds of a payment together
+      #   cannot exceed that refundable amount (refund.exceeds_refundable); POST
+      #   /v1/payment/refund/calculate shows it.
+      # @param from_currency [String, nil] Fund the refund by converting balance: USDT → the payment
+      #   currency only. Needed when the payment coin has already been converted by auto-exchange.
+      # @param network [String, nil] Network.
+      # @param order_id [String, nil] Your order reference of the payment. Either uuid or order_id
+      #   is required.
+      # @param reference [String, nil] An optional refund idempotency key: distinguishes two
+      #   different refunds with the same (payment, address, amount); a retry with the same value is
+      #   deduplicated. This is not order_id.
+      # @param uuid [String, nil] Payment id. Either uuid or order_id is required.
+      # @return [Oblodai::Models::RefundCalculation]
+      def calculate(
+        params = nil,
+        address: nil,
+        amount: nil,
+        from_currency: nil,
+        network: nil,
+        order_id: nil,
+        reference: nil,
+        uuid: nil,
+        idempotency_key: nil,
+        timeout: nil,
+        max_retries: nil,
+        extra_headers: nil,
+        request_id: nil
+      )
+        _request(
+          Generated::ROUTES.fetch("calculateRefund"),
+          Generated::Codec.merge(
+            params,
+            {
+              "address" => address,
+              "amount" => amount,
+              "from_currency" => from_currency,
+              "network" => network,
+              "order_id" => order_id,
+              "reference" => reference,
+              "uuid" => uuid
+            }
+          ),
+          Generated::RequestOptions.new(
+            idempotency_key:,
+            timeout:,
+            max_retries:,
+            extra_headers:,
+            request_id:
+          ),
+          parse: Models::RefundCalculation.method(:from_h)
         )
       end
 
@@ -1252,7 +1356,11 @@ module Oblodai
       # @param is_subtract [Boolean, nil] Who pays the network fee: true — amount+fee is debited
       #   from the balance, the recipient gets amount; false — the recipient gets amount-fee; omitted
       #   — the project's fee-config. An explicit nil sends null.
-      # @param memo [String, nil] Destination tag/memo (TON Jetton). At most 120 characters.
+      # @param memo [String, nil] Destination tag / memo / comment, by network: XRP — the
+      #   destination tag, a uint32 (required unless the X-address carries one; 0 for a wallet without
+      #   a tag); Stellar — the memo id, a uint64 (required unless the muxed M… address carries one);
+      #   TON — a comment of at most 64 bytes (it must fit the transfer's message cell); other
+      #   networks — at most 120 bytes. Omit it where the network has none.
       # @param network [String, nil] Network (tron, ethereum, …). Required for coins with several
       #   networks.
       # @param order_id [String, nil] Your payout number; the idempotency key.
@@ -1405,11 +1513,11 @@ module Oblodai
       #
       # @param params [Oblodai::Models::LookupRequest, Hash, nil] the request body as a model or a
       #   Hash; the keywords add to it
-      # @param order_id [String, nil] Your order_id of the object: the payment's for
-      #   /v1/payment/info, the payout's for /v1/payout/info.
-      # @param uuid [String, nil] The Oblodai id of the object being looked up: the invoice
-      #   (payment) for /v1/payment/info, the payout or refund for /v1/payout/info. Either uuid or
-      #   order_id is required; uuid takes precedence.
+      # @param order_id [String, nil] Your order_id of that object: the payment's in payment
+      #   operations, the payout's in payout operations. Used only when uuid is empty.
+      # @param uuid [String, nil] Our id (a UUID) of the object the operation acts on: the payment
+      #   (invoice) in payment operations, the payout or refund in payout operations. Either uuid or
+      #   order_id is required; when both are passed, uuid is used and order_id is ignored.
       # @return [Oblodai::Models::PayoutInfoResult]
       def get_info(
         params = nil,
@@ -1574,8 +1682,10 @@ module Oblodai
       # Runs all payout-creation checks — currency, amount, network, address, memo, address
       # screening, fee, freeze/daily limit and balance sufficiency — but reserves and sends nothing.
       # The response is `valid: true` with the amounts (`amount`, `commission`, `payer_amount`,
-      # `fee_bearer`), or the same error that creation would return. The body is the same as for
-      # POST /v1/payout (order_id is optional for validation).
+      # `fee_bearer`), the destination `address`, and for a `from_currency` payout the USDT the
+      # funding conversion would spend (`from_amount`, at the current rate), or the same error that
+      # creation would return. The body is the same as for POST /v1/payout (order_id is optional for
+      # validation).
       #
       # Requires role: Finance when called with a CLI key.
       #
@@ -1587,15 +1697,16 @@ module Oblodai
       # merchant.rate_limited, merchant.secret_decrypt, merchant.suspended, merchant.unknown_key,
       # payout.above_limit, payout.address_network_mismatch, payout.amount_below_fee,
       # payout.bad_address, payout.bad_amount, payout.bad_memo, payout.bad_url_callback,
-      # payout.cap_unpriceable, payout.daily_cap, payout.destination_internal,
-      # payout.from_currency_unsupported, payout.insufficient_funds, payout.memo_conflict,
-      # payout.memo_required, payout.memo_too_long, payout.merchant_frozen, payout.network_required,
-      # payout.reserved_reference, payout.unsupported_network, rates.deviation, rates.no_source,
-      # rates.non_positive, request.bad_json, request.body_read, request.control_char,
-      # request.duplicate_field, request.nul_byte, request.overloaded, request.rate_limited,
-      # request.reference_invalid, request.reference_too_long, request.too_deep,
-      # request.unknown_currency, sandbox.convert_not_available, wallet.static_not_found,
-      # webhook.no_endpoint
+      # payout.cap_unpriceable, payout.convert_bad_amount, payout.convert_insufficient,
+      # payout.convert_no_rate, payout.convert_same_asset, payout.convert_unsupported,
+      # payout.daily_cap, payout.destination_internal, payout.from_currency_unsupported,
+      # payout.insufficient_funds, payout.memo_conflict, payout.memo_required, payout.memo_too_long,
+      # payout.merchant_frozen, payout.network_required, payout.reserved_reference,
+      # payout.unsupported_network, rates.deviation, rates.no_source, rates.non_positive,
+      # request.bad_json, request.body_read, request.control_char, request.duplicate_field,
+      # request.nul_byte, request.overloaded, request.rate_limited, request.reference_invalid,
+      # request.reference_too_long, request.too_deep, request.unknown_currency,
+      # sandbox.convert_not_available, wallet.static_not_found, webhook.no_endpoint
       #
       # @param params [Oblodai::Models::PayoutValidateRequest, Hash, nil] the request body as a
       #   model or a Hash; the keywords add to it
@@ -1607,7 +1718,11 @@ module Oblodai
       # @param is_subtract [Boolean, nil] Who pays the network fee: true — amount+fee is debited
       #   from the balance, the recipient gets amount; false — the recipient gets amount-fee; omitted
       #   — the project's fee-config. An explicit nil sends null.
-      # @param memo [String, nil] Destination tag/memo (TON Jetton). At most 120 characters.
+      # @param memo [String, nil] Destination tag / memo / comment, by network: XRP — the
+      #   destination tag, a uint32 (required unless the X-address carries one; 0 for a wallet without
+      #   a tag); Stellar — the memo id, a uint64 (required unless the muxed M… address carries one);
+      #   TON — a comment of at most 64 bytes (it must fit the transfer's message cell); other
+      #   networks — at most 120 bytes. Omit it where the network has none.
       # @param network [String, nil] Network (tron, ethereum, …). Required for coins with several
       #   networks.
       # @param order_id [String, nil] Your payout number; the idempotency key.
@@ -1842,8 +1957,8 @@ module Oblodai
       # @param amount [BigDecimal, String, nil] The transfer amount in currency.
       # @param currency [String, nil] Currency code (cryptocurrency).
       # @param order_id [String, nil] Idempotency key: a retry with the same order_id is a no-op.
-      #   Always pass it, otherwise retrying the request after a network timeout creates a second
-      #   transfer.
+      #   Always pass it (or an Idempotency-Key header, which the SDKs send for you): without either,
+      #   retrying the request after a network timeout creates a second transfer.
       # @return [Oblodai::Models::TransferToPersonalResult]
       def transfer_to_personal(
         params = nil,
@@ -1908,7 +2023,9 @@ module Oblodai
       # @param amount [BigDecimal, String, nil] The transfer amount in currency.
       # @param currency [String, nil] Currency code (cryptocurrency).
       # @param order_id [String, nil] Idempotency key: a retry with the same order_id is a no-op;
-      #   required in a transfer batch.
+      #   required in a transfer batch. Always pass it (or an Idempotency-Key header, which the SDKs
+      #   send for you): without either, retrying the request after a network timeout creates a second
+      #   transfer.
       # @param to_user_id [String, nil] The recipient's platform user id (a UUID, not a username); a
       #   username is resolved to an id via the dashboard's public profile /public/users/{username}.
       # @return [Oblodai::Models::TransferResult]
@@ -3238,7 +3355,8 @@ module Oblodai
       # @param params [Oblodai::Models::SummaryRequest, Hash, nil] the request body as a model or a
       #   Hash; the keywords add to it
       # @param from [String, nil] Start of the window, inclusive (RFC 3339).
-      # @param to [String, nil] End of the window, exclusive (RFC 3339).
+      # @param to [String, nil] End of the window, exclusive (RFC 3339); must be after from,
+      #   otherwise summary.bad_window.
       # @return [Oblodai::Models::SummaryResult]
       def get_summary(
         params = nil,
@@ -3348,11 +3466,11 @@ module Oblodai
       #
       # @param params [Oblodai::Models::LookupRequest, Hash, nil] the request body as a model or a
       #   Hash; the keywords add to it
-      # @param order_id [String, nil] Your order_id of the object: the payment's for
-      #   /v1/payment/info, the payout's for /v1/payout/info.
-      # @param uuid [String, nil] The Oblodai id of the object being looked up: the invoice
-      #   (payment) for /v1/payment/info, the payout or refund for /v1/payout/info. Either uuid or
-      #   order_id is required; uuid takes precedence.
+      # @param order_id [String, nil] Your order_id of that object: the payment's in payment
+      #   operations, the payout's in payout operations. Used only when uuid is empty.
+      # @param uuid [String, nil] Our id (a UUID) of the object the operation acts on: the payment
+      #   (invoice) in payment operations, the payout or refund in payout operations. Either uuid or
+      #   order_id is required; when both are passed, uuid is used and order_id is ignored.
       # @return [Oblodai::Models::WebhookResendResult]
       def resend_payment(
         params = nil,

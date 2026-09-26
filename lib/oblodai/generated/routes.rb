@@ -169,6 +169,16 @@ module Oblodai
         bare: false,
         list_kind: nil
       ),
+      "calculateRefund" => RouteSpec.new(
+        operation_id: "calculateRefund",
+        method: "POST",
+        path: "/v1/payment/refund/calculate",
+        auth: :key,
+        idempotent: false,
+        safe: true,
+        bare: false,
+        list_kind: nil
+      ),
       "refundBlockedWallet" => RouteSpec.new(
         operation_id: "refundBlockedWallet",
         method: "POST",
@@ -905,7 +915,7 @@ module Oblodai
         path: "/v1/referral/info",
         auth: :key,
         idempotent: false,
-        safe: false,
+        safe: true,
         bare: false,
         list_kind: nil
       ),
@@ -965,7 +975,7 @@ module Oblodai
         path: "/v1/payout/link/cheque",
         auth: :key,
         idempotent: false,
-        safe: false,
+        safe: true,
         bare: true,
         list_kind: nil
       ),
