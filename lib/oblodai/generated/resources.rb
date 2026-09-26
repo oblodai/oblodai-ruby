@@ -179,9 +179,11 @@ module Oblodai
       #
       # @param params [Oblodai::Models::LookupRequest, Hash, nil] the request body as a model or a
       #   Hash; the keywords add to it
-      # @param order_id [String, nil] Your order reference.
-      # @param uuid [String, nil] The invoice id in Oblodai. Either uuid or order_id is required;
-      #   uuid takes precedence.
+      # @param order_id [String, nil] Your order_id of the object: the payment's for
+      #   /v1/payment/info, the payout's for /v1/payout/info.
+      # @param uuid [String, nil] The Oblodai id of the object being looked up: the invoice
+      #   (payment) for /v1/payment/info, the payout or refund for /v1/payout/info. Either uuid or
+      #   order_id is required; uuid takes precedence.
       # @return [Oblodai::Models::PaymentInfoResult]
       def get_info(
         params = nil,
@@ -230,9 +232,11 @@ module Oblodai
       #
       # @param params [Oblodai::Models::LookupRequest, Hash, nil] the request body as a model or a
       #   Hash; the keywords add to it
-      # @param order_id [String, nil] Your order reference.
-      # @param uuid [String, nil] The invoice id in Oblodai. Either uuid or order_id is required;
-      #   uuid takes precedence.
+      # @param order_id [String, nil] Your order_id of the object: the payment's for
+      #   /v1/payment/info, the payout's for /v1/payout/info.
+      # @param uuid [String, nil] The Oblodai id of the object being looked up: the invoice
+      #   (payment) for /v1/payment/info, the payout or refund for /v1/payout/info. Either uuid or
+      #   order_id is required; uuid takes precedence.
       # @return [Oblodai::Models::PaymentQRResult]
       def get_qr(
         params = nil,
@@ -281,23 +285,16 @@ module Oblodai
       # request.control_char, request.duplicate_field, request.nul_byte, request.overloaded,
       # request.rate_limited, request.too_deep
       #
-      # @param params [Oblodai::Models::HistoryRequest, Hash, nil] the request body as a model or a
-      #   Hash; the keywords add to it
-      # @param include_refunds [Boolean, nil] Only for /v1/payout/history: true — return refunds
-      #   together with payouts (the former behavior of the feed without kind). Default false: refunds
-      #   are separate, kind=refund.
-      # @param kind [String, nil] Only for /v1/payout/history: payout — regular payouts, refund —
-      #   refunds; empty — regular payouts (with include_refunds=true — everything together). Values:
-      #   {Oblodai::Enums::PayoutKind}.
+      # @param params [Oblodai::Models::PaymentHistoryRequest, Hash, nil] the request body as a
+      #   model or a Hash; the keywords add to it
       # @param limit [Integer, nil] Page size, 1–100; out of range — 25.
       # @param offset [Integer, nil] Offset from the start of the list (newest first).
-      # @param status [String, nil] Filter by status (an exact value from the status vocabulary);
-      #   empty — all.
+      # @param status [String, nil] Filter by payment status (an exact value from the payment status
+      #   vocabulary: select, created, confirm_check, paid, paid_over, wrong_amount, expired,
+      #   cancelled); empty — all.
       # @return [Oblodai::Page<Oblodai::Models::PaymentView>]
       def list_history(
         params = nil,
-        include_refunds: nil,
-        kind: nil,
         limit: nil,
         offset: nil,
         status: nil,
@@ -312,8 +309,6 @@ module Oblodai
           Generated::Codec.merge(
             params,
             {
-              "include_refunds" => include_refunds,
-              "kind" => kind,
               "limit" => limit,
               "offset" => offset,
               "status" => status
@@ -400,9 +395,11 @@ module Oblodai
       #
       # @param params [Oblodai::Models::LookupRequest, Hash, nil] the request body as a model or a
       #   Hash; the keywords add to it
-      # @param order_id [String, nil] Your order reference.
-      # @param uuid [String, nil] The invoice id in Oblodai. Either uuid or order_id is required;
-      #   uuid takes precedence.
+      # @param order_id [String, nil] Your order_id of the object: the payment's for
+      #   /v1/payment/info, the payout's for /v1/payout/info.
+      # @param uuid [String, nil] The Oblodai id of the object being looked up: the invoice
+      #   (payment) for /v1/payment/info, the payout or refund for /v1/payout/info. Either uuid or
+      #   order_id is required; uuid takes precedence.
       # @return [Oblodai::Models::PaymentView]
       def cancel(
         params = nil,
@@ -1060,8 +1057,11 @@ module Oblodai
       #   Hash; the keywords add to it
       # @param address [String, nil] Refund destination address. Defaults to the payment's
       #   payer_address; required only for Bitcoin/UTXO.
-      # @param amount [BigDecimal, String, nil] A partial amount. Defaults to the full received
-      #   amount.
+      # @param amount [BigDecimal, String, nil] The amount to refund, in the payment coin; overrides
+      #   the default. Without it the refund is the amount paid minus the payer's network surcharge
+      #   and — when the store's refund fee setting (getRefundFeeConfig) puts the commission on the
+      #   customer — minus the Oblodai commission too, never more than was credited to your balance
+      #   for this payment.
       # @param from_currency [String, nil] Fund the refund by converting balance: USDT → the payment
       #   currency only. Needed when the payment coin has already been converted by auto-exchange.
       # @param network [String, nil] Network.
@@ -1405,9 +1405,11 @@ module Oblodai
       #
       # @param params [Oblodai::Models::LookupRequest, Hash, nil] the request body as a model or a
       #   Hash; the keywords add to it
-      # @param order_id [String, nil] Your order reference.
-      # @param uuid [String, nil] The invoice id in Oblodai. Either uuid or order_id is required;
-      #   uuid takes precedence.
+      # @param order_id [String, nil] Your order_id of the object: the payment's for
+      #   /v1/payment/info, the payout's for /v1/payout/info.
+      # @param uuid [String, nil] The Oblodai id of the object being looked up: the invoice
+      #   (payment) for /v1/payment/info, the payout or refund for /v1/payout/info. Either uuid or
+      #   order_id is required; uuid takes precedence.
       # @return [Oblodai::Models::PayoutInfoResult]
       def get_info(
         params = nil,
@@ -1459,16 +1461,16 @@ module Oblodai
       #
       # @param params [Oblodai::Models::HistoryRequest, Hash, nil] the request body as a model or a
       #   Hash; the keywords add to it
-      # @param include_refunds [Boolean, nil] Only for /v1/payout/history: true — return refunds
-      #   together with payouts (the former behavior of the feed without kind). Default false: refunds
-      #   are separate, kind=refund.
-      # @param kind [String, nil] Only for /v1/payout/history: payout — regular payouts, refund —
-      #   refunds; empty — regular payouts (with include_refunds=true — everything together). Values:
+      # @param include_refunds [Boolean, nil] true — return refunds together with payouts (the
+      #   former behavior of the feed without kind). Default false: refunds are separate, kind=refund.
+      # @param kind [String, nil] payout — regular payouts, refund — refunds; empty — regular
+      #   payouts (with include_refunds=true — everything together). Values:
       #   {Oblodai::Enums::PayoutKind}.
       # @param limit [Integer, nil] Page size, 1–100; out of range — 25.
       # @param offset [Integer, nil] Offset from the start of the list (newest first).
-      # @param status [String, nil] Filter by status (an exact value from the status vocabulary);
-      #   empty — all.
+      # @param status [String, nil] Filter by payout status (an exact value from the payout status
+      #   vocabulary: pending, approved, awaiting_cosign, broadcasting, sent, confirmed, failed,
+      #   cancelled); empty — all.
       # @return [Oblodai::Page<Oblodai::Models::PayoutView>]
       def list_history(
         params = nil,
@@ -3346,9 +3348,11 @@ module Oblodai
       #
       # @param params [Oblodai::Models::LookupRequest, Hash, nil] the request body as a model or a
       #   Hash; the keywords add to it
-      # @param order_id [String, nil] Your order reference.
-      # @param uuid [String, nil] The invoice id in Oblodai. Either uuid or order_id is required;
-      #   uuid takes precedence.
+      # @param order_id [String, nil] Your order_id of the object: the payment's for
+      #   /v1/payment/info, the payout's for /v1/payout/info.
+      # @param uuid [String, nil] The Oblodai id of the object being looked up: the invoice
+      #   (payment) for /v1/payment/info, the payout or refund for /v1/payout/info. Either uuid or
+      #   order_id is required; uuid takes precedence.
       # @return [Oblodai::Models::WebhookResendResult]
       def resend_payment(
         params = nil,
