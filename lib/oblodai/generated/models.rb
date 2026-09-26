@@ -3863,20 +3863,19 @@ module Oblodai
       # JSON names of every field this release knows.
       FIELDS = %w[include_refunds kind limit offset status].freeze
 
-      # @return [Boolean, nil] Only for /v1/payout/history: true — return refunds together with
-      #   payouts (the former behavior of the feed without kind). Default false: refunds are separate,
-      #   kind=refund.
+      # @return [Boolean, nil] true — return refunds together with payouts (the former behavior of
+      #   the feed without kind). Default false: refunds are separate, kind=refund.
       attr_reader :include_refunds
-      # @return [String, nil] Only for /v1/payout/history: payout — regular payouts, refund —
-      #   refunds; empty — regular payouts (with include_refunds=true — everything together). Values:
-      #   {Oblodai::Enums::PayoutKind}.
+      # @return [String, nil] payout — regular payouts, refund — refunds; empty — regular payouts
+      #   (with include_refunds=true — everything together). Values: {Oblodai::Enums::PayoutKind}.
       attr_reader :kind
       # @return [Integer, nil] Page size, 1–100; out of range — 25.
       attr_reader :limit
       # @return [Integer, nil] Offset from the start of the list (newest first).
       attr_reader :offset
-      # @return [String, nil] Filter by status (an exact value from the status vocabulary); empty —
-      #   all.
+      # @return [String, nil] Filter by payout status (an exact value from the payout status
+      #   vocabulary: pending, approved, awaiting_cosign, broadcasting, sent, confirmed, failed,
+      #   cancelled); empty — all.
       attr_reader :status
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -4006,10 +4005,12 @@ module Oblodai
       # JSON names of every field this release knows.
       FIELDS = %w[order_id uuid].freeze
 
-      # @return [String, nil] Your order reference.
+      # @return [String, nil] Your order_id of the object: the payment's for /v1/payment/info, the
+      #   payout's for /v1/payout/info.
       attr_reader :order_id
-      # @return [String, nil] The invoice id in Oblodai. Either uuid or order_id is required; uuid
-      #   takes precedence.
+      # @return [String, nil] The Oblodai id of the object being looked up: the invoice (payment)
+      #   for /v1/payment/info, the payout or refund for /v1/payout/info. Either uuid or order_id is
+      #   required; uuid takes precedence.
       attr_reader :uuid
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -5316,6 +5317,62 @@ module Oblodai
         out["fee_fixed_usd_cents"] = Generated::Codec.dump(@fee_fixed_usd_cents) unless @fee_fixed_usd_cents.nil?
         out["fee_individual"] = Generated::Codec.dump(@fee_individual) unless @fee_individual.nil?
         out["fee_percent"] = Generated::Codec.dump(@fee_percent) unless @fee_percent.nil?
+        out
+      end
+    end
+
+    # PaymentHistoryRequest of the API.
+    class PaymentHistoryRequest < Generated::Model
+      # JSON names of the fields the API always sends.
+      REQUIRED = [].freeze
+      # JSON names of every field this release knows.
+      FIELDS = %w[limit offset status].freeze
+
+      # @return [Integer, nil] Page size, 1–100; out of range — 25.
+      attr_reader :limit
+      # @return [Integer, nil] Offset from the start of the list (newest first).
+      attr_reader :offset
+      # @return [String, nil] Filter by payment status (an exact value from the payment status
+      #   vocabulary: select, created, confirm_check, paid, paid_over, wrong_amount, expired,
+      #   cancelled); empty — all.
+      attr_reader :status
+      # @return [Hash{String => Object}] fields this release does not know yet, as sent
+      attr_reader :extra
+
+      def initialize(
+        limit: nil,
+        offset: nil,
+        status: nil,
+        extra: {}
+      )
+        super()
+        @limit = limit
+        @offset = offset
+        @status = status
+        @extra = extra
+        freeze
+      end
+
+      # Build from a decoded JSON object (string or symbol keys).
+      # @param data [Hash]
+      # @return [PaymentHistoryRequest]
+      def self.from_h(data)
+        data = Generated::Codec.object(data)
+        new(
+          limit: Generated::Codec.read(data["limit"], :integer),
+          offset: Generated::Codec.read(data["offset"], :integer),
+          status: Generated::Codec.read(data["status"], :string),
+          extra: Generated::Codec.extra(data, FIELDS)
+        )
+      end
+
+      # The wire form: JSON names, amounts as decimal strings, unknown fields kept.
+      # @return [Hash{String => Object}]
+      def to_h
+        out = @extra.dup
+        out["limit"] = Generated::Codec.dump(@limit) unless @limit.nil?
+        out["offset"] = Generated::Codec.dump(@offset) unless @offset.nil?
+        out["status"] = Generated::Codec.dump(@status) unless @status.nil?
         out
       end
     end
@@ -10752,7 +10809,10 @@ module Oblodai
       # @return [String, nil] Refund destination address. Defaults to the payment's payer_address;
       #   required only for Bitcoin/UTXO.
       attr_reader :address
-      # @return [BigDecimal, nil] A partial amount. Defaults to the full received amount.
+      # @return [BigDecimal, nil] The amount to refund, in the payment coin; overrides the default.
+      #   Without it the refund is the amount paid minus the payer's network surcharge and — when the
+      #   store's refund fee setting (getRefundFeeConfig) puts the commission on the customer — minus
+      #   the Oblodai commission too, never more than was credited to your balance for this payment.
       attr_reader :amount
       # @return [String, nil] Fund the refund by converting balance: USDT → the payment currency
       #   only. Needed when the payment coin has already been converted by auto-exchange.
@@ -10932,7 +10992,10 @@ module Oblodai
       # @return [String, nil] Refund destination address. Defaults to the payment's payer_address;
       #   required only for Bitcoin/UTXO.
       attr_reader :address
-      # @return [BigDecimal, nil] A partial amount. Defaults to the full received amount.
+      # @return [BigDecimal, nil] The amount to refund, in the payment coin; overrides the default.
+      #   Without it the refund is the amount paid minus the payer's network surcharge and — when the
+      #   store's refund fee setting (getRefundFeeConfig) puts the commission on the customer — minus
+      #   the Oblodai commission too, never more than was credited to your balance for this payment.
       attr_reader :amount
       # @return [String, nil] Fund the refund by converting balance: USDT → the payment currency
       #   only. Needed when the payment coin has already been converted by auto-exchange.
@@ -13624,11 +13687,14 @@ module Oblodai
       # JSON names of every field this release knows.
       FIELDS = %w[ok signed status_code].freeze
 
-      # @return [Boolean] Always true: the body was delivered.
+      # @return [Boolean] Always true: your endpoint received the body and answered, with any HTTP
+      #   status — ok does not mean it was accepted; check status_code. If the endpoint cannot be
+      #   reached, the call fails with webhook.test_failed.
       attr_reader :ok
       # @return [Boolean] The body is signed with the project endpoint's secret.
       attr_reader :signed
-      # @return [Integer] The HTTP status your endpoint responded with.
+      # @return [Integer] The HTTP status your endpoint responded with. Only 2xx counts as accepted:
+      #   a live delivery answered with anything else is retried and eventually marked dead.
       attr_reader :status_code
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -13730,7 +13796,8 @@ module Oblodai
 
       # @return [Integer] How long the delivery took, ms.
       attr_reader :duration_ms
-      # @return [Boolean] The delivery took place (the endpoint responded, with any status).
+      # @return [Boolean] The delivery took place: the endpoint answered, with any HTTP status — ok
+      #   does not mean it was accepted; check status_code.
       attr_reader :ok
       # @return [Boolean] The body is signed with the project endpoint's secret.
       attr_reader :signed
@@ -13738,7 +13805,8 @@ module Oblodai
       attr_reader :url
       # @return [String, nil] Why the delivery did not take place; only when ok=false.
       attr_reader :error
-      # @return [Integer, nil] The HTTP status returned by the endpoint; only when ok=true.
+      # @return [Integer, nil] The HTTP status returned by the endpoint; only when ok=true. Only 2xx
+      #   counts as accepted: a live delivery answered with anything else is retried.
       attr_reader :status_code
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
