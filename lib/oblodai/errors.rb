@@ -6,7 +6,7 @@ require_relative "generated/enums"
 module Oblodai
   # Error model. One family, {Oblodai::Error}, mirrors the core's error envelope:
   #
-  #     { "error": { "code", "message", "field"?, "retryable", "retry_after"?, "request_id"? } }
+  #     { "error": { "code", "message", "field"?, "details"?, "retryable", "retry_after"?, "request_id"? } }
   #
   # `retryable` is authoritative when the core wrote the envelope: it is the core's own
   # classification of the failure. A response without an envelope (a proxy 502, an HTML 503) is
@@ -24,6 +24,9 @@ module Oblodai
     attr_reader :request_id
     # @return [String, nil] the request field the error refers to, for validation failures
     attr_reader :field
+    # @return [Hash{String => String}, nil] machine-readable facts about the refusal, keys documented
+    #   by its code (e.g. "cli.permission_denied" carries "required_role" and "role"); nil when absent
+    attr_reader :details
     # @return [Object, nil] the wrapped lower-level exception, when there was one
     attr_reader :cause_error
     # @return [String] the bare description, without the `[code]` prefix and the request id that
@@ -37,11 +40,12 @@ module Oblodai
     # @param retry_after [Integer, nil]
     # @param request_id [String, nil]
     # @param field [String, nil]
+    # @param details [Hash{String => String}, nil]
     # @param synthetic [Boolean] true when no core envelope was present (proxy/LB answer)
     # @param raw [Object, nil] decoded error body, or the raw text when it was not JSON
     # @param cause_error [Exception, nil]
     def initialize(code:, message:, http_status: 0, retryable: false, retry_after: nil,
-                   request_id: nil, field: nil, synthetic: false, raw: nil, cause_error: nil)
+                   request_id: nil, field: nil, synthetic: false, raw: nil, cause_error: nil, details: nil)
       # `to_s`/`message` is what a log line shows: the code and the request id travel with the text.
       super(request_id ? "[#{code}] #{message} (request_id=#{request_id})" : "[#{code}] #{message}")
       @text = message
@@ -51,6 +55,7 @@ module Oblodai
       @retry_after = retry_after
       @request_id = request_id
       @field = field
+      @details = details
       @synthetic = synthetic
       @raw = raw
       @cause_error = cause_error
@@ -88,7 +93,7 @@ module Oblodai
       {
         error: self.class.name, code: @code, message: @text, http_status: @http_status,
         retryable: @retryable, retry_after: @retry_after, request_id: @request_id, field: @field,
-        synthetic: @synthetic
+        details: @details, synthetic: @synthetic
       }
     end
 
@@ -213,6 +218,14 @@ module Oblodai
     value.is_a?(String) ? value : nil
   end
 
+  # @return [Hash{String => String}, nil] the string values of `details`; nil when there are none
+  def self.details_or_nil(value)
+    return nil unless value.is_a?(Hash)
+
+    out = value.select { |k, v| k.is_a?(String) && v.is_a?(String) }
+    out.empty? ? nil : out.freeze
+  end
+
   # Decode `{"error": {...}}` field by field. A peer that answers with the right shape but the wrong
   # types (`code: 123`, `retryable: "yes"`) must not be able to change how the SDK behaves: an
   # unusable `code` demotes the whole body to "no envelope", and every other field falls back to the
@@ -230,6 +243,7 @@ module Oblodai
       "code" => code,
       "message" => string_or_nil(src["message"]),
       "field" => string_or_nil(src["field"]),
+      "details" => details_or_nil(src["details"]),
       "request_id" => request_id
     }
     # Only a literal boolean is the core's classification; anything else leaves the decision to the
@@ -271,6 +285,7 @@ module Oblodai
       http_status: http_status, retryable: retryable?(http_status, detail, synthetic),
       retry_after: coerce_retry_after(detail["retry_after"]) || coerce_retry_after(retry_after_header),
       request_id: string_or_nil(detail["request_id"]), field: string_or_nil(detail["field"]),
+      details: synthetic ? nil : details_or_nil(detail["details"]),
       synthetic: synthetic, raw: raw
     }
     error_class(http_status, code).new(**args)

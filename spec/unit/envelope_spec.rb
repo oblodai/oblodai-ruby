@@ -64,6 +64,17 @@ RSpec.describe Oblodai::Envelope do
       expect(error.field).to be_nil
       expect(error.request_id).to be_nil
     end
+
+    it "keeps only the string values of details" do
+      body = '{"error":{"code":"cli.permission_denied","retryable":false,' \
+             '"details":{"required_role":"finance","role":"viewer","n":3,"x":null}}}'
+      error = described_class.decode(403, body).error
+      expect(error.details).to eq("required_role" => "finance", "role" => "viewer")
+      expect(error.to_h[:details]).to eq("required_role" => "finance", "role" => "viewer")
+      expect(described_class.decode(403, '{"error":{"code":"cli.permission_denied","details":["finance"]}}')
+        .error.details).to be_nil
+      expect(described_class.decode(403, '{"error":{"code":"cli.permission_denied"}}').error.details).to be_nil
+    end
   end
 
   describe "retry_after" do
