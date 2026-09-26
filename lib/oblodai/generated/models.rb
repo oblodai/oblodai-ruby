@@ -10856,11 +10856,15 @@ module Oblodai
       #   required only for Bitcoin/UTXO.
       attr_reader :address
       # @return [BigDecimal, nil] The amount to refund, in the payment coin. Without it the refund
-      #   is what is still refundable: the amount paid minus the payer's network surcharge and — when
-      #   the store's refund fee setting (getRefundFeeConfig) puts the commission on the customer —
-      #   minus the Oblodai commission too, never more than was credited to your balance for this
-      #   payment, less the refunds already made. All refunds of a payment together cannot exceed that
-      #   refundable amount (refund.exceeds_refundable); POST /v1/payment/refund/calculate shows it.
+      #   is what is still refundable: the refundable amount less the refunds already made. The
+      #   refundable amount is the most that all refunds of this payment together can send
+      #   (refund.exceeds_refundable), and it follows the store's refund fee setting
+      #   (getRefundFeeConfig). The payer's network surcharge is never refunded. When the customer
+      #   bears the Oblodai commission, it is the amount paid minus the surcharge and the commission —
+      #   what was credited to your balance for this payment. When you bear it, it is the amount paid
+      #   minus the surcharge: the commission is paid from your balance, so the refunds debit more
+      #   than the payment credited, and a balance too small for that fails with
+      #   payout.insufficient_funds. POST /v1/payment/refund/calculate shows these numbers.
       attr_reader :amount
       # @return [String, nil] Fund the refund by converting balance: USDT → the payment currency
       #   only. Needed when the payment coin has already been converted by auto-exchange.
@@ -11005,19 +11009,24 @@ module Oblodai
       # @return [BigDecimal] What the buyer paid in total, including the network surcharge.
       attr_reader :amount_paid
       # @return [BigDecimal] The Oblodai commission withheld from the refund: the payment's
-      #   commission when commission_bearer is customer, 0 when it is merchant.
+      #   commission when commission_bearer is customer, 0 when it is merchant (you then pay it from
+      #   your balance).
       attr_reader :commission
-      # @return [String] Who bears the Oblodai commission on this refund (the store's refund fee
-      #   setting, getRefundFeeConfig): customer — it is deducted from the refund; merchant — it is
-      #   not. Values: {Oblodai::Enums::RefundCommissionBearer}.
+      # @return [String] Who bears the Oblodai commission on this refund — the store's refund fee
+      #   setting (getRefundFeeConfig): customer — it is deducted from the refund, and the refunds
+      #   return at most what the payment credited you; merchant — it is not deducted, and you pay it
+      #   from your balance, so the refunds debit more than the payment credited. Values:
+      #   {Oblodai::Enums::RefundCommissionBearer}.
       attr_reader :commission_bearer
       # @return [String] The refund coin — the one the buyer paid with.
       attr_reader :currency
       # @return [String] The network the refund would be sent on (canonical).
       attr_reader :network
-      # @return [BigDecimal] The most that all refunds of this payment together may send:
-      #   amount_paid minus surcharge (minus commission when commission_bearer is customer), never
-      #   more than credited.
+      # @return [BigDecimal] The most that all refunds of this payment together may send; the
+      #   surcharge is never refunded. commission_bearer customer: amount_paid minus surcharge minus
+      #   commission, never more than credited. commission_bearer merchant: amount_paid minus
+      #   surcharge (the surcharge counted per deposit), more than credited by the commission you pay
+      #   from your balance.
       attr_reader :refundable
       # @return [BigDecimal] Already refunded (live and completed refunds; failed and cancelled ones
       #   do not count).
@@ -11155,8 +11164,8 @@ module Oblodai
       # @return [Boolean] true — the project set this setting itself; false — the gateway default
       #   applies.
       attr_reader :configured
-      # @return [Boolean] The effective value: the project setting, or the gateway default if there
-      #   is none.
+      # @return [Boolean] The effective value for your refunds: the project setting, or the gateway
+      #   default if there is none (automatic refunds then deduct the commission).
       attr_reader :fee_on_customer
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -11206,11 +11215,15 @@ module Oblodai
       #   required only for Bitcoin/UTXO.
       attr_reader :address
       # @return [BigDecimal, nil] The amount to refund, in the payment coin. Without it the refund
-      #   is what is still refundable: the amount paid minus the payer's network surcharge and — when
-      #   the store's refund fee setting (getRefundFeeConfig) puts the commission on the customer —
-      #   minus the Oblodai commission too, never more than was credited to your balance for this
-      #   payment, less the refunds already made. All refunds of a payment together cannot exceed that
-      #   refundable amount (refund.exceeds_refundable); POST /v1/payment/refund/calculate shows it.
+      #   is what is still refundable: the refundable amount less the refunds already made. The
+      #   refundable amount is the most that all refunds of this payment together can send
+      #   (refund.exceeds_refundable), and it follows the store's refund fee setting
+      #   (getRefundFeeConfig). The payer's network surcharge is never refunded. When the customer
+      #   bears the Oblodai commission, it is the amount paid minus the surcharge and the commission —
+      #   what was credited to your balance for this payment. When you bear it, it is the amount paid
+      #   minus the surcharge: the commission is paid from your balance, so the refunds debit more
+      #   than the payment credited, and a balance too small for that fails with
+      #   payout.insufficient_funds. POST /v1/payment/refund/calculate shows these numbers.
       attr_reader :amount
       # @return [String, nil] Fund the refund by converting balance: USDT → the payment currency
       #   only. Needed when the payment coin has already been converted by auto-exchange.
@@ -12649,8 +12662,10 @@ module Oblodai
       # JSON names of every field this release knows.
       FIELDS = ["fee_on_customer"].freeze
 
-      # @return [Boolean] true — the customer receives net (the customer pays the fee); false — the
-      #   merchant pays the fee, the customer receives gross
+      # @return [Boolean] Who bears the Oblodai commission on refunds. true — the customer: it is
+      #   deducted from the refund, which returns at most what the payment credited to your balance.
+      #   false — you: it is not deducted and is paid from your balance, on top of what the payment
+      #   credited. The payer's network surcharge is never refunded either way.
       attr_reader :fee_on_customer
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
