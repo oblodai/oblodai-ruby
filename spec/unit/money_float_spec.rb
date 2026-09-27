@@ -53,6 +53,15 @@ RSpec.describe "money on the wire" do
     expect(http.calls).to be_empty
   end
 
+  it "refuses a body over the contract's MAX_BODY before signing, huge exponents before rendering" do
+    http = FakeHTTP.new([])
+    [BigDecimal("1e200000000"), BigDecimal("1e-200000000"), "9" * (1024 * 1024)].each do |amount|
+      expect { client_with(http).payments.create(amount: amount, currency: "USDT") }
+        .to raise_error(Oblodai::ConfigError) { |e| expect(e.code).to eq("sdk.body_too_large") }
+    end
+    expect(http.calls).to be_empty
+  end
+
   it "parses amounts of the answer as BigDecimal" do
     http = FakeHTTP.new([FakeHTTP.ok_for("createPayment", "amount" => "25.10")])
     payment = client_with(http).payments.create(amount: "25.10", currency: "USDT")
@@ -70,6 +79,15 @@ RSpec.describe Oblodai::Money do
       .to raise_error(Oblodai::ConfigError) { |e| expect(e.code).to eq("sdk.float_amount") }
     expect { described_class.compare(BigDecimal("Infinity"), "1") }
       .to raise_error(Oblodai::ConfigError) { |e| expect(e.code).to eq("sdk.bad_amount") }
+  end
+
+  it "bounds a BigDecimal's exponent before rendering it, and anchors the decimal pattern" do
+    expect { described_class.compare(BigDecimal("1e200000000"), "1") }
+      .to raise_error(Oblodai::ConfigError) { |e| expect(e.code).to eq("sdk.bad_amount") }
+    expect(described_class.compare(BigDecimal("1E+2"), "100")).to eq(0)
+    ["25\n", "-1.5\n", "1\n2"].each do |bad|
+      expect { described_class.compare(bad, "1") }.to raise_error(Oblodai::ConfigError)
+    end
   end
 
   it "renders BigDecimal without an exponent" do

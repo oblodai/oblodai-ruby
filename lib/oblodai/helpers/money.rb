@@ -35,11 +35,21 @@ module Oblodai
     # @param value [BigDecimal]
     # @return [String]
     # @raise [Oblodai::ConfigError] `sdk.bad_amount` for NaN or an infinity
-    def decimal_string(value)
+    def decimal_string(value, max_length: nil)
       bad_amount!(value, "not finite") unless value.finite?
+      # Rendered with "F", a huge exponent expands to that many digits (BigDecimal("1e200000000")
+      # is a 200 MB string): refuse before rendering.
+      bad_amount!(value, "longer than #{max_length} characters") if max_length && rendered_length(value) > max_length
 
       text = value.to_s("F")
       text.end_with?(".0") ? text[0...-2] : text
+    end
+
+    # An upper bound of the length of `value.to_s("F")`, computed without rendering it.
+    # @param value [BigDecimal] finite
+    # @return [Integer]
+    def rendered_length(value)
+      value.n_significant_digits + value.exponent.abs + 3
     end
 
     # @param a [String, BigDecimal]
@@ -92,7 +102,7 @@ module Oblodai
     # Every rejection is one SDK error — never a native TypeError from deep inside a helper.
     # @raise [Oblodai::ConfigError]
     def parts(amount)
-      amount = decimal_string(amount) if amount.is_a?(BigDecimal)
+      amount = decimal_string(amount, max_length: MAX_LENGTH) if amount.is_a?(BigDecimal)
       float_amount!(amount) if amount.is_a?(Float)
       bad_amount!(amount, "expected a String or a BigDecimal") unless amount.is_a?(String)
       bad_amount!(amount, "empty") if amount.empty?

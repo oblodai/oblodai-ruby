@@ -253,7 +253,15 @@ module Oblodai
       return "" if method == "GET"
       return "{}" if body.nil?
 
-      JSON.generate(wire(body, ""))
+      text = JSON.generate(wire(body, ""))
+      return text if text.bytesize <= Generated::SigningProtocol::MAX_BODY
+
+      raise ConfigError.new(
+        "sdk.body_too_large",
+        "request body is #{text.bytesize} bytes; the gateway accepts at most " \
+        "#{Generated::SigningProtocol::MAX_BODY}",
+        "body"
+      )
     end
 
     # The JSON-ready form of a request value; `path` names the field in error messages.
@@ -293,6 +301,14 @@ module Oblodai
 
     def wire_decimal(value, path)
       bad_body!("#{describe(path)} is a non-finite BigDecimal (#{value})") unless value.finite?
+      # A huge exponent would expand to that many digits before any size check could run.
+      if Money.rendered_length(value) > Generated::SigningProtocol::MAX_BODY
+        raise ConfigError.new(
+          "sdk.body_too_large",
+          "#{describe(path)} is a BigDecimal wider than the #{Generated::SigningProtocol::MAX_BODY}-byte body limit",
+          "body"
+        )
+      end
 
       Money.decimal_string(value)
     end

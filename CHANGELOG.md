@@ -51,6 +51,11 @@ versions follow [SemVer](https://semver.org/).
   `overwrite: true`, and the file is created with `0600` permissions. `FileResult#filename` is now
   the safe basename itself (no directories, no control characters, never `.`/`..`).
 
+- Request bodies are refused above the contract's `MAX_BODY` (1 MiB) with `ConfigError`
+  `sdk.body_too_large` before anything is signed or sent; a `BigDecimal` with a huge exponent
+  (`BigDecimal("1e200000000")`) is refused before `to_s("F")` expands it into a 200 MB string, and
+  the money helpers bound a `BigDecimal`'s rendered length the same way (64 characters).
+
 ### Added
 
 - `client.cli_login` — `start`, `poll`, `logout`: the browser login of the `oblodai` CLI (OAuth
