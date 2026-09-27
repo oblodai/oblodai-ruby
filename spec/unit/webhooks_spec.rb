@@ -109,6 +109,18 @@ RSpec.describe Oblodai::Webhooks do
         .to raise_error(Oblodai::WebhookPayloadError, /not usable/)
     end
 
+    it "knows invoice.reversed as a payment event and keeps reversal optional" do
+      expect(Oblodai::Enums::WebhookEventName::VALUES).to include("invoice.reversed")
+      expect(Oblodai::Enums::WebhookEventName::INVOICE_REVERSED).to eq("invoice.reversed")
+      expect(Oblodai::Generated::WEBHOOK_EVENTS.fetch("invoice.reversed")).to eq("payment")
+      # A core before invoice.reversed does not send `reversal`: absent reads as nil (false).
+      older = JSON.parse(body)
+      expect(older).not_to have_key("reversal")
+      expect(described_class.parse(body).reversal).to be_nil
+      reversed = older.merge("status" => "expired", "reversal" => true, "txid" => "")
+      expect(described_class.parse(JSON.generate(reversed)).reversal).to be(true)
+    end
+
     # Every kind the contract knows parses into its model — the id field differs by kind
     # (conversions carry `id`, not `uuid`), and nothing in the parser may assume one of them.
     Oblodai::Generated::WEBHOOK_MODELS.each do |kind, model|

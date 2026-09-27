@@ -7357,10 +7357,11 @@ module Oblodai
       end
     end
 
-    # Sent when a payment moves to paid, paid_over, wrong_amount, expired or under_review, and when
-    # it rolls back from them (a chain reorganization). The current status — any value from the
-    # vocabulary — can be requested again: POST /v1/payment/resend. Match it to the order by
-    # order_id/uuid and to the blockchain by txid and network.
+    # Sent when a payment moves to paid, paid_over, wrong_amount, expired, cancelled or
+    # under_review. A chain reorganization that removes a counted deposit is sent as
+    # invoice.reversed (reversal = true, txid empty) with the status after it. The current status —
+    # any value from the vocabulary — can be requested again: POST /v1/payment/resend. Match it to
+    # the order by order_id/uuid and to the blockchain by txid and network.
     class PaymentWebhook < Generated::Model
       # JSON names of the fields the API always sends.
       REQUIRED = %w[
@@ -7370,7 +7371,8 @@ module Oblodai
       # JSON names of every field this release knows.
       FIELDS = %w[
         additional_data amount currency event_at event_id is_final network order_id payer_address
-        payer_address_is_refundable payer_amount payer_currency payment_amount sequence status test txid type uuid
+        payer_address_is_refundable payer_amount payer_currency payment_amount reversal sequence status test txid type
+        uuid
       ].freeze
 
       # @return [String] Your data passed when creating the payment, as is.
@@ -7420,6 +7422,10 @@ module Oblodai
       #   Always sent by current cores; a delivery from an older core may lack it — then deduplicate
       #   on type:id:sequence from the body.
       attr_reader :event_id
+      # @return [Boolean, nil] true — a chain reorganization removed a previously counted deposit
+      #   (event invoice.reversed); status and payment_amount are the state after it, txid is empty.
+      #   Absent = false: cores before this version do not send the field; newer cores always send it.
+      attr_reader :reversal
       # @return [Boolean, nil] Present only on a rehearsal (/v1/test-webhook/*,
       #   /v1/payment/testing-webhook) and always true — inside the signature. A live event never
       #   carries this field: your handler must ignore a body with test: true even if the signature is
@@ -7447,6 +7453,7 @@ module Oblodai
         type:,
         uuid:,
         event_id: nil,
+        reversal: nil,
         test: nil,
         extra: {}
       )
@@ -7469,6 +7476,7 @@ module Oblodai
         @type = type
         @uuid = uuid
         @event_id = event_id
+        @reversal = reversal
         @test = test
         @extra = extra
         freeze
@@ -7498,6 +7506,7 @@ module Oblodai
           type: Generated::Codec.read(data.fetch("type"), :string),
           uuid: Generated::Codec.read(data.fetch("uuid"), :string),
           event_id: Generated::Codec.read(data["event_id"], :string),
+          reversal: Generated::Codec.read(data["reversal"], :boolean),
           test: Generated::Codec.read(data["test"], :boolean),
           extra: Generated::Codec.extra(data, FIELDS)
         )
@@ -7525,6 +7534,7 @@ module Oblodai
         out["type"] = Generated::Codec.dump(@type)
         out["uuid"] = Generated::Codec.dump(@uuid)
         out["event_id"] = Generated::Codec.dump(@event_id) unless @event_id.nil?
+        out["reversal"] = Generated::Codec.dump(@reversal) unless @reversal.nil?
         out["test"] = Generated::Codec.dump(@test) unless @test.nil?
         out
       end
@@ -10882,8 +10892,8 @@ module Oblodai
       FIELDS = %w[address amount from_currency network order_id reference uuid].freeze
 
       # @return [String] An optional refund idempotency key: distinguishes two different refunds
-      #   with the same (payment, address, amount); a retry with the same value is deduplicated. This
-      #   is not order_id.
+      #   with the same (payment, address, amount); a retry with the same value returns the refund
+      #   already made, also when amount is omitted. This is not order_id.
       attr_reader :reference
       # @return [String, nil] Refund destination address. Defaults to the payment's payer_address;
       #   required only for Bitcoin/UTXO.
@@ -11041,9 +11051,11 @@ module Oblodai
       attr_reader :amount
       # @return [BigDecimal] What the buyer paid in total, including the network surcharge.
       attr_reader :amount_paid
-      # @return [BigDecimal] The Oblodai commission withheld from the refund: the payment's
-      #   commission when commission_bearer is customer, 0 when it is merchant (you then pay it from
-      #   your balance).
+      # @return [BigDecimal] What is withheld from the refund besides the surcharge: with
+      #   commission_bearer customer, the Oblodai commission as it was taken from each deposit
+      #   (rounded up on each), plus the cost of collecting a swept deposit when there was one —
+      #   together, what the payment did not credit you; 0 with merchant (you then pay the commission
+      #   from your balance). amount_paid − surcharge − commission = refundable.
       attr_reader :commission
       # @return [String] Who bears the Oblodai commission on this refund — the store's refund fee
       #   setting (getRefundFeeConfig): customer — it is deducted from the refund, and the refunds
@@ -11068,7 +11080,8 @@ module Oblodai
       #   refund.
       attr_reader :remaining
       # @return [BigDecimal] The payer's network surcharge inside amount_paid: the cost of accepting
-      #   the deposit, never refunded from your balance.
+      #   the deposit, never refunded from your balance. Counted per deposit, as the deposits were
+      #   credited (rounded up on each), so amount_paid − surcharge − commission = refundable.
       attr_reader :surcharge
       # @return [String] The payment id.
       attr_reader :uuid
@@ -11267,8 +11280,8 @@ module Oblodai
       #   required.
       attr_reader :order_id
       # @return [String, nil] An optional refund idempotency key: distinguishes two different
-      #   refunds with the same (payment, address, amount); a retry with the same value is
-      #   deduplicated. This is not order_id.
+      #   refunds with the same (payment, address, amount); a retry with the same value returns the
+      #   refund already made, also when amount is omitted. This is not order_id.
       attr_reader :reference
       # @return [String, nil] Payment id. Either uuid or order_id is required.
       attr_reader :uuid
