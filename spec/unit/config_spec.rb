@@ -9,17 +9,30 @@ RSpec.describe Oblodai::Config do
     expect(config.base_url).to eq("https://x.test")
   end
 
-  it "refuses plain http except for loopback or when explicitly allowed" do
-    expect { described_class.new(base_url: "http://api.oblodai.com", env: {}) }
-      .to raise_error(Oblodai::ConfigError, /https/)
-    expect(described_class.new(base_url: "http://localhost:8095", env: {}).base_url)
+  it "refuses plain http unless explicitly allowed, loopback included" do
+    %w[http://api.oblodai.com http://localhost:8095 http://127.0.0.1:8095].each do |url|
+      expect { described_class.new(base_url: url, env: {}) }.to raise_error(Oblodai::ConfigError, /https/)
+    end
+    expect(described_class.new(base_url: "http://localhost:8095", allow_insecure_base_url: true, env: {}).base_url)
       .to eq("http://localhost:8095")
-    expect(described_class.new(base_url: "http://127.0.0.1:8095", env: {}).base_url)
-      .to eq("http://127.0.0.1:8095")
     expect(described_class.new(base_url: "http://10.0.0.1", allow_insecure_base_url: true, env: {}).base_url)
       .to eq("http://10.0.0.1")
     expect(described_class.new(base_url: "http://10.0.0.1",
                                env: { "OBLODAI_ALLOW_INSECURE" => "1" }).base_url).to eq("http://10.0.0.1")
+  end
+
+  it "refuses userinfo, a query and a fragment in the base URL without echoing them" do
+    # The userinfo used to vanish silently (and it is a credential); a query or fragment too.
+    %w[https://user:PROXYPASS@api.example.com https://PROXYPASS@api.example.com
+       https://api.example.com/?key=PROXYPASS https://api.example.com/#PROXYPASS].each do |url|
+      expect { described_class.new(base_url: url, env: {}) }
+        .to raise_error(Oblodai::ConfigError) { |e|
+              expect(e.message).not_to include("PROXYPASS")
+              expect(e.inspect).not_to include("PROXYPASS")
+            }
+    end
+    expect { described_class.new(base_url: "not a url PROXYPASS", env: {}) }
+      .to raise_error(Oblodai::ConfigError) { |e| expect(e.message).not_to include("PROXYPASS") }
   end
 
   it "refuses half a key pair" do

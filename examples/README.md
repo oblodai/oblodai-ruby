@@ -16,4 +16,4 @@ export OBLODAI_SECRET=oblodai_test_…
 ruby -Ilib examples/accept_payment.rb
 ```
 
-Against a local gateway, add `OBLODAI_BASE_URL=http://127.0.0.1:8095`.
+Against a local gateway, add `OBLODAI_BASE_URL=http://127.0.0.1:8095 OBLODAI_ALLOW_INSECURE=1`.

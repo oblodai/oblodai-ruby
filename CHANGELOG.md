@@ -29,6 +29,11 @@ versions follow [SemVer](https://semver.org/).
   `admin_token:` option is deprecated and ignored (a one-time warning on stderr, and a warning to
   the configured logger); `OBLODAI_ADMIN_TOKEN` is no longer read, and `Config#admin_token` is gone.
 
+- Base URL: `user:password@`, a query and a fragment are refused with `ConfigError` (and never
+  echoed; no config error repeats the URL any more); before, the userinfo was silently dropped.
+  Plain `http://` now needs `allow_insecure_base_url: true` / `OBLODAI_ALLOW_INSECURE=1` for
+  loopback hosts too.
+
 ### Added
 
 - `client.cli_login` — `start`, `poll`, `logout`: the browser login of the `oblodai` CLI (OAuth

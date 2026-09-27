@@ -33,9 +33,9 @@ API operation, 120 of them — on top of a small hand-written runtime (transport
 pagination, webhooks). `names.lock` pins the public names; a name can only disappear on purpose.
 
 > **Base URL.** Defaults to `https://api.oblodai.com`. Override `base_url:` and supply your own keys
-> at initialisation if needed. The scheme must be `https://`; plain `http://` is accepted only for
-> loopback (`http://127.0.0.1:8095`) or with the explicit allow-insecure option
-> (`allow_insecure_base_url: true`, or `OBLODAI_ALLOW_INSECURE=1`).
+> at initialisation if needed. The scheme must be `https://`; plain `http://` (loopback included) is
+> accepted only with the explicit allow-insecure option (`allow_insecure_base_url: true`, or
+> `OBLODAI_ALLOW_INSECURE=1`). A base URL with `user:password@`, a query or a fragment is refused.
 
 ## Installation
 
@@ -426,7 +426,7 @@ configured.base_url
 | ------------------------------- | ------------------------------------------------------------------------------ |
 | `public_id:` / `secret:`        | the merchant's API key; it signs every signed route                            |
 | `base_url:`                     | the API origin; a path prefix is kept                                          |
-| `allow_insecure_base_url:`      | permit plain `http://` for a non-loopback host                                 |
+| `allow_insecure_base_url:`      | permit a plain `http://` base URL (loopback included)                          |
 | `admin_token:`                  | deprecated and ignored: the SDK never sends an admin token                     |
 | `http:`                         | your own HTTP adapter: anything answering `call(request, timeout:)`            |
 | `timeout:` / `deadline:`        | seconds per attempt (30) / for the whole call (90)                             |

@@ -129,30 +129,36 @@ module Oblodai
       IOLogger.new(level.to_sym)
     end
 
+    # https only (plain http needs `allow_insecure_base_url`), and nothing a URL may smuggle.
+    # `user:password@` is refused, never used or echoed: it used to vanish silently, and it is a
+    # credential. A query or a fragment would be dropped silently too. No message repeats the URL.
     def assert_base_url!(base_url, allow_insecure)
       uri = begin
         URI.parse(base_url)
       rescue URI::InvalidURIError
-        raise ConfigError.new("sdk.bad_config", "base_url is not a valid URL: #{base_url}", "base_url")
+        raise ConfigError.new("sdk.bad_config", "base_url is not a valid URL", "base_url")
       end
       # URI.parse accepts "api.oblodai.com" and "/v1" happily, with no scheme and no host; the SDK
       # would then build "://" URLs and fail deep inside the HTTP library.
       if uri.scheme.nil? || uri.host.nil? || uri.host.empty?
-        raise ConfigError.new(
-          "sdk.bad_config",
-          "base_url must be an absolute URL with a scheme and a host (got #{base_url.inspect})",
-          "base_url"
-        )
+        raise ConfigError.new("sdk.bad_config", "base_url must be an absolute URL with a scheme and a host",
+                              "base_url")
+      end
+      unless uri.userinfo.nil?
+        raise ConfigError.new("sdk.bad_config",
+                              "base_url must not carry credentials (user:password@); configure a proxy's " \
+                              "credentials on your own http adapter", "base_url")
+      end
+      if !uri.query.nil? || !uri.fragment.nil?
+        raise ConfigError.new("sdk.bad_config", "base_url must not carry a query or a fragment", "base_url")
       end
       return if uri.scheme == "https"
-
-      local = ["localhost", "127.0.0.1", "[::1]", "::1"].include?(uri.host)
-      return if uri.scheme == "http" && (allow_insecure || local)
+      return if uri.scheme == "http" && allow_insecure
 
       raise ConfigError.new(
         "sdk.bad_config",
         "base_url must use https (got #{uri.scheme}://#{uri.host}); " \
-        "set allow_insecure_base_url: true for a local core",
+        "set allow_insecure_base_url: true (or OBLODAI_ALLOW_INSECURE=1) for a local core",
         "base_url"
       )
     end
