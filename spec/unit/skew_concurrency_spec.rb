@@ -2,10 +2,10 @@
 
 # One client is shared by every thread of a web process, and so is its learned clock offset. These
 # are the cases where two calls correcting the same clock used to take each other's correction away.
-# A gateway whose clock is an hour ahead: it refuses anything signed outside ±300 s and says so,
+# A gateway whose clock is ten minutes ahead: it refuses anything signed outside ±300 s and says so,
 # with its own time in `Date`. Thread-safe, unlike the scripted fake.
 class SkewedGateway
-  SKEW = 3600
+  SKEW = 600
 
   attr_reader :calls, :rejected
 
@@ -82,7 +82,7 @@ RSpec.describe "clock skew under concurrency" do
   end
 
   it "gives up the correction when the re-signed attempt is rejected too" do
-    bad_date = { "date" => Time.at(Time.now.to_i + 4000).httpdate }
+    bad_date = { "date" => Time.at(Time.now.to_i + 600).httpdate }
     http = FakeHTTP.new([
                           FakeHTTP.api_error(401, { "code" => "merchant.bad_signature", "retryable" => false },
                                              bad_date),
@@ -93,6 +93,53 @@ RSpec.describe "clock skew under concurrency" do
     expect { client.account.get_balance }.to raise_error(Oblodai::AuthenticationError)
     expect(http.calls.size).to eq(2) # one re-sign, no more
     expect(client.transport.instance_variable_get(:@clock).offset).to eq(0)
+  end
+
+  it "never moves the signing clock on a Date more than 900 s away" do
+    # One answer from whatever sits at the base URL must not shift every later signature hours into
+    # the future, where a captured request stays valid for a delayed replay.
+    far = { "date" => Time.at(Time.now.to_i + (23 * 3600)).httpdate }
+    http = FakeHTTP.new([
+                          FakeHTTP.api_error(401, { "code" => "merchant.bad_signature", "retryable" => false }, far),
+                          balance_answer
+                        ])
+    client = client_with(http, retry_policy: { max_retries: 0 })
+    expect { client.account.get_balance }.to raise_error(Oblodai::AuthenticationError)
+    expect(http.calls.size).to eq(1)
+    expect(client.transport.instance_variable_get(:@clock).offset).to eq(0)
+    client.account.get_balance
+    expect(http.calls[1].headers[SIGNING::HEADER_TIMESTAMP.downcase].to_i).to be_within(5).of(Time.now.to_i)
+  end
+
+  it "keeps an offset only when the re-signed attempt succeeds, not after a 404" do
+    date = { "date" => Time.at(Time.now.to_i + 600).httpdate }
+    http = FakeHTTP.new([
+                          FakeHTTP.api_error(401, { "code" => "merchant.bad_signature", "retryable" => false }, date),
+                          FakeHTTP.api_error(404, { "code" => "payment.not_found", "retryable" => false }),
+                          balance_answer
+                        ])
+    client = client_with(http, retry_policy: { max_retries: 0 })
+    expect { client.account.get_balance }.to raise_error(Oblodai::Error)
+    expect(http.calls.size).to eq(2)
+    expect(http.calls[1].headers[SIGNING::HEADER_TIMESTAMP.downcase].to_i).to be_within(5).of(Time.now.to_i + 600)
+    expect(client.transport.instance_variable_get(:@clock).offset).to eq(0)
+    client.account.get_balance
+    expect(http.calls[2].headers[SIGNING::HEADER_TIMESTAMP.downcase].to_i).to be_within(5).of(Time.now.to_i)
+  end
+
+  it "installs the offset once the re-signed attempt succeeds" do
+    date = { "date" => Time.at(Time.now.to_i + 600).httpdate }
+    http = FakeHTTP.new([
+                          FakeHTTP.api_error(401, { "code" => "merchant.bad_signature", "retryable" => false }, date),
+                          balance_answer
+                        ])
+    client = client_with(http, retry_policy: { max_retries: 0 })
+    client.account.get_balance
+    expect(client.transport.instance_variable_get(:@clock).offset).to be_within(5).of(600)
+  end
+
+  def balance_answer
+    { body: { "state" => 0, "result" => { "balance" => { "merchant" => [] } } } }
   end
 
   it "does not deadlock or tear the offset when threads read it while it moves" do

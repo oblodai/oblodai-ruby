@@ -400,7 +400,8 @@ webhook family `webhook.missing_header`, `webhook.bad_signature`, `webhook.stale
   `retry_policy: { max_retries:, base_delay_ms:, max_delay_ms:, max_retry_after_ms: }`
   (`{ max_retries: 0 }` disables retries); `max_retries:` per call overrides it.
 - **Clock skew.** On a 401 that reports a bad signature or timestamp the SDK reads the server `Date`,
-  re-signs once, and keeps the offset only if that attempt got past authentication.
+  re-signs that call once with it, and installs the offset only if that attempt succeeds (2xx);
+  offsets beyond 15 minutes are ignored.
 - **Redirects are never followed**, **bodies are capped** (8 MiB JSON, 64 MiB documents), and the
   SDK's own headers (`X-Public-Id`, `X-Signature`, `X-Timestamp`, `Idempotency-Key`,
   `X-Request-ID`, `X-Admin-Token`, `Accept`, `User-Agent`, `Content-Type`, `Content-Length`, `Host`)

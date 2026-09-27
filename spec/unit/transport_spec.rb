@@ -116,7 +116,7 @@ RSpec.describe Oblodai::Transport do
   end
 
   it "re-signs once with the server clock when a 401 reveals skew" do
-    server_now = Time.now.to_i + 3600
+    server_now = Time.now.to_i + 600
     http = FakeHTTP.new([
                           FakeHTTP.api_error(401, { "code" => "merchant.bad_signature", "retryable" => false },
                                              "date" => Time.at(server_now).httpdate),

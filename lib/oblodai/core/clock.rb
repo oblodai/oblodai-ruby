@@ -6,11 +6,14 @@ module Oblodai
   # Injectable clock for signing. The core rejects timestamps more than ±{Signing::SKEW_SECONDS} (the
   # contract's `x-oblodai-signing.skew_seconds`) from its own time; a host with a drifting clock
   # would get `merchant.bad_signature` on every call. The transport learns the server's time from the
-  # `Date` header of a signature-failure response, re-signs once, and keeps the offset only if that
-  # re-signed attempt got past authentication.
+  # `Date` header of a signature-failure response and re-signs that one call once with it. The offset
+  # is installed for the whole client only when that re-signed attempt SUCCEEDS (2xx), and it can
+  # never exceed {MAX_PLAUSIBLE_OFFSET_SECONDS}: one answer from whatever sits at the base URL must
+  # not move every later signature hours into the future (a delayed-replay window).
   class Clock
-    # Offsets beyond this are implausible clock drift and are ignored (a broken proxy `Date`).
-    MAX_PLAUSIBLE_OFFSET_SECONDS = 24 * 3600
+    # Offsets beyond this (15 minutes) are not drift the SDK corrects and are ignored: a broken
+    # proxy `Date`, or a responder trying to push the signing clock into the future.
+    MAX_PLAUSIBLE_OFFSET_SECONDS = 900
 
     # @param base [#call] returns the local unix time in seconds
     def initialize(base = -> { Time.now.to_i })
@@ -28,6 +31,12 @@ module Oblodai
 
     # @return [Integer] current unix time in seconds, corrected by the learned offset
     def now
+      @base.call + offset
+    end
+
+    # @param offset [Integer] a candidate correction, not yet installed
+    # @return [Integer] the local unix time moved by `offset`
+    def now_at(offset)
       @base.call + offset
     end
 

@@ -17,6 +17,11 @@ versions follow [SemVer](https://semver.org/).
   look like a rehearsal. README, AGENTS.md and the receiver example dedupe on the signed key and
   always ignore test deliveries.
 
+- Clock skew: a `Date` header can move the signing clock by at most ±900 s (was ±24 h), and the
+  offset is installed for the client only after the re-signed attempt succeeds (2xx); any other
+  outcome discards it. Before, one 401 answer could shift every later signature up to a day into
+  the future, and the shift stuck after any non-signature answer.
+
 ### Added
 
 - `client.cli_login` — `start`, `poll`, `logout`: the browser login of the `oblodai` CLI (OAuth

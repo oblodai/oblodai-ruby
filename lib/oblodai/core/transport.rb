@@ -182,13 +182,17 @@ module Oblodai
     def execute(route, options)
       call = prepare(route, options)
       attempt = 0
-      skew = { tried: false, before: 0, installed: 0 }
+      # A server-derived offset this call re-signs ONE attempt with; it reaches the shared clock only
+      # if that attempt succeeds, and any other outcome discards it.
+      skew = { tried: false, candidate: nil }
 
       loop do
         # The offset this attempt is signed with. Compared against the server's own time below —
         # never against the shared offset, which a concurrent call may already have corrected.
-        signed_offset = @clock.offset
-        request = build_request(route, call)
+        candidate = skew[:candidate]
+        skew[:candidate] = nil
+        signed_offset = candidate || @clock.offset
+        request = build_request(route, call, candidate.nil? ? @clock.now : @clock.now_at(candidate))
         info = announce(route, request, call, attempt)
         sent_at = Util.monotonic_ms
 
@@ -204,6 +208,8 @@ module Oblodai
         end
 
         if raw.status >= 200 && raw.status < 300
+          # The re-signed attempt got through: the core agrees with this offset.
+          @clock.correct(candidate) unless candidate.nil?
           report(info, raw.status, raw.headers, sent_at, nil)
           return Answer.new(response: raw, request_id: call[:request_id])
         end
@@ -239,10 +245,10 @@ module Oblodai
       }
     end
 
-    def build_request(route, call)
+    def build_request(route, call, timestamp)
       options = call[:options]
       RequestBuilder.build(
-        base_url: @base_url, route: route, body: call[:payload], ts: @clock.now,
+        base_url: @base_url, route: route, body: call[:payload], ts: timestamp,
         user_agent: @user_agent, path_params: options.path_params, query: options.query,
         credentials: @credentials, idempotency_key: call[:key],
         extra_headers: call[:headers], request_id: call[:request_id],
@@ -274,35 +280,30 @@ module Oblodai
                                                error: error))
     end
 
-    # A 401 the core attributes to the timestamp or the MAC gets exactly one re-signed attempt.
-    # @return [Boolean] whether to try again with a corrected clock
+    # A 401 the core attributes to the timestamp or the MAC gets exactly one re-signed attempt, signed
+    # with the server's time (at most ±{Clock::MAX_PLAUSIBLE_OFFSET_SECONDS}); the offset is installed
+    # for the client only if that attempt succeeds.
+    # @return [Boolean] whether to try again with a candidate offset
     def resign_for_skew?(route, raw, failure, skew, signed_offset)
       return false unless raw.status == 401 && SIGNATURE_FAILURE_CODES.include?(failure.code)
+      return false if skew[:tried]
 
-      if skew[:tried]
-        # The corrected timestamp did not help, so it was not skew — but only this call's own
-        # correction may be undone; a sibling's newer one stays.
-        @clock.revert_if_unchanged(skew[:installed], skew[:before])
-        return false
-      end
-
-      offset = correct_skew(route, raw, signed_offset)
+      offset = skew_candidate(route, raw, signed_offset)
       return false if offset.nil?
 
-      skew.merge!(tried: true, before: signed_offset, installed: offset)
+      skew.merge!(tried: true, candidate: offset)
       true
     end
 
-    # Clock skew: the core rejected the timestamp/MAC. Learn its time from the `Date` header and
-    # re-sign once. Measured against the offset THIS attempt signed with, not the live one.
-    # @return [Integer, nil] the offset that was installed, or nil when no correction was made
-    def correct_skew(route, raw, signed_offset)
+    # Clock skew: the core rejected the timestamp/MAC. Learn its time from the `Date` header,
+    # measured against the offset THIS attempt signed with, not the live one.
+    # @return [Integer, nil] the offset to re-sign with, or nil when there is none worth trying
+    def skew_candidate(route, raw, signed_offset)
       offset = @clock.observe_server_date(raw.header("date"))
       return nil if offset.nil? || (offset - signed_offset).abs <= Generated::SigningProtocol::SKEW_SECONDS / 2
 
       @logger.warn("clock skew detected; re-signing with server time",
                    { route: route.key, offset_sec: offset })
-      @clock.correct(offset)
       offset
     end
 

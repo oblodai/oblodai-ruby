@@ -73,7 +73,7 @@ RSpec.describe Oblodai::Page do
 end
 
 RSpec.describe "clock skew" do
-  let(:far_date) { { "date" => Time.at(Time.now.to_i + 4000).httpdate } }
+  let(:far_date) { { "date" => Time.at(Time.now.to_i + 600).httpdate } }
 
   it "ignores the Date header on a 401 that is not a signature failure" do
     http = FakeHTTP.new([FakeHTTP.api_error(401, { "code" => "auth.ip_not_allowed", "retryable" => false },
