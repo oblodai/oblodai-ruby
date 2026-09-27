@@ -5560,8 +5560,11 @@ module Oblodai
       #   transfer (ISO 8601). null until the payment arrives. Not to be confused with updated_at,
       #   which moves on any change to the invoice.
       attr_reader :paid_at
-      # @return [String, nil] How much of the paid amount has been refunded: none, partial or full
-      #   (cancelled and failed refunds are not counted). Values: {Oblodai::Enums::RefundRollup}.
+      # @return [String, nil] How much of what can be refunded has been refunded: none, partial or
+      #   full — full once refunds reach the refund ceiling (what was paid without the payer
+      #   surcharge, and without the commission when the customer bears it, getRefundFeeConfig), so
+      #   nothing more can be refunded. Cancelled and failed refunds are not counted. Values:
+      #   {Oblodai::Enums::RefundRollup}.
       attr_reader :refund_status
       # @return [Array<Oblodai::Models::PaymentRefundLine>, nil] Refunds for this payment.
       attr_reader :refunds
