@@ -34,6 +34,18 @@ versions follow [SemVer](https://semver.org/).
   Plain `http://` now needs `allow_insecure_base_url: true` / `OBLODAI_ALLOW_INSECURE=1` for
   loopback hosts too.
 
+- `RequestBuilder::Credentials` no longer prints its secret through `pp` / `pretty_inspect` (how
+  IRB and the Rails console show values): `pretty_print`, `to_a`/`deconstruct` and
+  `deconstruct_keys` are redacted like `inspect` already was.
+- Redaction: hook `RequestInfo#url` and every error message show the claim `{token}` of
+  `/v1/claim/{token}` and `/v1/aml/{token}` and a signed link's `sig`/`exp` as `[redacted]` (the
+  wire keeps the real values); a redirect names only the target's scheme and host; the Net::HTTP
+  adapter's size and network errors name the redacted URL (adapters get it as
+  `HTTP::Request#display_url`). Hook request and response headers mask every credential-like header
+  (`Authorization`, `X-Api-Key`, `X-Claim-Passcode`, cookies, …), not only the signature.
+  `device_code` and `api_key`/`X-Api-Key` join the redacted names in model `inspect` and logs, and
+  `RequestBuilder::Built` / `HTTP::Request` `inspect`/`pp` show only the method and the redacted URL.
+
 ### Added
 
 - `client.cli_login` — `start`, `poll`, `logout`: the browser login of the `oblodai` CLI (OAuth

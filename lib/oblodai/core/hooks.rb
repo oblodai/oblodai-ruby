@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 
+require_relative "logger"
 require_relative "request"
 require_relative "signing"
 
@@ -27,8 +28,11 @@ module Oblodai
 
   # One attempt about to be sent.
   #
+  # @!attribute [r] url
+  #   @return [String] the URL with secret path and query parameters (a claim `{token}`, a signed
+  #     link's `sig`/`exp`) replaced by "[redacted]"
   # @!attribute [r] headers
-  #   @return [Hash{String => String}] as sent, with the signature and the admin token redacted
+  #   @return [Hash{String => String}] as sent, with the signature and other credentials redacted
   # @!attribute [r] attempt
   #   @return [Integer] 1 for the first attempt, 2 for the first retry, and so on
   # @!attribute [r] request_id
@@ -61,10 +65,15 @@ module Oblodai
 
     module_function
 
-    # A copy with the signature and the admin token replaced by "[redacted]".
+    # A copy with every secret-carrying header replaced by "[redacted]": the signature, and any header
+    # whose name reads like a credential (`Authorization`, `X-Api-Key`, `Proxy-Authorization`,
+    # `X-Claim-Passcode`, cookies, …), compared case-insensitively.
     # @return [Hash{String => String}]
     def redact_headers(headers)
-      headers.to_h { |name, value| [name, SECRET_HEADERS.include?(name.to_s.downcase) ? "[redacted]" : value] }.freeze
+      headers.to_h do |name, value|
+        secret = SECRET_HEADERS.include?(name.to_s.downcase) || Logging::SENSITIVE.match?(name.to_s)
+        [name, secret ? Logging::REDACTED : value]
+      end.freeze
     end
   end
 end

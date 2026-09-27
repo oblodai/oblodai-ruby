@@ -2,6 +2,7 @@
 
 require "json"
 require "time"
+require_relative "logger"
 require_relative "../errors"
 
 module Oblodai
@@ -39,7 +40,8 @@ module Oblodai
       retry_after_header = parse_retry_after(retry_after)
 
       if http_status >= 300 && http_status < 400
-        where = location ? " to #{location}" : ""
+        # Scheme and host only: the path and query may carry the claim token or link signature.
+        where = location ? " to #{Logging.redact_location(location)}" : ""
         return failure(Oblodai.api_error_from(
                          http_status,
                          { "code" => "internal",

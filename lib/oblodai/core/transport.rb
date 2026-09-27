@@ -259,7 +259,7 @@ module Oblodai
                                  idempotency_key: call[:key] })
       return nil if @hooks.nil?
 
-      info = RequestInfo.new(method: request.method, url: request.url,
+      info = RequestInfo.new(method: request.method, url: request.display_url,
                              headers: HookSupport.redact_headers(request.headers), attempt: attempt + 1,
                              request_id: call[:request_id], operation_id: route.operation_id.to_s)
       @hooks.on_request&.call(info)
@@ -269,7 +269,8 @@ module Oblodai
     def report(info, status, headers, sent_at, error)
       return if info.nil? || @hooks.on_response.nil?
 
-      @hooks.on_response.call(ResponseInfo.new(request: info, status: status, headers: headers,
+      @hooks.on_response.call(ResponseInfo.new(request: info, status: status,
+                                               headers: HookSupport.redact_headers(headers || {}),
                                                elapsed: [(Util.monotonic_ms - sent_at) / 1000.0, 0.0].max,
                                                error: error))
     end
@@ -356,9 +357,9 @@ module Oblodai
       budget = [call[:timeout].to_f, remaining / 1000.0].min
       raw = @http.call(HTTP::Request.new(method: request.method, url: request.url,
                                          headers: request.headers, body: request.body,
-                                         max_bytes: max_bytes),
+                                         max_bytes: max_bytes, display_url: request.display_url),
                        timeout: budget)
-      assert_not_redirected!(request.url, raw)
+      assert_not_redirected!(request, raw)
       assert_within_cap!(request, raw, max_bytes)
       raw
     end
@@ -366,13 +367,14 @@ module Oblodai
     # The SDK never follows a redirect: the signature is bound to the path it signed, and a 3xx to
     # another origin would replay the request (and its idempotency key) somewhere else. An injected
     # adapter may follow one anyway, so the answer's own URL is checked against the one asked for.
-    def assert_not_redirected!(requested, raw)
+    def assert_not_redirected!(request, raw)
       landed = raw.url.to_s
-      return if landed.empty? || landed == requested
+      return if landed.empty? || landed == request.url
 
+      # Both named without their path secrets: a claim token or a link signature may be in either.
       raise ContractError.new(
-        "unexpected redirect: the request to #{requested} was answered by #{landed}; the SDK never " \
-        "follows redirects — check base_url",
+        "unexpected redirect: the request to #{request.display_url} was answered by " \
+        "#{Logging.redact_location(landed)}; the SDK never follows redirects — check base_url",
         0, nil, "sdk.bad_envelope"
       )
     end
@@ -384,7 +386,7 @@ module Oblodai
       return if size <= max_bytes
 
       raise ContractError.new(
-        "#{request.method} #{request.url}: response body exceeds #{max_bytes} bytes (saw #{size}) — " \
+        "#{request.method} #{request.display_url}: response body exceeds #{max_bytes} bytes (saw #{size}) — " \
         "refusing to buffer it",
         raw.status, nil, "sdk.response_too_large"
       )

@@ -15,7 +15,21 @@ module Oblodai
     #   @return [Integer, nil] the largest body the SDK will accept for this route. An adapter that
     #     can stream should stop reading past it; one that cannot may ignore it — the transport
     #     checks the size of whatever comes back either way.
-    Request = Struct.new(:method, :url, :headers, :body, :max_bytes, keyword_init: true)
+    #
+    # @!attribute [r] display_url
+    #   @return [String, nil] `url` with secret path and query values (a claim token, a signed link's
+    #     `sig`) replaced by "[redacted]" — what an adapter should name in its errors and logs
+    Request = Struct.new(:method, :url, :headers, :body, :max_bytes, :display_url, keyword_init: true) do
+      # Method and redacted URL only: the headers carry the signature.
+      def inspect
+        "#<Oblodai::HTTP::Request #{method} #{display_url || "[redacted]"}>"
+      end
+      alias_method :to_s, :inspect
+
+      def pretty_print(printer)
+        printer.text(inspect)
+      end
+    end
 
     # What an adapter must return. `headers` is a plain Hash; look values up with {#header}, which
     # is case-insensitive the way HTTP is.
@@ -75,34 +89,47 @@ module Oblodai
         # The budget covers the WHOLE answer, not each socket read: Net::HTTP's read_timeout resets
         # on every chunk, so a peer trickling one byte at a time could hold the call open forever.
         deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + timeout
-        http.start { |session| read_response(session, req, request.max_bytes, deadline) }
+        http.start { |session| read_response(session, req, request, deadline) }
       rescue Net::OpenTimeout, Net::ReadTimeout, Net::WriteTimeout => e
         raise TransportError.new("transport.timeout", "request timed out after #{timeout.round(3)} s", cause_error: e)
       rescue SystemCallError, SocketError, OpenSSL::SSL::SSLError, IOError, Net::ProtocolError => e
-        raise TransportError.new("transport.network", "network error: #{e.message}", cause_error: e)
+        raise TransportError.new("transport.network", "network error: #{scrub(e.message, request)}", cause_error: e)
       end
 
       private
 
       # Stream the body, stopping the moment the cap is passed: the timeout above covers the whole
       # read, not just the first byte, so a peer sending one byte a minute cannot hold the call open.
-      def read_response(session, req, max_bytes, deadline)
+      def read_response(session, req, request, deadline)
+        max_bytes = request.max_bytes
+        label = request.display_url || "#{request.method} [redacted]"
         session.request(req) do |response|
           declared = response["content-length"].to_s
           if max_bytes && /\A\d+\z/.match?(declared) && declared.to_i > max_bytes
-            raise too_large(req.path, declared.to_i, max_bytes)
+            raise too_large(label, declared.to_i, max_bytes)
           end
 
           body = +""
           body.force_encoding(Encoding::BINARY)
           response.read_body do |chunk|
             body << chunk.b
-            raise too_large(req.path, body.bytesize, max_bytes) if max_bytes && body.bytesize > max_bytes
+            raise too_large(label, body.bytesize, max_bytes) if max_bytes && body.bytesize > max_bytes
             raise Net::ReadTimeout if Process.clock_gettime(Process::CLOCK_MONOTONIC) > deadline
           end
           return Response.new(status: response.code.to_i, headers: flatten(response), body: body,
                               url: req.uri&.to_s)
         end
+      end
+
+      # An error text from Net::HTTP or OpenSSL with the request's secret-bearing URL swapped for its
+      # display form.
+      def scrub(text, request)
+        return text if request.display_url.nil?
+
+        origin = %r{\A[a-z][a-z0-9+.-]*://[^/]*}i
+        [[request.url, request.display_url], [request.url.sub(origin, ""), request.display_url.sub(origin, "")]]
+          .reject { |secret, shown| secret.empty? || secret == shown }
+          .reduce(text.to_s) { |out, (secret, shown)| out.gsub(secret, shown) }
       end
 
       def too_large(label, seen, max_bytes)

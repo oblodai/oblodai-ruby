@@ -1,14 +1,44 @@
 # frozen_string_literal: true
 
+require "uri"
+
 module Oblodai
   # Minimal structured-logger contract: anything responding to debug/info/warn/error(message,
   # fields) fits (a Ruby ::Logger wrapper, a Rails logger, semantic_logger). Field values that
   # carry secrets are redacted before they reach the logger, so a debug log never leaks a key,
   # a signature or a cheque passcode.
   module Logging
-    SENSITIVE = /secret|signature|passcode|token|authorization|password|claim_url/i
+    # `device_code` is the CLI device flow's polling secret; `api-key` covers `X-Api-Key` and `api_key`.
+    SENSITIVE = /secret|signature|passcode|token|authorization|password|claim_url|device_code|api[-_]?key|cookie/i
+    # Path and query parameters that carry a bearer secret: the claim token of `/v1/claim/{token}` and
+    # `/v1/aml/{token}`, a signed link's `sig`/`exp` (plus every name {SENSITIVE} flags).
+    SENSITIVE_PARAM = /\A(?:sig|exp|code)\z|_code\z|passcode/i
+    # What a secret value is shown as.
+    REDACTED = "[redacted]"
 
     module_function
+
+    # Whether a path or query parameter of this name carries a secret (masked in every URL the SDK
+    # shows: hook `RequestInfo#url`, error messages).
+    # @return [Boolean]
+    def sensitive_param?(name)
+      SENSITIVE.match?(name.to_s) || SENSITIVE_PARAM.match?(name.to_s)
+    end
+
+    # A URL a server pointed at (a redirect `Location`), reduced to its scheme and host: its path and
+    # query may carry the very token or signature the request did.
+    # @return [String, nil]
+    def redact_location(url)
+      return url if url.nil? || url.to_s.empty?
+
+      uri = URI.parse(url.to_s)
+      return REDACTED if uri.scheme.nil? || uri.host.nil?
+
+      port = uri.port && uri.port != uri.default_port ? ":#{uri.port}" : ""
+      "#{uri.scheme}://#{uri.host}#{port}/#{REDACTED}"
+    rescue URI::InvalidURIError
+      REDACTED
+    end
 
     # Replace values of sensitive-looking keys, recursively, without touching the original object.
     # @param value [Object]

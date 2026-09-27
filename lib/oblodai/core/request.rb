@@ -3,6 +3,7 @@
 require "bigdecimal"
 require "json"
 require "uri"
+require_relative "logger"
 require_relative "signing"
 require_relative "../errors"
 require_relative "../helpers/money"
@@ -34,16 +35,49 @@ module Oblodai
         require "json"
         to_h.to_json(*args)
       end
+
+      # `pp`, IRB and the Rails console render through `pretty_print`, which Struct implements by
+      # walking the members — never through `inspect`. Without this the secret printed there.
+      def pretty_print(printer)
+        printer.text(inspect)
+      end
+
+      # `deconstruct` / `to_a` would hand the secret out positionally in pattern matching and dumps.
+      def to_a
+        [public_id, "[redacted]"]
+      end
+      alias_method :deconstruct, :to_a
+
+      def deconstruct_keys(_keys)
+        to_h
+      end
     end
 
     # A request ready to hand to an HTTP adapter.
     #
+    # `url` and `request_uri` are what goes on the wire and may carry a bearer secret (a claim
+    # `{token}`, a signed link's `sig`); anything shown to people — hooks, errors, `inspect` — uses
+    # `display_url` / `display_uri` instead.
+    #
     # @!attribute [r] request_uri
     #   @return [String] what was signed (path + query); kept for debugging signature mismatches
-    Built = Struct.new(:url, :method, :headers, :body, :request_uri, keyword_init: true) do
+    # @!attribute [r] display_url
+    #   @return [String] `url` with secret path and query values replaced by "[redacted]"
+    Built = Struct.new(:url, :method, :headers, :body, :request_uri, :display_url, :display_uri,
+                       keyword_init: true) do
       def initialize(*)
         super
         freeze
+      end
+
+      # Method and redacted URL only: the headers carry the signature.
+      def inspect
+        "#<Oblodai::RequestBuilder::Built #{method} #{display_url}>"
+      end
+      alias_method :to_s, :inspect
+
+      def pretty_print(printer)
+        printer.text(inspect)
       end
     end
 
@@ -79,17 +113,11 @@ module Oblodai
     # @return [Oblodai::RequestBuilder::Built]
     def build(base_url:, route:, body:, ts:, user_agent:, path_params: nil, query: nil,
               credentials: nil, idempotency_key: nil, extra_headers: nil, request_id: nil)
-      if route.auth == :onboard
-        # The core gates onboarding with its operator HMAC channel only; the SDK does not implement
-        # it and never sends a raw gateway-wide admin token.
-        raise ConfigError.new(
-          "sdk.operator_channel_unsupported",
-          "#{route.method} #{route.path}: operator channel is not supported by the SDK; use the dashboard"
-        )
-      end
-
+      refuse_operator_route!(route)
       path = join_path(base_url, fill_path(route.path, path_params))
       request_uri = path + query_string(query)
+      display_uri = join_path(base_url, fill_path(route.path, path_params, redact: true)) +
+                    query_string(query, redact: true)
 
       headers = {}
       (extra_headers || {}).each do |name, value|
@@ -125,7 +153,20 @@ module Oblodai
       end
 
       Built.new(url: origin(base_url) + request_uri, method: route.method, headers: headers,
-                body: has_body ? body : nil, request_uri: request_uri)
+                body: has_body ? body : nil, request_uri: request_uri,
+                display_url: origin(base_url) + display_uri, display_uri: display_uri)
+    end
+
+    # The core gates onboarding (`:onboard`) with its operator HMAC channel only; the SDK does not
+    # implement it and never sends a raw gateway-wide admin token.
+    # @raise [Oblodai::ConfigError]
+    def refuse_operator_route!(route)
+      return unless route.auth == :onboard
+
+      raise ConfigError.new(
+        "sdk.operator_channel_unsupported",
+        "#{route.method} #{route.path}: operator channel is not supported by the SDK; use the dashboard"
+      )
     end
 
     # Caller header values must be printable ASCII on one line. A CR or LF would let a caller-
@@ -162,9 +203,11 @@ module Oblodai
     end
 
     # Substitute `{name}` segments; every placeholder must be supplied, values are percent-encoded.
+    # `redact: true` shows a secret parameter ({Logging.sensitive_param?}, e.g. the claim `{token}`)
+    # as "[redacted]" — for display, never for the wire.
     # @raise [Oblodai::ConfigError] when a value is empty, ".", ".." or contains a slash
     # @return [String]
-    def fill_path(template, params = nil)
+    def fill_path(template, params = nil, redact: false)
       params ||= {}
       template.gsub(/\{([a-zA-Z_]+)\}/) do
         name = Regexp.last_match(1)
@@ -178,6 +221,8 @@ module Oblodai
             name
           )
         end
+        next Logging::REDACTED if redact && Logging.sensitive_param?(name)
+
         # The unreserved set of RFC 3986 / encodeURIComponent, so a path parameter is escaped the
         # same way in every Oblodai SDK — form encoding would turn a space into "+" and escape
         # characters the gateway sees unescaped from the others.
@@ -186,10 +231,13 @@ module Oblodai
     end
 
     # @param query [Hash, nil] nil and empty values are skipped
+    # @param redact [Boolean] show secret values (`sig`, `exp`, any token) as "[redacted]" — for
+    #   display, never for the wire
     # @return [String] "" or "?a=1&b=2"
-    def query_string(query)
+    def query_string(query, redact: false)
       pairs = (query || {}).compact.map do |key, value|
-        "#{URI.encode_www_form_component(key.to_s)}=#{URI.encode_www_form_component(value.to_s)}"
+        shown = redact && Logging.sensitive_param?(key) ? Logging::REDACTED : URI.encode_www_form_component(value.to_s)
+        "#{URI.encode_www_form_component(key.to_s)}=#{shown}"
       end
       pairs.empty? ? "" : "?#{pairs.join("&")}"
     end

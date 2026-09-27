@@ -256,8 +256,9 @@ observed = Oblodai::Client.new(hooks: hooks)
 observed.account.get_balance
 ```
 
-Hooks run once per attempt, on the calling thread; the signature and the admin token are redacted in
-the headers they see.
+Hooks run once per attempt, on the calling thread; the signature and every credential-like header
+(`Authorization`, `X-Api-Key`, `X-Claim-Passcode`, …) are redacted in the headers they see, and
+`info.url` shows a claim token or a signed link's `sig`/`exp` as `[redacted]`.
 
 ### Statuses
 
