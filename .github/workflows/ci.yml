@@ -3,6 +3,8 @@ on:
   push:
     branches: [main]
   pull_request:
+permissions:
+  contents: read
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -11,12 +13,14 @@ jobs:
       matrix:
         ruby-version: ['3.2', '3.3', '3.4']
     steps:
-      - uses: actions/checkout@v4
-      - uses: ruby/setup-ruby@v1
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with: { persist-credentials: false }
+      - uses: ruby/setup-ruby@e5517072e87f198d9533967ae13d97c11b604005 # v1.99.0
         with:
           ruby-version: ${{ matrix.ruby-version }}
           bundler-cache: true
-      # rubocop + unit, contract and conformance specs (conformance skips without a backend checkout).
+      # rubocop + unit, contract and conformance specs. Without the private backend the specs read the
+      # vendored contract/snapshot; the drift check (make ci, with OBLODAI_BACKEND) runs locally.
       - name: rake ci
         run: bundle exec rake ci
       # The gem must package from a clean tree on every supported runtime, not only at release time.

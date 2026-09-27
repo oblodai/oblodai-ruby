@@ -31,10 +31,17 @@ def client_with(http, **overrides)
   Oblodai::Client.new(**TEST_CREDENTIALS, http: http, **overrides)
 end
 
-# The backend's openapi.json (OBLODAI_BACKEND, else ../oblodai-backend), or nil when absent.
+# Where the specs read the contract and the conformance suite from: OBLODAI_BACKEND when set, else
+# the vendored contract/snapshot (laid out like a backend checkout, kept equal to the backend by
+# script/check_generated.sh) — never a guessed sibling checkout, which may sit at another contract.
+# @return [String]
+def contract_root
+  ENV.fetch("OBLODAI_BACKEND") { File.expand_path("../contract/snapshot", __dir__) }
+end
+
+# The contract's openapi.json, or nil when absent.
 # @return [Hash, nil]
 def backend_spec
-  root = ENV.fetch("OBLODAI_BACKEND") { File.expand_path("../../oblodai-backend", __dir__) }
-  path = File.join(root, "services", "core", "api", "openapi.json")
+  path = File.join(contract_root, "services", "core", "api", "openapi.json")
   File.file?(path) ? JSON.parse(File.read(path)) : nil
 end

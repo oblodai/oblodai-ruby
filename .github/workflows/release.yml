@@ -1,17 +1,21 @@
 # Publishing the gem: pushing vX.Y.Z re-runs the gates, builds the gem and pushes it to RubyGems.
 # The tag is the source of truth — it must match the version the gem declares.
+#
+# Two jobs: the gates run with a read-only token and every development gem installed; the publish
+# job holds the RubyGems key and the write token, installs no development gem and runs no spec.
 name: Release
 on:
   push:
     tags: ['v[0-9]+.[0-9]+.[0-9]+']
 permissions:
-  contents: write
+  contents: read
 jobs:
-  release:
+  gate:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: ruby/setup-ruby@v1
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with: { persist-credentials: false }
+      - uses: ruby/setup-ruby@e5517072e87f198d9533967ae13d97c11b604005 # v1.99.0
         with:
           ruby-version: '3.3'
           bundler-cache: true
@@ -22,9 +26,22 @@ jobs:
             echo "lib/oblodai/version.rb declares ${declared}, but the tag is ${GITHUB_REF_NAME}" >&2
             exit 1
           fi
-      # The same gates CI runs: rubocop, contract drift, unit and contract specs.
+      # The same gates CI runs: rubocop, unit, contract and conformance specs, the gem build.
       - name: rake ci
         run: bundle exec rake ci
+
+  publish:
+    needs: gate
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with: { persist-credentials: false }
+      # No bundler-cache: nothing from the development bundle runs next to the publishing secrets.
+      - uses: ruby/setup-ruby@e5517072e87f198d9533967ae13d97c11b604005 # v1.99.0
+        with:
+          ruby-version: '3.3'
       - name: gem build
         run: gem build oblodai.gemspec
       # A missing credential must stop the release loudly: a silent skip would leave a tag that

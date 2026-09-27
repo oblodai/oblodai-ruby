@@ -4,7 +4,8 @@
 #   OBLODAI_BACKEND=/path/to/oblodai-backend make ci
 #
 # The backend checkout (OBLODAI_BACKEND, else ../oblodai-backend) provides tools/sdkgen for the
-# drift check and tools/sdkgen/conformance for the shared scenarios. Ruby runs on the host when it
+# drift check, which also keeps contract/snapshot (openapi.json + the shared conformance scenarios)
+# equal to the backend; the specs read OBLODAI_BACKEND when set, else that snapshot. Ruby runs on the host when it
 # has `bundle`, else in docker (image RUBY_IMAGE, labelled oblodai.sdkcheck=1); gems go to
 # vendor/bundle inside the repository either way.
 

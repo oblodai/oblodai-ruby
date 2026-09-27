@@ -26,12 +26,20 @@ Gem::Specification.new do |spec|
     "rubygems_mfa_required" => "true"
   }
 
-  spec.files = Dir[
+  files = Dir[
     "lib/**/*.rb",
     "examples/*.rb",
     "names.lock",
     "README.md", "README.ru.md", "CHANGELOG.md", "MIGRATION-2.0.md", "MIGRATION-1.3.md", "AGENTS.md", "LICENSE"
   ]
+  # Only files git tracks: an untracked .rb left under lib/ at build time must not ship. Outside a
+  # checkout (a gem unpacked for inspection) the glob alone decides.
+  tracked = begin
+    IO.popen(%w[git ls-files -z], chdir: __dir__, err: File::NULL, &:read).split("\0")
+  rescue SystemCallError
+    []
+  end
+  spec.files = tracked.empty? ? files : files & tracked
   spec.require_paths = ["lib"]
 
   # Amounts are BigDecimal; from Ruby 3.4 on it is a bundled gem, no longer part of the default set.

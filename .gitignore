@@ -7,3 +7,6 @@
 /doc/
 /.yardoc/
 Gemfile.lock
+.env
+.env.*
+!.env.example

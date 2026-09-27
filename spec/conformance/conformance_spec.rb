@@ -6,8 +6,8 @@ require "uri"
 
 # The shared conformance suite every Oblodai SDK runs (backend `tools/sdkgen/conformance`).
 #
-# Scenarios are read from `$SDKGEN_CONFORMANCE`, else from `tools/sdkgen/conformance` of the backend
-# checkout the drift check uses (`$OBLODAI_BACKEND`, else `../oblodai-backend`). Signing vectors are
+# Scenarios are read from `$SDKGEN_CONFORMANCE`, else from `tools/sdkgen/conformance` of
+# `$OBLODAI_BACKEND`, else of the vendored `contract/snapshot` (so public CI runs them too). Signing vectors are
 # not in the scenario files: each suite names the backend `openapi.json` and a pointer into its
 # `x-oblodai-signing`, and the vectors are read from there. Every call scenario runs through the
 # generated method of its operation on a scripted HTTP adapter; retry pauses are recorded instead of
@@ -28,8 +28,7 @@ module Conformance
     explicit = ENV.fetch("SDKGEN_CONFORMANCE", nil)
     return explicit if explicit
 
-    backend = ENV.fetch("OBLODAI_BACKEND") { File.expand_path("../../../oblodai-backend", __dir__) }
-    File.join(backend, "tools", "sdkgen", "conformance")
+    File.join(contract_root, "tools", "sdkgen", "conformance")
   end
 
   def available?

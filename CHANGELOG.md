@@ -64,6 +64,14 @@ versions follow [SemVer](https://semver.org/).
   `oblodai_live_…` / `oblodai_test_…` secrets and public ids are all-zero placeholders of the same
   format.
 
+- CI and release: GitHub Actions are pinned to full commit SHAs, checkouts do not persist the
+  token, CI runs with a read-only token, and the release is split into a read-only gate job (all
+  specs) and a publish job that holds the RubyGems key and the write token but installs no
+  development gem. The backend's `openapi.json` and conformance suite are vendored in
+  `contract/snapshot` (not shipped in the gem), so public CI runs the signing vectors and the
+  conformance suite without the private backend; the drift check fails when the snapshot differs
+  from the backend. The gem ships only git-tracked files, and `.env` files are git-ignored.
+
 ### Added
 
 - `client.cli_login` — `start`, `poll`, `logout`: the browser login of the `oblodai` CLI (OAuth
