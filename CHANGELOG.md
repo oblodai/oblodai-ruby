@@ -60,6 +60,10 @@ versions follow [SemVer](https://semver.org/).
   `has_pages` flag decides only when an answer carries no `total`), the rule every Oblodai SDK now
   shares; a page shorter than the requested `limit` never ends the walk.
 
+- The recorded onboarding fixtures no longer carry real-format captured keys: their
+  `oblodai_live_…` / `oblodai_test_…` secrets and public ids are all-zero placeholders of the same
+  format.
+
 ### Added
 
 - `client.cli_login` — `start`, `poll`, `logout`: the browser login of the `oblodai` CLI (OAuth
