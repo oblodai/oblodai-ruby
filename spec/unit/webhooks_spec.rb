@@ -1,8 +1,9 @@
 # frozen_string_literal: true
 
 RSpec.describe Oblodai::Webhooks do
-  # The samples were delivered by the core's real dispatcher to the recorder, signed with the
-  # endpoint secret in force at that moment — the one returned by the rotate-secret call.
+  # The samples were delivered by the core's real dispatcher to the recorder and keep their captured
+  # bodies and headers, but are re-signed with fake secrets so no captured secret is published: the
+  # rotate-secret fixture's secret (64 "0"s) and, in the Prev header, the register fixture's (64 "1"s).
   let(:secret) { Fixtures.result_of("POST /v1/webhooks/rotate-secret")["secret"] }
 
   describe "against real deliveries" do
@@ -160,11 +161,34 @@ RSpec.describe Oblodai::Webhooks do
       expect(described_class.event_key(replay.event)).to eq("payment:u1:7")
     end
 
-    it "gives a resend a new key and never calls it stale" do
+    it "dedupes a resend (same signed event_id, higher sequence) and never calls it stale" do
+      event_id = "5b1c2a4e-7d1f-5e0a-9c3b-2f4d6e8a0b1c"
+      field = described_class::EVENT_ID_FIELD
+      first = JSON.generate(JSON.parse(body).merge(field => event_id))
+      resend = JSON.generate(JSON.parse(body).merge(field => event_id, "sequence" => 42))
+      a = described_class.verify_delivery(first, headers_for(first, SIGNING::HEADER_WEBHOOK_EVENT_ID => event_id),
+                                          secret: "whsec", now: ts)
+      b = described_class.verify_delivery(resend, headers_for(resend, SIGNING::HEADER_WEBHOOK_EVENT_ID => "forged"),
+                                          secret: "whsec", now: ts)
+      expect([a.event_key, b.event_key]).to eq([event_id, event_id])
+      expect(b.unverified_event_id).to eq("forged")
+      expect(b.event.event_id).to eq(event_id)
+      expect(described_class.stale?(b.event, 7)).to be(false)
+    end
+
+    it "falls back to type:id:sequence for an old-core delivery without event_id" do
       event = { "type" => "payment", "uuid" => "inv-1", "status" => "paid", "sequence" => 7 }
       resend = event.merge("sequence" => 42)
+      expect(described_class.event_key(event)).to eq("payment:inv-1:7")
       expect(described_class.event_key(resend)).not_to eq(described_class.event_key(event))
       expect(described_class.stale?(resend, 7)).to be(false)
+    end
+
+    it "refuses a present but empty or non-string event_id as a bad payload" do
+      ['""', "7", "null"].each do |bad|
+        raw = %({"type":"payment","uuid":"u1","sequence":7,"event_id":#{bad}})
+        expect { described_class.parse(raw) }.to raise_error(Oblodai::WebhookPayloadError), bad
+      end
     end
 
     it "has no event key without an object id or an integer sequence" do

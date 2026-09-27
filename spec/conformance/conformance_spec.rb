@@ -75,6 +75,15 @@ module Conformance
     name
   end
 
+  # The signed body field to deduplicate on, from the spec (`dedupe_key.field_pointer`).
+  def dedupe_field(suite)
+    spec = JSON.parse(File.read(File.expand_path(suite.dig("source", "spec"), dir)))
+    name = pointer(spec, suite.fetch("dedupe_key").fetch("field_pointer"))
+    raise "dedupe_key.field_pointer: empty name" if name.to_s.empty?
+
+    name
+  end
+
   # Send a request vector through the signing transport the client's methods use — keys `public_id`
   # + the vector's secret, clock at the vector's `ts` — and return the one request that reached the
   # HTTP adapter. That request is the vector's own — method, path + raw query and body bytes — so a
@@ -230,6 +239,13 @@ RSpec.describe "conformance" do
     _, deliveries = Conformance.source(suite)
     names = Conformance.header_names(suite)
     test_header = Conformance.test_header(suite)
+    dedupe_field = Conformance.dedupe_field(suite)
+
+    it "names the dedupe field and fallback this SDK keys on, and marks the header fields unverified" do
+      expect(dedupe_field).to eq(Oblodai::Webhooks::EVENT_ID_FIELD)
+      expect(suite.fetch("dedupe_key").fetch("fallback")).to eq("type:id:sequence")
+      expect(suite.fetch("fields_unverified")).to be(true)
+    end
 
     it "has a delivery of every event this release knows" do
       expect(deliveries.map { |d| d["event"] }).to match_array(Oblodai::Generated::WEBHOOK_EVENTS.keys)
@@ -244,10 +260,19 @@ RSpec.describe "conformance" do
           headers = vector["headers"].dup
           headers[test_header] = "true" if check["test"]
           delivery = Oblodai::Webhooks.verify_delivery(vector["payload"], headers, secret: secret, now: vector["ts"])
-          # The suite marks a rehearsal with the test HEADER, which the MAC does not cover: this SDK
-          # reports it as unverified_test_header and takes test? from the signed body alone.
+          # The rehearsal HEADER is not covered by the MAC: it is reported only as
+          # unverified_test_header, and test? comes from the signed body, live in every delivery.
           expect(delivery.unverified_test_header).to be(check.fetch("test", false)), "rehearsal header #{test_header}"
-          expect(delivery.test?).to be(delivery.event.test == true)
+          expect(delivery.test?).to be(false)
+          # dedupe_key: the signed body field the spec names, else type:id:sequence from the body.
+          body = JSON.parse(vector["payload"])
+          if body[dedupe_field].is_a?(String)
+            expect(body[dedupe_field]).to eq(vector.dig("headers", names.fetch("event_id")))
+            expect(delivery.event_key).to eq(body[dedupe_field])
+          else
+            id = body.fetch(Oblodai::Generated::WEBHOOK_ID_FIELDS.fetch(body["type"]))
+            expect(delivery.event_key).to eq("#{body["type"]}:#{id}:#{body["sequence"]}")
+          end
           expect(delivery.event).to be_a(Oblodai::Generated::WEBHOOK_MODELS.fetch(vector["kind"]))
           expect(Oblodai::Webhooks.known_event?(delivery.event)).to be(true)
           suite.fetch("fields").each do |role, field|

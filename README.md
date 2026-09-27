@@ -330,10 +330,11 @@ headers are **not**: anyone who captured one genuine delivery can resend it with
 window with other values in them. So decide on the signed body alone. Rehearsal deliveries carry
 `test: true` in the signed body: `delivery.test?` — ALWAYS ignore them, never act on one as if money
 moved (the `X-Webhook-Test` header does not count). Deduplicate on `delivery.event_key`
-(`Oblodai::Webhooks.event_key(event)`: `"<type>:<object id>:<sequence>"`, all from the signed body).
-A resend (`webhooks.resend_payment`, a sandbox replay) carries a new, higher `sequence` and so a new
-key: make the action itself idempotent per object and status, or a resent `invoice.paid` ships
-twice. The header values stay available as `delivery.unverified_*`, for logs only.
+(`Oblodai::Webhooks.event_key(event)`): dedupe on `event_id` (fallback `type:id:sequence`), both
+from the signed body — a delivery from an older core has no `event_id`. A resend
+(`webhooks.resend_payment`, a sandbox replay) carries a new, higher `sequence` but the same
+`event_id`, so it dedupes; on the fallback key it does not, so make the action itself idempotent per
+object and status all the same, or a resent `invoice.paid` could ship twice. The header values stay available as `delivery.unverified_*`, for logs only.
 `Oblodai::Webhooks.stale?(event, last_sequence)` drops an out-of-order retry — keep the last
 sequence per object, `Oblodai::Webhooks.subject_id(event)` (the `uuid`, or `id` of a conversion). After `webhooks.rotate_secret` pass `previous_secret:` for at least 26 hours.
 

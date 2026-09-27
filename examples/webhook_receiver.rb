@@ -8,10 +8,11 @@
 # 2. Decide on the SIGNED body only: the delivery id, event id, event and test headers are not
 #    signed, so anyone who captured a delivery can resend it with other values in them.
 # 3. ALWAYS ignore a rehearsal (`Delivery#test?`, the body's `test: true`).
-# 4. Deduplicate on `Delivery#event_key` (type, object id and sequence from the signed body), and
-#    drop out-of-order deliveries with `Oblodai::Webhooks.stale?`.
-# 5. A resend of a state carries a new, higher sequence: make the action idempotent per object and
-#    status (`@acted` below), so a second `paid` never settles twice.
+# 4. Deduplicate on `Delivery#event_key`: dedupe on event_id (fallback type:id:sequence), both from
+#    the signed body; drop out-of-order deliveries with `Oblodai::Webhooks.stale?`.
+# 5. A resend of a state keeps its event_id, but a delivery from an older core has none and its
+#    resend carries a new sequence: make the action idempotent per object and status (`@acted`
+#    below), so a second `paid` never settles twice.
 #
 # WEBrick left the standard library in Ruby 3.0 — `gem install webrick` (it is in this repository's
 # development bundle) before running the example. Nothing in the gem itself needs it.

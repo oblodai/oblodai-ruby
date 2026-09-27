@@ -8,8 +8,12 @@ versions follow [SemVer](https://semver.org/).
 ### Security
 
 - Webhooks: every decision now comes from the signed body. `Delivery#event_key` (and
-  `Oblodai::Webhooks.event_key(event)`) is the dedupe key, `"<type>:<object id>:<sequence>"`, read
-  from the signed body; `Delivery#test?` is the body's `test: true` only. The unsigned headers moved
+  `Oblodai::Webhooks.event_key(event)`) is the dedupe key: dedupe on `event_id` (fallback
+  `type:id:sequence`), read from the signed body. The body's `event_id`
+  (`Oblodai::Webhooks::EVENT_ID_FIELD`) is the same across retries and resends of one state; a
+  delivery from an older core without it keys on `"<type>:<object id>:<sequence>"`. The webhook
+  models gain an optional `event_id`; a present but empty or non-string one is
+  `webhook.bad_payload`; `Delivery#test?` is the body's `test: true` only. The unsigned headers moved
   to `unverified_delivery_id`, `unverified_event_id`, `unverified_event_type`,
   `unverified_event_time` and `unverified_test_header` (breaking: `id`, `event_id`, `event_type` and
   `event_time` are gone). A captured delivery replayed with a new `X-Webhook-Event-Id` no longer

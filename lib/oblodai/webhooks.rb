@@ -28,12 +28,15 @@ module Oblodai
   # anyone who captured one genuine delivery can resend it within the freshness window with other
   # values in them. So every decision comes from the signed body alone:
   #
-  # * deduplicate on {Delivery#event_key} ({event_key}) — `type`, the object's id and `sequence`,
-  #   all read from the signed body;
+  # * deduplicate on {Delivery#event_key} ({event_key}): dedupe on `event_id` (fallback
+  #   `type:id:sequence`), both read from the signed body. `event_id` ({EVENT_ID_FIELD}) is the same
+  #   for every retry and every resend of one state of an object; a delivery from an older core may
+  #   lack it, and then the key is `type`, the object's id and `sequence`;
   # * a rehearsal is `test: true` in the signed body ({Delivery#test?}, {test_event?}); ALWAYS
   #   ignore those deliveries;
-  # * a resend of a state carries a new, higher `sequence` and so a new key: make the action itself
-  #   idempotent per object and status (ship an invoice once, however many `paid` deliveries come).
+  # * a resend of a state keeps its `event_id` (only `sequence` grows), so it dedupes; on the
+  #   fallback key of an older core it does not: make the action itself idempotent per object and
+  #   status all the same (ship an invoice once, however many `paid` deliveries come).
   #
   # The header values stay readable as `Delivery#unverified_*`, for logs and support only.
   #
@@ -62,6 +65,9 @@ module Oblodai
     # The rehearsal header (`x-oblodai-signing.webhook.test_header`): "true" on a test delivery. It is
     # NOT signed; only the body's `test: true` decides ({Delivery#test?}).
     HEADER_TEST = Generated::SigningProtocol::HEADER_WEBHOOK_TEST
+    # The signed body field to deduplicate on (`x-oblodai-signing.webhook.event_id_field`): the id
+    # of the object state. A delivery from an older core may lack it ({event_key} falls back).
+    EVENT_ID_FIELD = Generated::SigningProtocol::WEBHOOK_EVENT_ID_FIELD
 
     # Reject deliveries whose timestamp is further from now than this, seconds — the contract's
     # skew window. 0 disables the check.
@@ -79,9 +85,9 @@ module Oblodai
     # @!attribute [r] sent_at
     #   @return [Integer] {HEADER_TIMESTAMP} — when this attempt was sent (it is signed)
     # @!attribute [r] event_key
-    #   @return [String, nil] the deduplication key from the signed body,
-    #     `"<type>:<object id>:<sequence>"` ({Webhooks.event_key}); nil when the body lacks the
-    #     object id or the `sequence` (a kind newer than this SDK) — process such a delivery
+    #   @return [String, nil] the deduplication key from the signed body ({Webhooks.event_key}): its
+    #     `event_id`, or, from an older core without it, `"<type>:<object id>:<sequence>"`; nil when
+    #     neither can be built (a kind newer than this SDK without `event_id`) — process it
     # @!attribute [r] test
     #   @return [Boolean] `test: true` in the signed body — see {Delivery#test?}
     # @!attribute [r] unverified_delivery_id
@@ -266,6 +272,9 @@ module Oblodai
       unless body["type"].is_a?(String) && !body["type"].empty?
         raise WebhookPayloadError.new("delivery body has no `type` string", body)
       end
+      if body.key?(EVENT_ID_FIELD) && !(body[EVENT_ID_FIELD].is_a?(String) && !body[EVENT_ID_FIELD].empty?)
+        raise WebhookPayloadError.new("delivery body's `#{EVENT_ID_FIELD}` is not a non-empty string", body)
+      end
 
       model = EVENT_MODELS[body["type"]]
       return deep_freeze(body) if model.nil?
@@ -319,16 +328,22 @@ module Oblodai
       value.is_a?(String) ? value : nil
     end
 
-    # The deduplication key of a verified event, built from its signed body only:
-    # `"<type>:<object id>:<sequence>"` (`"payment:2f1c…:7"`). A retry of a delivery, and a captured
-    # delivery replayed by someone else, carry the same body and so the same key: keep the keys you
-    # handled and skip repeats. The delivery and event-id headers are not signed and must never be
-    # the key.
+    # The deduplication key of a verified event, built from its signed body only: dedupe on
+    # `event_id` (fallback `type:id:sequence`). The body's `event_id` ({EVENT_ID_FIELD}) is the same
+    # for every retry and every resend of one state of an object, so a resend dedupes too. A delivery
+    # from an older core may lack it; then the key is `"<type>:<object id>:<sequence>"`
+    # (`"payment:2f1c…:7"`), which a retry or a captured replay shares but a resend (higher
+    # `sequence`) does not. The delivery and event-id headers are not signed and must never be the
+    # key.
     #
     # @param event [Oblodai::Models::Base, Hash] an event model or a decoded body
-    # @return [String, nil] nil when the body has no object id ({subject_id}) or no Integer
-    #   `sequence` (a kind newer than this SDK): process such a delivery rather than drop it
+    # @return [String, nil] nil when there is no `event_id` and the body has no object id
+    #   ({subject_id}) or no Integer `sequence` (a kind newer than this SDK): process such a delivery
+    #   rather than drop it
     def event_key(event)
+      signed_id = read_field(event, EVENT_ID_FIELD.to_sym)
+      return signed_id if signed_id.is_a?(String) && !signed_id.empty?
+
       kind = read_field(event, :type)
       id = subject_id(event)
       sequence = read_field(event, :sequence)
@@ -341,8 +356,8 @@ module Oblodai
     # `sequence` you processed per object ({subject_id}) and skip anything not newer. Never raises: an event
     # without a usable `sequence` is not stale, because nothing about it can be compared.
     # This is ordering, not deduplication ({event_key}): a resend carries a deliberately higher
-    # `sequence`, so it is never stale and has a new key — make the action idempotent per object and
-    # status.
+    # `sequence`, so it is never stale; it keeps its `event_id` and so its key, except on the fallback
+    # key of an older core — keep the action idempotent per object and status.
     #
     # @param event [#sequence, Hash]
     # @param last_processed_sequence [Integer, nil]
