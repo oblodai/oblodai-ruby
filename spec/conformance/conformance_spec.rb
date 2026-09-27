@@ -13,6 +13,15 @@ require "uri"
 # generated method of its operation on a scripted HTTP adapter; retry pauses are recorded instead of
 # slept.
 module Conformance
+  # The suite's delivery field names -> this SDK's: headers the webhook MAC does not cover are
+  # exposed only under an unverified_ name.
+  UNVERIFIED_FIELDS = {
+    "id" => "unverified_delivery_id",
+    "event_id" => "unverified_event_id",
+    "event_type" => "unverified_event_type",
+    "event_time" => "unverified_event_time"
+  }.freeze
+
   module_function
 
   def dir
@@ -236,14 +245,18 @@ RSpec.describe "conformance" do
           headers = vector["headers"].dup
           headers[test_header] = "true" if check["test"]
           delivery = Oblodai::Webhooks.verify_delivery(vector["payload"], headers, secret: secret, now: vector["ts"])
-          expect(delivery.test?).to be(check.fetch("test", false)), "test? (rehearsal header #{test_header})"
+          # The suite marks a rehearsal with the test HEADER, which the MAC does not cover: this SDK
+          # reports it as unverified_test_header and takes test? from the signed body alone.
+          expect(delivery.unverified_test_header).to be(check.fetch("test", false)), "rehearsal header #{test_header}"
+          expect(delivery.test?).to be(delivery.event.test == true)
           expect(delivery.event).to be_a(Oblodai::Generated::WEBHOOK_MODELS.fetch(vector["kind"]))
           expect(Oblodai::Webhooks.known_event?(delivery.event)).to be(true)
           suite.fetch("fields").each do |role, field|
             next if field.empty?
 
             header = names.fetch(role)
-            value = delivery.public_send(field)
+            # Headers the webhook MAC does not cover are exposed only under an unverified_ name.
+            value = delivery.public_send(Conformance::UNVERIFIED_FIELDS.fetch(field, field))
             want = vector.dig("headers", header)
             expect(value).to eq(value.is_a?(Integer) ? Integer(want) : want), "#{field} ≠ #{header}"
           end

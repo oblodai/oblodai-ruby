@@ -5,6 +5,18 @@ versions follow [SemVer](https://semver.org/).
 
 ## Unreleased
 
+### Security
+
+- Webhooks: every decision now comes from the signed body. `Delivery#event_key` (and
+  `Oblodai::Webhooks.event_key(event)`) is the dedupe key, `"<type>:<object id>:<sequence>"`, read
+  from the signed body; `Delivery#test?` is the body's `test: true` only. The unsigned headers moved
+  to `unverified_delivery_id`, `unverified_event_id`, `unverified_event_type`,
+  `unverified_event_time` and `unverified_test_header` (breaking: `id`, `event_id`, `event_type` and
+  `event_time` are gone). A captured delivery replayed with a new `X-Webhook-Event-Id` no longer
+  passes header-based dedupe, and an `X-Webhook-Test: true` header can no longer make a real payment
+  look like a rehearsal. README, AGENTS.md and the receiver example dedupe on the signed key and
+  always ignore test deliveries.
+
 ### Added
 
 - `client.cli_login` — `start`, `poll`, `logout`: the browser login of the `oblodai` CLI (OAuth

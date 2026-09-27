@@ -286,10 +286,13 @@ Oblodai::Money.compare("9", "10")                  # => -1 (as strings "9" > "10
 ```ruby
 require "oblodai/webhooks"
 
-# The raw body and the request headers in, an HTTP status out.
-def receive(body, headers, secret)
+# The raw body and the request headers in, an HTTP status out. `handled` keeps the event keys done.
+def receive(body, headers, secret, handled = {})
   delivery = Oblodai::Webhooks.verify_delivery(body, headers, secret: secret)
-  return 200 if delivery.test? # a rehearsal: signed like a live one, but no money moved
+  return 200 if delivery.test? # a rehearsal (`test: true` in the signed body): never act on it
+  return 200 if handled[delivery.event_key] # a retry or a replay of a delivery already processed
+
+  handled[delivery.event_key] = true if delivery.event_key
 
   case (event = delivery.event)
   when Oblodai::Models::PaymentWebhook then puts "order #{event.order_id}: #{event.status}"
@@ -315,12 +318,17 @@ end
 повторит. Вид события, придуманный более новым шлюзом, тоже не падает: он приходит разобранным телом
 (замороженный Hash) — `Oblodai::Webhooks.known_event?(event)` различает эти случаи.
 
-Репетиционные доставки несут `test: true` в подписанном теле (и `X-Webhook-Test: true`): проверяйте
-`delivery.test?` и никогда не считайте их движением денег. Дедуплицируйте по `delivery.event_id`
-(`X-Webhook-Event-Id`): он называет состояние и одинаков у всех повторов и переотправок.
-`delivery.id` (`X-Webhook-Id`) называет одну доставку и меняется при переотправке
-(`webhooks.resend_payment`, повтор в песочнице) — обработчик, ключом которого он служит, обработает
-переотправленный `invoice.paid` дважды. `Oblodai::Webhooks.stale?(event, last_sequence)` отбрасывает
+Подписаны только `<timestamp>.<сырое тело>`. Заголовки id доставки, id события, события, времени
+события и теста **не** подписаны: тот, кто перехватил одну настоящую доставку, может в окне свежести
+отправить её снова с другими значениями в них. Поэтому решайте только по подписанному телу.
+Репетиционные доставки несут `test: true` в подписанном теле: `delivery.test?` — ВСЕГДА
+игнорируйте их и никогда не считайте движением денег (заголовок `X-Webhook-Test` не в счёт).
+Дедуплицируйте по `delivery.event_key` (`Oblodai::Webhooks.event_key(event)`:
+`"<type>:<id объекта>:<sequence>"`, всё из подписанного тела). Переотправка
+(`webhooks.resend_payment`, повтор в песочнице) несёт новый, больший `sequence` и потому новый ключ:
+сделайте само действие идемпотентным по объекту и статусу, иначе переотправленный `invoice.paid`
+отгрузит товар дважды. Значения заголовков доступны как `delivery.unverified_*` — только для логов.
+`Oblodai::Webhooks.stale?(event, last_sequence)` отбрасывает
 повтор не по порядку — храните последний sequence на объект, `Oblodai::Webhooks.subject_id(event)`
 (`uuid`, у конвертации — `id`). После `webhooks.rotate_secret` передавайте `previous_secret:`
 не меньше 26 часов.

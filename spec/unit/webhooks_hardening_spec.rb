@@ -86,9 +86,11 @@ RSpec.describe "#{Oblodai::Webhooks} hardening" do
         .to raise_error(Oblodai::SignatureError) { |e| expect(e.code).to eq("webhook.bad_signature") }
     end
 
-    it "recognises the rehearsal header whatever its case" do
+    it "recognises the rehearsal header whatever its case, but only as unverified" do
       flagged = headers(body, SIGNING::HEADER_WEBHOOK_TEST => "TRUE")
-      expect(Oblodai::Webhooks.verify_delivery(body, flagged, secret: "whsec", now: ts).test?).to be(true)
+      delivery = Oblodai::Webhooks.verify_delivery(body, flagged, secret: "whsec", now: ts)
+      expect(delivery.unverified_test_header).to be(true)
+      expect(delivery.test?).to be(false)
     end
   end
 

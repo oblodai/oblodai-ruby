@@ -67,17 +67,28 @@ RSpec.describe "examples" do
       raw, headers = delivery(body)
       expect(receiver.call(raw, headers)).to eq([200, "ok"])
       expect(receiver.call(raw, headers)).to eq([200, "ok"])
-      expect(out.string).to include("invoice", "duplicate event d-1")
+      expect(out.string).to include("invoice", "duplicate event payment:u:3")
       expect(receiver.call("#{raw} ", headers).first).to eq(401)
     end
 
-    it "processes a resent state once: the event id stays, the delivery id does not" do
+    it "settles a resent state once: a new sequence, the same object and status" do
       body = Samples.body("PaymentWebhook", "type" => "payment", "uuid" => "u", "status" => "paid",
                                             "sequence" => 3)
       expect(receiver.call(*delivery(body, id: "d-1", event_id: "e-1")).first).to eq(200)
       expect(receiver.call(*delivery(body.merge("sequence" => 9), id: "d-2", event_id: "e-1")).first).to eq(200)
       expect(out.string.scan("invoice").size).to eq(1)
-      expect(out.string).to include("duplicate event e-1")
+      expect(out.string).to include("payment u already paid")
+    end
+
+    it "ignores forged unsigned headers: a replay with a new event id, a test header on a real payment" do
+      body = Samples.body("PaymentWebhook", "type" => "payment", "uuid" => "u9", "status" => "paid",
+                                            "sequence" => 5)
+      raw, headers = delivery(body, event_id: "e-1")
+      expect(receiver.call(raw, headers.merge(SIGNING::HEADER_WEBHOOK_TEST => "true")).first).to eq(200)
+      expect(out.string.scan("invoice").size).to eq(1) # the header did not make it a rehearsal
+      expect(receiver.call(raw, headers.merge(SIGNING::HEADER_WEBHOOK_EVENT_ID => "forged")).first).to eq(200)
+      expect(out.string.scan("invoice").size).to eq(1)
+      expect(out.string).to include("duplicate event payment:u9:5")
     end
 
     it "settles a conversion, whose object id is `id`" do

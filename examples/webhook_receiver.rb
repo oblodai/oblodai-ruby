@@ -1,9 +1,17 @@
 #!/usr/bin/env ruby
 # frozen_string_literal: true
 
-# A webhook receiver on Ruby's own HTTP server — no framework, no client, no API key. The two rules
-# that matter: verify over the RAW bytes, and deduplicate on the event id (`Delivery#event_id`, the
-# `Oblodai::Webhooks::HEADER_EVENT_ID` header) — not on the delivery id, which a resend changes.
+# A webhook receiver on Ruby's own HTTP server — no framework, no client, no API key. The rules that
+# matter:
+#
+# 1. Verify over the RAW bytes.
+# 2. Decide on the SIGNED body only: the delivery id, event id, event and test headers are not
+#    signed, so anyone who captured a delivery can resend it with other values in them.
+# 3. ALWAYS ignore a rehearsal (`Delivery#test?`, the body's `test: true`).
+# 4. Deduplicate on `Delivery#event_key` (type, object id and sequence from the signed body), and
+#    drop out-of-order deliveries with `Oblodai::Webhooks.stale?`.
+# 5. A resend of a state carries a new, higher sequence: make the action idempotent per object and
+#    status (`@acted` below), so a second `paid` never settles twice.
 #
 # WEBrick left the standard library in Ruby 3.0 — `gem install webrick` (it is in this repository's
 # development bundle) before running the example. Nothing in the gem itself needs it.
@@ -22,8 +30,9 @@ class WebhookReceiver
     @secret = secret
     @previous_secret = previous_secret
     @out = out
-    @seen = {}          # event id → true, so a retried or resent state is processed once
+    @seen = {}          # event key → true, so a retried or replayed delivery is processed once
     @last_sequence = {} # [kind, object id] → the last sequence processed, so an out-of-order retry is dropped
+    @acted = {}         # [kind, object id, status] → true, so a resent state is settled once
   end
 
   def call(raw, headers)
@@ -49,26 +58,26 @@ class WebhookReceiver
     if delivery.test?
       # A rehearsal (webhooks.send_test_* / sandbox): signed exactly like a live delivery, but no
       # money moved — acknowledge it and settle nothing.
-      @out.puts "rehearsal delivery #{delivery.id} (#{delivery.event_type}), nothing to settle"
+      @out.puts "rehearsal delivery #{delivery.event_key}, nothing to settle"
     elsif !Oblodai::Webhooks.known_event?(event)
       # A newer gateway may send an event kind this release does not model; it arrives as a Hash.
       @out.puts "unknown event type #{event["type"]}, ignored"
-    elsif @seen[dedup_key(delivery)]
-      @out.puts "duplicate event #{dedup_key(delivery)}, ignored"
+    elsif delivery.event_key && @seen[delivery.event_key]
+      # A retry, or a replay of a delivery already processed. The key comes from the signed body,
+      # never from the (unsigned) event-id or delivery-id headers.
+      @out.puts "duplicate event #{delivery.event_key}, ignored"
     elsif Oblodai::Webhooks.stale?(event, @last_sequence[object_key(event)])
       @out.puts "stale event #{event.sequence} for #{object_key(event).join(" ")}, ignored"
     else
-      @seen[dedup_key(delivery)] = true
+      @seen[delivery.event_key] = true if delivery.event_key
       @last_sequence[object_key(event)] = event.sequence
-      settle(event)
+      if @acted[object_key(event) + [event.status]]
+        @out.puts "#{object_key(event).join(" ")} already #{event.status}, nothing to do"
+      else
+        @acted[object_key(event) + [event.status]] = true
+        settle(event)
+      end
     end
-  end
-
-  # The event id (HEADER_EVENT_ID) names the STATE: the same for every retry and every resend of it.
-  # The delivery id (HEADER_ID) names one delivery — a resend (payments resend, sandbox replay) gets a
-  # new one. A core that does not send the event id yet leaves the delivery id as the next best key.
-  def dedup_key(delivery)
-    delivery.event_id || delivery.id
   end
 
   # Sequences are ordered per object; the object's id field depends on the kind (conversions: `id`).

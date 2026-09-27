@@ -68,10 +68,12 @@ delivery = Oblodai::Webhooks.verify_delivery(raw_body, headers, secret: secret)
 
 Verify over the **raw** bytes. Order of checks: headers → HMAC → freshness → body. The event is an
 `Oblodai::Models::PaymentWebhook`, `PayoutWebhook`, `WalletWebhook` or `ConversionWebhook`; an
-unknown kind is the frozen parsed Hash (`Oblodai::Webhooks.known_event?`). `delivery.test?` is true
-for rehearsal deliveries — never treat one as money. Deduplicate on `delivery.event_id`
-(`X-Webhook-Event-Id`, stable across retries and resends), not `delivery.id` (a resend gets a new
-one); drop out-of-order events with `Oblodai::Webhooks.stale?(event, last_sequence)`, the last
+unknown kind is the frozen parsed Hash (`Oblodai::Webhooks.known_event?`). Only `<ts>.<raw body>`
+is signed; the delivery-id, event-id, event, event-time and test headers are not (exposed only as
+`delivery.unverified_*`). ALWAYS ignore `delivery.test?` deliveries (`test: true` in the signed
+body) — never treat one as money. Deduplicate on `delivery.event_key` (`"<type>:<object
+id>:<sequence>"` from the signed body), never on a header; a resend has a new sequence, so make the
+action idempotent per object and status; drop out-of-order events with `Oblodai::Webhooks.stale?(event, last_sequence)`, the last
 sequence kept per `Oblodai::Webhooks.subject_id(event)`. During a rotation pass
 `previous_secret:` for ≥26 h.
 

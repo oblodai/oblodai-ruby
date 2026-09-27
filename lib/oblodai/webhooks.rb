@@ -17,21 +17,33 @@ module Oblodai
   #       WEBHOOK_CANONICAL_SEPARATOR)) — the timestamp and the raw body
   #     HEADER_SIGNATURE_PREV: same, with the previous secret — only during a rotation overlap
   #     HEADER_EVENT: an event of Oblodai::Generated::WEBHOOK_EVENTS (a newer core may add more)
-  #     HEADER_ID: the delivery — identical across its retries, but a resend is a new delivery
-  #     HEADER_EVENT_ID: the state — identical across retries AND resends of the same state; the
-  #       key to deduplicate on ({Delivery#event_id})
-  #     HEADER_EVENT_TIME: unix seconds when the state change committed (order events by it)
-  #     HEADER_TEST: "true" on a rehearsal delivery (`webhooks.test`, sandbox) — see below
+  #     HEADER_ID: the delivery — identical across its retries
+  #     HEADER_EVENT_ID: the state of the object
+  #     HEADER_EVENT_TIME: unix seconds when the state change committed
+  #     HEADER_TEST: "true" on a rehearsal delivery (`webhooks.test`, sandbox)
   #
   # Always verify over the RAW request bytes; a re-serialized parse will not match.
+  #
+  # Only `<ts>.<raw body>` is signed. The event, id, event-id, event-time and test HEADERS are not:
+  # anyone who captured one genuine delivery can resend it within the freshness window with other
+  # values in them. So every decision comes from the signed body alone:
+  #
+  # * deduplicate on {Delivery#event_key} ({event_key}) — `type`, the object's id and `sequence`,
+  #   all read from the signed body;
+  # * a rehearsal is `test: true` in the signed body ({Delivery#test?}, {test_event?}); ALWAYS
+  #   ignore those deliveries;
+  # * a resend of a state carries a new, higher `sequence` and so a new key: make the action itself
+  #   idempotent per object and status (ship an invoice once, however many `paid` deliveries come).
+  #
+  # The header values stay readable as `Delivery#unverified_*`, for logs and support only.
   #
   # The checks run in one deliberate order: headers, then the MAC, then freshness, then the body.
   # The MAC comes before the timestamp so an unauthenticated caller cannot use the freshness window
   # as an oracle, and the body is parsed only after it is known to be authentic.
   #
-  # Rehearsal deliveries are signed exactly like live ones and carry `test: true` in the body (and
-  # {HEADER_TEST}: true). A handler MUST check {Delivery#test?} / {test_event?} and never act on
-  # a test event as if money moved.
+  # Rehearsal deliveries are signed exactly like live ones and carry `test: true` in the body. A
+  # handler MUST check {Delivery#test?} / {test_event?} and never act on a test event as if money
+  # moved. The {HEADER_TEST} header is not signed and does not count.
   #
   #     event = Oblodai::Webhooks.verify(request.body.read, request.headers, secret: ENV["SECRET"])
   #     next unless Oblodai::Webhooks.known_event?(event)  # a newer core may send a new type
@@ -47,42 +59,52 @@ module Oblodai
     HEADER_ID = Generated::SigningProtocol::HEADER_WEBHOOK_ID
     HEADER_EVENT_ID = Generated::SigningProtocol::HEADER_WEBHOOK_EVENT_ID
     HEADER_EVENT_TIME = Generated::SigningProtocol::HEADER_WEBHOOK_EVENT_TIME
-    # The rehearsal header (`x-oblodai-signing.webhook.test_header`): "true" on a test delivery, next
-    # to the body's signed `test: true`.
+    # The rehearsal header (`x-oblodai-signing.webhook.test_header`): "true" on a test delivery. It is
+    # NOT signed; only the body's `test: true` decides ({Delivery#test?}).
     HEADER_TEST = Generated::SigningProtocol::HEADER_WEBHOOK_TEST
 
     # Reject deliveries whose timestamp is further from now than this, seconds — the contract's
     # skew window. 0 disables the check.
     DEFAULT_TOLERANCE = Generated::SigningProtocol::SKEW_SECONDS
 
-    # A verified delivery: the event plus the advisory headers worth keeping.
+    # A verified delivery: the signed event, what is derived from it, and the unsigned headers.
+    #
+    # Only {#event} (the body) is covered by the signature, and so are {#event_key} and {#test?},
+    # which are read from it. The `unverified_*` members are copied from headers the signature does
+    # NOT cover: log them, never decide anything on them.
     #
     # @!attribute [r] event
     #   @return [Oblodai::Models::Base, Hash] the model of the event's kind ({EVENT_MODELS}), or the
     #     parsed body of a kind this release does not know
-    # @!attribute [r] id
-    #   @return [String, nil] {HEADER_ID} — the delivery: identical across its retries, but a
-    #     resend (`POST /v1/payment/resend`, a sandbox replay) is a new delivery with a new id
-    # @!attribute [r] event_id
-    #   @return [String, nil] {HEADER_EVENT_ID} — the state the delivery carries: identical across
-    #     retries and resends of the same state, different once the state changes. Deduplicate on it.
-    # @!attribute [r] event_type
-    #   @return [String, nil] {HEADER_EVENT}
-    # @!attribute [r] event_time
-    #   @return [Integer, nil] {HEADER_EVENT_TIME} — when the state change committed
     # @!attribute [r] sent_at
-    #   @return [Integer] {HEADER_TIMESTAMP} — when this attempt was sent
+    #   @return [Integer] {HEADER_TIMESTAMP} — when this attempt was sent (it is signed)
+    # @!attribute [r] event_key
+    #   @return [String, nil] the deduplication key from the signed body,
+    #     `"<type>:<object id>:<sequence>"` ({Webhooks.event_key}); nil when the body lacks the
+    #     object id or the `sequence` (a kind newer than this SDK) — process such a delivery
     # @!attribute [r] test
-    #   @return [Boolean] a rehearsal delivery — see {Delivery#test?}
-    Delivery = Struct.new(:event, :id, :event_id, :event_type, :event_time, :sent_at, :test, keyword_init: true) do
+    #   @return [Boolean] `test: true` in the signed body — see {Delivery#test?}
+    # @!attribute [r] unverified_delivery_id
+    #   @return [String, nil] {HEADER_ID} — NOT signed; for logs and support only
+    # @!attribute [r] unverified_event_id
+    #   @return [String, nil] {HEADER_EVENT_ID} — NOT signed; for logs and support only
+    # @!attribute [r] unverified_event_type
+    #   @return [String, nil] {HEADER_EVENT} — NOT signed; switch on the event's `type`/`status`
+    # @!attribute [r] unverified_event_time
+    #   @return [Integer, nil] {HEADER_EVENT_TIME} — NOT signed; the body's `event_at` is
+    # @!attribute [r] unverified_test_header
+    #   @return [Boolean] {HEADER_TEST} was "true" — NOT signed, so it never makes {#test?}
+    Delivery = Struct.new(:event, :sent_at, :event_key, :test, :unverified_delivery_id,
+                          :unverified_event_id, :unverified_event_type, :unverified_event_time,
+                          :unverified_test_header, keyword_init: true) do
       def initialize(*)
         super
         freeze
       end
 
-      # A rehearsal delivery ({HEADER_TEST}: true, or `test: true` in the signed body): produced
-      # by `webhooks.test` and by the sandbox, signed exactly like a live one, but NO money moved.
-      # Never credit an order, release goods or pay anyone out on one.
+      # A rehearsal delivery (`test: true` in the signed body): produced by `webhooks.test` and by
+      # the sandbox, signed exactly like a live one, but NO money moved. Never credit an order,
+      # release goods or pay anyone out on one; ALWAYS ignore it.
       # @return [Boolean]
       def test?
         self[:test] == true
@@ -120,7 +142,7 @@ module Oblodai
                                          tolerance: tolerance, now: now).event
     end
 
-    # Like {verify}, and also returns the delivery and event ids, event type and times from the headers.
+    # Like {verify}, and also returns the dedupe key, the test flag and the (unsigned) headers.
     # @return [Oblodai::Webhooks::Delivery]
     def verify_delivery(raw_body, headers, secret:, previous_secret: nil,
                         tolerance: DEFAULT_TOLERANCE, now: nil)
@@ -138,12 +160,14 @@ module Oblodai
       event = parse(raw_body)
       Delivery.new(
         event: event,
-        id: Util.header_value(headers, HEADER_ID),
-        event_id: Util.header_value(headers, HEADER_EVENT_ID),
-        event_type: Util.header_value(headers, HEADER_EVENT),
-        event_time: /\A\d+\z/.match?(event_time.to_s.strip) ? event_time.to_s.strip.to_i : nil,
         sent_at: ts,
-        test: true_header?(Util.header_value(headers, HEADER_TEST)) || test_event?(event)
+        event_key: event_key(event),
+        test: test_event?(event),
+        unverified_delivery_id: Util.header_value(headers, HEADER_ID),
+        unverified_event_id: Util.header_value(headers, HEADER_EVENT_ID),
+        unverified_event_type: Util.header_value(headers, HEADER_EVENT),
+        unverified_event_time: /\A\d+\z/.match?(event_time.to_s.strip) ? event_time.to_s.strip.to_i : nil,
+        unverified_test_header: true_header?(Util.header_value(headers, HEADER_TEST))
       )
     end
 
@@ -295,9 +319,30 @@ module Oblodai
       value.is_a?(String) ? value : nil
     end
 
+    # The deduplication key of a verified event, built from its signed body only:
+    # `"<type>:<object id>:<sequence>"` (`"payment:2f1c…:7"`). A retry of a delivery, and a captured
+    # delivery replayed by someone else, carry the same body and so the same key: keep the keys you
+    # handled and skip repeats. The delivery and event-id headers are not signed and must never be
+    # the key.
+    #
+    # @param event [Oblodai::Models::Base, Hash] an event model or a decoded body
+    # @return [String, nil] nil when the body has no object id ({subject_id}) or no Integer
+    #   `sequence` (a kind newer than this SDK): process such a delivery rather than drop it
+    def event_key(event)
+      kind = read_field(event, :type)
+      id = subject_id(event)
+      sequence = read_field(event, :sequence)
+      return nil unless kind.is_a?(String) && id && sequence.is_a?(Integer)
+
+      "#{kind}:#{id}:#{sequence}"
+    end
+
     # Deliveries can arrive out of order (a retried `paid` after a `refund`). Keep the last
     # `sequence` you processed per object ({subject_id}) and skip anything not newer. Never raises: an event
     # without a usable `sequence` is not stale, because nothing about it can be compared.
+    # This is ordering, not deduplication ({event_key}): a resend carries a deliberately higher
+    # `sequence`, so it is never stale and has a new key — make the action idempotent per object and
+    # status.
     #
     # @param event [#sequence, Hash]
     # @param last_processed_sequence [Integer, nil]
@@ -313,6 +358,11 @@ module Oblodai
       return false unless sequence.is_a?(Integer)
 
       sequence <= last_processed_sequence
+    end
+
+    # Read a field from an event model or a decoded body.
+    def read_field(event, name)
+      event.is_a?(Models::Base) && event.respond_to?(name) ? event.public_send(name) : event_field(event, name)
     end
 
     # Read a field from a decoded body whichever way its keys are spelled.

@@ -14,17 +14,19 @@ RSpec.describe Oblodai::Webhooks do
 
         expect(delivery.event.uuid).to eq(sample["body"]["uuid"])
         expect(delivery.event.type).to eq(sample["body"]["type"])
-        expect(delivery.id).to eq(sample["headers"][SIGNING::HEADER_WEBHOOK_ID])
-        expect(delivery.event_id).to eq(sample["headers"][SIGNING::HEADER_WEBHOOK_EVENT_ID])
-        expect(delivery.event_type).to eq(sample["headers"][SIGNING::HEADER_WEBHOOK_EVENT])
+        expect(delivery.unverified_delivery_id).to eq(sample["headers"][SIGNING::HEADER_WEBHOOK_ID])
+        expect(delivery.unverified_event_id).to eq(sample["headers"][SIGNING::HEADER_WEBHOOK_EVENT_ID])
+        expect(delivery.unverified_event_type).to eq(sample["headers"][SIGNING::HEADER_WEBHOOK_EVENT])
+        signed = sample["body"]
+        expect(delivery.event_key).to eq("#{signed["type"]}:#{signed["uuid"]}:#{signed["sequence"]}")
         expect(delivery.sent_at).to eq(ts)
         expect(delivery.event.sequence).to be_a(Integer)
         expect(sample["headers"][SIGNING::HEADER_WEBHOOK_EVENT]).to match(/\A(invoice|payout|wallet)\./)
         # Every field the core sent is one the generated model knows; nil optional fields stay absent.
         expect(delivery.event.extra).to eq({})
         expect(delivery.event.to_h.keys).to match_array(sample["body"].compact.keys)
-        rehearsal = sample["body"]["test"] == true || sample["headers"][SIGNING::HEADER_WEBHOOK_TEST] == "true"
-        expect(delivery.test?).to be(rehearsal)
+        expect(delivery.test?).to be(sample["body"]["test"] == true)
+        expect(delivery.unverified_test_header).to be(sample["headers"][SIGNING::HEADER_WEBHOOK_TEST] == "true")
         expect(described_class.test_event?(delivery.event)).to be(sample["body"]["test"] == true)
 
         expect do
@@ -130,24 +132,57 @@ RSpec.describe Oblodai::Webhooks do
       expect(described_class.subject_id(nil)).to be_nil
     end
 
-    it "reads the event id apart from the delivery id" do
+    it "keeps the unsigned event id and delivery id apart, under unverified names" do
       delivery = described_class.verify_delivery(
         body, headers(SIGNING::HEADER_WEBHOOK_ID => "d-1",
                       SIGNING::HEADER_WEBHOOK_EVENT_ID => "e-1"), secret: "whsec", now: ts
       )
-      expect([delivery.id, delivery.event_id]).to eq(%w[d-1 e-1])
-      expect(described_class.verify_delivery(body, headers, secret: "whsec", now: ts).event_id).to be_nil
+      expect([delivery.unverified_delivery_id, delivery.unverified_event_id]).to eq(%w[d-1 e-1])
+      expect(described_class.verify_delivery(body, headers, secret: "whsec", now: ts).unverified_event_id).to be_nil
+      expect(delivery).not_to respond_to(:event_id)
+      expect(delivery).not_to respond_to(:id)
     end
 
-    it "marks a rehearsal delivery from either the body flag or the header" do
+    it "dedupes a replay with forged headers on the key from the signed body" do
+      # A captured invoice.paid resent with a fresh event id and another event name still verifies:
+      # the key must come from the body (type, object id, sequence), never from those headers.
+      genuine = described_class.verify_delivery(
+        body, headers(SIGNING::HEADER_WEBHOOK_ID => "d-1", SIGNING::HEADER_WEBHOOK_EVENT_ID => "e-1",
+                      SIGNING::HEADER_WEBHOOK_EVENT => "invoice.paid"), secret: "whsec", now: ts
+      )
+      replay = described_class.verify_delivery(
+        body, headers(SIGNING::HEADER_WEBHOOK_ID => "attacker", SIGNING::HEADER_WEBHOOK_EVENT_ID => "forged",
+                      SIGNING::HEADER_WEBHOOK_EVENT => "invoice.cancelled"), secret: "whsec", now: ts
+      )
+      expect(replay.unverified_event_id).not_to eq(genuine.unverified_event_id)
+      expect(replay.event_key).to eq(genuine.event_key)
+      expect(replay.event_key).to eq("payment:u1:7")
+      expect(described_class.event_key(replay.event)).to eq("payment:u1:7")
+    end
+
+    it "gives a resend a new key and never calls it stale" do
+      event = { "type" => "payment", "uuid" => "inv-1", "status" => "paid", "sequence" => 7 }
+      resend = event.merge("sequence" => 42)
+      expect(described_class.event_key(resend)).not_to eq(described_class.event_key(event))
+      expect(described_class.stale?(resend, 7)).to be(false)
+    end
+
+    it "has no event key without an object id or an integer sequence" do
+      expect(described_class.event_key({ "type" => "alien", "uuid" => "x", "sequence" => 3 })).to be_nil
+      expect(described_class.event_key({ "type" => "payment", "uuid" => "x" })).to be_nil
+      expect(described_class.event_key({ type: "conversion", id: "c", sequence: 2 })).to eq("conversion:c:2")
+    end
+
+    it "marks a rehearsal delivery from the signed body flag only, never the unsigned header" do
       expect(described_class.verify_delivery(body, headers, secret: "whsec", now: ts).test?).to be(false)
       expect(described_class.test_event?(described_class.parse(body))).to be(false)
 
       from_header = described_class.verify_delivery(
         body, headers(SIGNING::HEADER_WEBHOOK_TEST.downcase => "true"), secret: "whsec", now: ts
       )
-      expect(from_header.test?).to be(true)
-      # The header alone does not make the parsed event a test event — only the signed body does.
+      # Trusting the header let anyone replaying a real payment with it make the receiver skip it.
+      expect(from_header.test?).to be(false)
+      expect(from_header.unverified_test_header).to be(true)
       expect(described_class.test_event?(from_header.event)).to be(false)
 
       rehearsal = JSON.generate(Samples.body("PaymentWebhook", "type" => "payment", "uuid" => "u1",
@@ -158,16 +193,16 @@ RSpec.describe Oblodai::Webhooks do
       expect(described_class.test_event?(from_body.event)).to be(true)
     end
 
-    it "returns the delivery headers worth keeping" do
+    it "returns the unsigned delivery headers under unverified names" do
       delivery = described_class.verify_delivery(
         body, headers(SIGNING::HEADER_WEBHOOK_ID.downcase => "d-1",
                       SIGNING::HEADER_WEBHOOK_EVENT.downcase => "invoice.paid",
                       SIGNING::HEADER_WEBHOOK_EVENT_TIME.downcase => "1755599999"),
         secret: "whsec", now: ts
       )
-      expect(delivery.id).to eq("d-1")
-      expect(delivery.event_type).to eq("invoice.paid")
-      expect(delivery.event_time).to eq(1_755_599_999)
+      expect(delivery.unverified_delivery_id).to eq("d-1")
+      expect(delivery.unverified_event_type).to eq("invoice.paid")
+      expect(delivery.unverified_event_time).to eq(1_755_599_999)
     end
   end
 end
