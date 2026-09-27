@@ -13,11 +13,14 @@ require_relative "../models/base"
 module Oblodai
   # A binary response (PDF/CSV documents).
   class FileResult
+    # `O_NOFOLLOW` where the platform has it: a symlink planted at the target is never written through.
+    NOFOLLOW = defined?(File::NOFOLLOW) ? File::NOFOLLOW : 0
     # @return [String] the bytes, ASCII-8BIT encoded
     attr_reader :bytes
     # @return [String] MIME type the core sent
     attr_reader :content_type
-    # @return [String, nil] name suggested by `Content-Disposition`
+    # @return [String, nil] the name `Content-Disposition` suggested, reduced to a safe basename: no
+    #   directories, no control characters, never "." or ".."; nil when nothing usable was left
     attr_reader :filename
 
     # The bytes of a `bare` route's answer, with their type and file name.
@@ -28,22 +31,36 @@ module Oblodai
           filename: filename_from(response.header("content-disposition")))
     end
 
-    # Pull the file name out of a `Content-Disposition` header.
+    # Pull the file name out of a `Content-Disposition` header, as a safe basename ({.safe_name}).
     # @return [String, nil]
     def self.filename_from(disposition)
       return nil if disposition.nil?
 
       if (utf8 = /filename\*=UTF-8''([^;]+)/i.match(disposition))
-        return URI.decode_www_form_component(utf8[1])
+        return safe_name(URI.decode_www_form_component(utf8[1]))
       end
 
-      /filename="?([^";]+)"?/i.match(disposition)&.captures&.first
+      safe_name(/filename="?([^";]+)"?/i.match(disposition)&.captures&.first)
+    end
+
+    # A server-chosen name reduced to something a caller can join to a directory: the last path
+    # component only (`/` and `\` both separate), control characters dropped, never ".", ".." or
+    # empty (nil then).
+    # @return [String, nil]
+    def self.safe_name(name)
+      return nil if name.nil?
+
+      base = name.to_s.scrub("").tr("\\", "/").split("/").last.to_s
+      base = base.gsub(/[[:cntrl:]]/, "").strip
+      return nil if base.empty? || [".", ".."].include?(base)
+
+      base
     end
 
     def initialize(bytes:, content_type:, filename: nil)
       @bytes = bytes
       @content_type = content_type
-      @filename = filename
+      @filename = self.class.safe_name(filename)
       freeze
     end
 
@@ -52,38 +69,38 @@ module Oblodai
       @bytes.bytesize
     end
 
-    # Write the document to disk.
+    # Write the document to disk, with `0600` permissions.
     #
     # With no argument the file is written to the working directory under the name the SERVER
     # suggested, reduced to a bare basename first: a `Content-Disposition` of
     # `filename="../../etc/cron.d/x"` names a path outside the directory the caller meant, and the
     # name is chosen by whatever answered the request. Pass an explicit `path` when you want one.
+    # An existing file (or a symlink) at the target is an error unless `overwrite: true`, so a
+    # server-chosen `.bashrc` or `Gemfile` can never clobber one of yours.
     #
     # @param path [String, nil] where to write; defaults to {#safe_filename} in the working directory
+    # @param overwrite [Boolean] replace an existing file
     # @raise [ArgumentError] when no path is given and the suggested name is unusable
+    # @raise [Errno::EEXIST] when the target exists and `overwrite` is false
     # @return [String] the path written
-    def save(path = nil)
+    def save(path = nil, overwrite: false)
       target = path || safe_filename
       if target.nil?
         raise ArgumentError,
-              "no path given and the response carried no usable filename " \
-              "(Content-Disposition: #{@filename.inspect}) — pass one to #save"
+              "no path given and the response carried no usable filename — pass one to #save"
       end
 
-      File.binwrite(target, @bytes)
+      flags = File::WRONLY | File::CREAT | File::BINARY
+      flags |= overwrite ? File::TRUNC : File::EXCL | NOFOLLOW
+      File.open(target, flags, 0o600) { |io| io.write(@bytes) }
       target
     end
 
-    # The server-suggested name reduced to a single path segment, or nil when nothing usable is
-    # left of it. {#filename} keeps the raw value for logging.
+    # The server-suggested name as a single path segment ({#filename}), or nil when nothing usable
+    # was left of it.
     # @return [String, nil]
     def safe_filename
-      return nil if @filename.nil?
-
-      name = File.basename(@filename.to_s.tr("\\", "/").delete("\0"))
-      return nil if name.empty? || name.include?("/") || [".", ".."].include?(name)
-
-      name
+      @filename
     end
 
     def inspect

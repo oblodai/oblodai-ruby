@@ -46,6 +46,11 @@ versions follow [SemVer](https://semver.org/).
   `device_code` and `api_key`/`X-Api-Key` join the redacted names in model `inspect` and logs, and
   `RequestBuilder::Built` / `HTTP::Request` `inspect`/`pp` show only the method and the redacted URL.
 
+- `FileResult#save` never clobbers: an existing file or a symlink at the target (the server-chosen
+  name in the working directory included — a `.bashrc`, a `Gemfile`) is `Errno::EEXIST` unless
+  `overwrite: true`, and the file is created with `0600` permissions. `FileResult#filename` is now
+  the safe basename itself (no directories, no control characters, never `.`/`..`).
+
 ### Added
 
 - `client.cli_login` — `start`, `poll`, `logout`: the browser login of the `oblodai` CLI (OAuth

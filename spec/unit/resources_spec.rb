@@ -34,6 +34,34 @@ RSpec.describe "resource surface" do
       end
     end
 
+    it "reduces the server name to a safe basename without control characters" do
+      [["a\r\nb\e[31m.pdf", "ab[31m.pdf"], ["../../.bashrc", ".bashrc"], [".", nil]].each do |suggested, expected|
+        file = described_class.new(bytes: "%PDF", content_type: "application/pdf", filename: suggested)
+        expect(file.filename).to eq(expected)
+      end
+      expect(described_class.filename_from("attachment; filename*=UTF-8''..%2F..%2Fetc%2Fpasswd")).to eq("passwd")
+    end
+
+    it "never clobbers an existing file or follows a symlink, and writes owner-only" do
+      Dir.mktmpdir do |dir|
+        Dir.chdir(dir) do
+          File.write("Gemfile", "keep")
+          File.write("victim", "keep")
+          File.symlink("victim", "link.pdf")
+          evil = described_class.new(bytes: "pwned", content_type: "text/plain", filename: "../Gemfile")
+          expect { evil.save }.to raise_error(Errno::EEXIST)
+          expect { evil.save("link.pdf") }.to raise_error(SystemCallError)
+          expect(File.read("Gemfile")).to eq("keep")
+          expect(File.read("victim")).to eq("keep")
+          fresh = described_class.new(bytes: "%PDF", content_type: "application/pdf", filename: "s.pdf")
+          fresh.save
+          expect(File.stat("s.pdf").mode & 0o777).to eq(0o600)
+          fresh.save("Gemfile", overwrite: true)
+          expect(File.read("Gemfile")).to eq("%PDF")
+        end
+      end
+    end
+
     it "writes wherever the caller says" do
       Dir.mktmpdir do |dir|
         target = File.join(dir, "sub.pdf")
