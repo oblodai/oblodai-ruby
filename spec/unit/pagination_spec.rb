@@ -37,13 +37,34 @@ RSpec.describe Oblodai::Page do
     expect(http.calls.size).to eq(2)
   end
 
-  it "stops on a short page even when the core keeps saying has_pages" do
+  it "stops on an empty page even when the core keeps saying has_pages" do
     http = FakeHTTP.new([{ status: 200,
                            body: { "state" => 0,
                                    "result" => { "items" => [],
                                                  "paginate" => { "total" => 99, "per_page" => 2,
                                                                  "offset" => 0, "has_pages" => true } } } }])
     expect(client_with(http).payouts.list_history(limit: 2).to_a).to eq([])
+    expect(http.calls.size).to eq(1)
+  end
+
+  it "does not stop on a page shorter than the limit, only on an empty page or at total" do
+    # The core may cap a page below the requested limit: a short page never ends the walk.
+    http = FakeHTTP.new([
+                          FakeHTTP.page([payment("1"), payment("2")], 0, 5, 2),
+                          FakeHTTP.page([payment("3"), payment("4")], 2, 5, 2),
+                          FakeHTTP.page([payment("5")], 4, 5, 2)
+                        ])
+    expect(client_with(http).payments.list_history(limit: 50).map(&:uuid)).to eq(%w[1 2 3 4 5])
+    expect(http.calls.drop(1).map { |call| call.json["offset"] }).to eq([2, 4])
+  end
+
+  it "stops once the offset reaches total, whatever has_pages says" do
+    http = FakeHTTP.new([{ status: 200,
+                           body: { "state" => 0,
+                                   "result" => { "items" => [payment("1")],
+                                                 "paginate" => { "total" => 1, "per_page" => 1,
+                                                                 "offset" => 0, "has_pages" => true } } } }])
+    expect(client_with(http).payments.list_history(limit: 1).map(&:uuid)).to eq(%w[1])
     expect(http.calls.size).to eq(1)
   end
 

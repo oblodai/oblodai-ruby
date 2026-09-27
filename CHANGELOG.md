@@ -56,6 +56,10 @@ versions follow [SemVer](https://semver.org/).
   (`BigDecimal("1e200000000")`) is refused before `to_s("F")` expands it into a 200 MB string, and
   the money helpers bound a `BigDecimal`'s rendered length the same way (64 characters).
 
+- Pagination stops only on an empty page or once the offset reaches `paginate.total` (the
+  `has_pages` flag decides only when an answer carries no `total`), the rule every Oblodai SDK now
+  shares; a page shorter than the requested `limit` never ends the walk.
+
 ### Added
 
 - `client.cli_login` — `start`, `poll`, `logout`: the browser login of the `oblodai` CLI (OAuth

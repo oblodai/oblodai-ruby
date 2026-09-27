@@ -47,7 +47,9 @@ module Oblodai
     end
 
     # Every page in turn, one request each; the first page is reused when already fetched.
-    # Iteration stops on the core's own `paginate.has_pages` flag or on an empty page.
+    # Iteration stops on an empty page, or once the offset reaches `paginate.total` (on an answer
+    # without a `total`, when `has_pages` is false) — never merely because a page came back shorter
+    # than the requested limit: the core may cap a page below it.
     #
     # @yieldparam page [Oblodai::PageResult]
     # @return [Enumerator, self]
@@ -60,7 +62,7 @@ module Oblodai
         yield page
         got = page.size
         offset += got
-        break if got.zero? || !page.has_pages?
+        break if got.zero? || exhausted?(page, offset)
 
         page = @fetcher.call(limit: @limit, offset: offset)
       end
@@ -93,6 +95,13 @@ module Oblodai
       end
       out
     end
+
+    # Is `offset` past the last item? `total` decides; without one, `has_pages` does.
+    def exhausted?(page, offset)
+      total = page.paginate["total"]
+      total.is_a?(Integer) ? offset >= total : !page.has_pages?
+    end
+    private :exhausted?
 
     def inspect
       "#<Oblodai::Page limit=#{@limit} offset=#{@offset} fetched=#{!@first_page.nil?}>"
