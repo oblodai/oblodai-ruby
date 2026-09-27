@@ -2562,8 +2562,8 @@ module Oblodai
       ].freeze
       # JSON names of every field this release knows.
       FIELDS = %w[
-        completed_at created_at document_url event_at fee_percent from id is_final mode reason received sent sequence
-        status test to type
+        completed_at created_at document_url event_at event_id fee_percent from id is_final mode reason received sent
+        sequence status test to type
       ].freeze
 
       # @return [String] When completed (ISO 8601).
@@ -2600,13 +2600,20 @@ module Oblodai
       attr_reader :to
       # @return [String] Event kind: payment | payout | wallet | conversion — which body arrived.
       attr_reader :type
+      # @return [String, nil] The id of the object state this body carries — signed, and the key to
+      #   deduplicate on: the same for every retry and every resend (/v1/payment/resend) of the same
+      #   state, different as soon as the state changes (sequence, by contrast, grows on a resend).
+      #   Always equal to the X-Webhook-Event-Id header, which is not signed — prefer this field.
+      #   Always sent by current cores; a delivery from an older core may lack it — then deduplicate
+      #   on type:id:sequence from the body.
+      attr_reader :event_id
       # @return [BigDecimal, nil] How much was credited, in the to currency. Present only for
       #   completed; refunded has no such field.
       attr_reader :received
       # @return [Boolean, nil] Present only on a rehearsal (/v1/test-webhook/*,
       #   /v1/payment/testing-webhook) and always true — inside the signature. A live event never
       #   carries this field: your handler must ignore a body with test: true even if the signature is
-      #   valid.
+      #   valid. This field, not the unsigned X-Webhook-Test header, is what marks a rehearsal.
       attr_reader :test
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -2627,6 +2634,7 @@ module Oblodai
         status:,
         to:,
         type:,
+        event_id: nil,
         received: nil,
         test: nil,
         extra: {}
@@ -2647,6 +2655,7 @@ module Oblodai
         @status = status
         @to = to
         @type = type
+        @event_id = event_id
         @received = received
         @test = test
         @extra = extra
@@ -2674,6 +2683,7 @@ module Oblodai
           status: Generated::Codec.read(data.fetch("status"), :string),
           to: Generated::Codec.read(data.fetch("to"), :string),
           type: Generated::Codec.read(data.fetch("type"), :string),
+          event_id: Generated::Codec.read(data["event_id"], :string),
           received: Generated::Codec.read(data["received"], :decimal),
           test: Generated::Codec.read(data["test"], :boolean),
           extra: Generated::Codec.extra(data, FIELDS)
@@ -2699,6 +2709,7 @@ module Oblodai
         out["status"] = Generated::Codec.dump(@status)
         out["to"] = Generated::Codec.dump(@to)
         out["type"] = Generated::Codec.dump(@type)
+        out["event_id"] = Generated::Codec.dump(@event_id) unless @event_id.nil?
         out["received"] = Generated::Codec.dump(@received) unless @received.nil?
         out["test"] = Generated::Codec.dump(@test) unless @test.nil?
         out
@@ -7358,8 +7369,8 @@ module Oblodai
       ].freeze
       # JSON names of every field this release knows.
       FIELDS = %w[
-        additional_data amount currency event_at is_final network order_id payer_address payer_address_is_refundable
-        payer_amount payer_currency payment_amount sequence status test txid type uuid
+        additional_data amount currency event_at event_id is_final network order_id payer_address
+        payer_address_is_refundable payer_amount payer_currency payment_amount sequence status test txid type uuid
       ].freeze
 
       # @return [String] Your data passed when creating the payment, as is.
@@ -7402,10 +7413,17 @@ module Oblodai
       attr_reader :type
       # @return [String] Payment id.
       attr_reader :uuid
+      # @return [String, nil] The id of the object state this body carries — signed, and the key to
+      #   deduplicate on: the same for every retry and every resend (/v1/payment/resend) of the same
+      #   state, different as soon as the state changes (sequence, by contrast, grows on a resend).
+      #   Always equal to the X-Webhook-Event-Id header, which is not signed — prefer this field.
+      #   Always sent by current cores; a delivery from an older core may lack it — then deduplicate
+      #   on type:id:sequence from the body.
+      attr_reader :event_id
       # @return [Boolean, nil] Present only on a rehearsal (/v1/test-webhook/*,
       #   /v1/payment/testing-webhook) and always true — inside the signature. A live event never
       #   carries this field: your handler must ignore a body with test: true even if the signature is
-      #   valid.
+      #   valid. This field, not the unsigned X-Webhook-Test header, is what marks a rehearsal.
       attr_reader :test
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -7428,6 +7446,7 @@ module Oblodai
         txid:,
         type:,
         uuid:,
+        event_id: nil,
         test: nil,
         extra: {}
       )
@@ -7449,6 +7468,7 @@ module Oblodai
         @txid = txid
         @type = type
         @uuid = uuid
+        @event_id = event_id
         @test = test
         @extra = extra
         freeze
@@ -7477,6 +7497,7 @@ module Oblodai
           txid: Generated::Codec.read(data.fetch("txid"), :string),
           type: Generated::Codec.read(data.fetch("type"), :string),
           uuid: Generated::Codec.read(data.fetch("uuid"), :string),
+          event_id: Generated::Codec.read(data["event_id"], :string),
           test: Generated::Codec.read(data["test"], :boolean),
           extra: Generated::Codec.extra(data, FIELDS)
         )
@@ -7503,6 +7524,7 @@ module Oblodai
         out["txid"] = Generated::Codec.dump(@txid)
         out["type"] = Generated::Codec.dump(@type)
         out["uuid"] = Generated::Codec.dump(@uuid)
+        out["event_id"] = Generated::Codec.dump(@event_id) unless @event_id.nil?
         out["test"] = Generated::Codec.dump(@test) unless @test.nil?
         out
       end
@@ -9860,9 +9882,9 @@ module Oblodai
       ].freeze
       # JSON names of every field this release knows.
       FIELDS = %w[
-        address amount approval_required commission created_at currency document_url event_at fee_bearer is_final
-        is_refund memo network order_id payer_amount payment_order_id refund_for sequence source status test txid type
-        updated_at uuid
+        address amount approval_required commission created_at currency document_url event_at event_id fee_bearer
+        is_final is_refund memo network order_id payer_amount payment_order_id refund_for sequence source status test
+        txid type updated_at uuid
       ].freeze
 
       # @return [String] Recipient address.
@@ -9922,6 +9944,13 @@ module Oblodai
       attr_reader :updated_at
       # @return [String] Payout id.
       attr_reader :uuid
+      # @return [String, nil] The id of the object state this body carries — signed, and the key to
+      #   deduplicate on: the same for every retry and every resend (/v1/payment/resend) of the same
+      #   state, different as soon as the state changes (sequence, by contrast, grows on a resend).
+      #   Always equal to the X-Webhook-Event-Id header, which is not signed — prefer this field.
+      #   Always sent by current cores; a delivery from an older core may lack it — then deduplicate
+      #   on type:id:sequence from the body.
+      attr_reader :event_id
       # @return [String, nil] Your payout number (reference). null for a refund: a refund has no
       #   identifier of yours, see payment_order_id.
       attr_reader :order_id
@@ -9934,7 +9963,7 @@ module Oblodai
       # @return [Boolean, nil] Present only on a rehearsal (/v1/test-webhook/*,
       #   /v1/payment/testing-webhook) and always true — inside the signature. A live event never
       #   carries this field: your handler must ignore a body with test: true even if the signature is
-      #   valid.
+      #   valid. This field, not the unsigned X-Webhook-Test header, is what marks a rehearsal.
       attr_reader :test
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -9961,6 +9990,7 @@ module Oblodai
         type:,
         updated_at:,
         uuid:,
+        event_id: nil,
         order_id: nil,
         payment_order_id: nil,
         refund_for: nil,
@@ -9989,6 +10019,7 @@ module Oblodai
         @type = type
         @updated_at = updated_at
         @uuid = uuid
+        @event_id = event_id
         @order_id = order_id
         @payment_order_id = payment_order_id
         @refund_for = refund_for
@@ -10024,6 +10055,7 @@ module Oblodai
           type: Generated::Codec.read(data.fetch("type"), :string),
           updated_at: Generated::Codec.read(data.fetch("updated_at"), :string),
           uuid: Generated::Codec.read(data.fetch("uuid"), :string),
+          event_id: Generated::Codec.read(data["event_id"], :string),
           order_id: Generated::Codec.read(data["order_id"], :string),
           payment_order_id: Generated::Codec.read(data["payment_order_id"], :string),
           refund_for: Generated::Codec.read(data["refund_for"], :string),
@@ -10057,6 +10089,7 @@ module Oblodai
         out["type"] = Generated::Codec.dump(@type)
         out["updated_at"] = Generated::Codec.dump(@updated_at)
         out["uuid"] = Generated::Codec.dump(@uuid)
+        out["event_id"] = Generated::Codec.dump(@event_id) unless @event_id.nil?
         out["order_id"] = Generated::Codec.dump(@order_id) unless @order_id.nil?
         out["payment_order_id"] = Generated::Codec.dump(@payment_order_id) unless @payment_order_id.nil?
         out["refund_for"] = Generated::Codec.dump(@refund_for) unless @refund_for.nil?
@@ -14599,8 +14632,8 @@ module Oblodai
       ].freeze
       # JSON names of every field this release knows.
       FIELDS = %w[
-        address currency event_at is_final network order_id payer_currency payment_amount sequence status test txid type
-        uuid
+        address currency event_at event_id is_final network order_id payer_currency payment_amount sequence status test
+        txid type uuid
       ].freeze
 
       # @return [String] The wallet address the payment arrived at.
@@ -14630,10 +14663,17 @@ module Oblodai
       attr_reader :type
       # @return [String] Static wallet id.
       attr_reader :uuid
+      # @return [String, nil] The id of the object state this body carries — signed, and the key to
+      #   deduplicate on: the same for every retry and every resend (/v1/payment/resend) of the same
+      #   state, different as soon as the state changes (sequence, by contrast, grows on a resend).
+      #   Always equal to the X-Webhook-Event-Id header, which is not signed — prefer this field.
+      #   Always sent by current cores; a delivery from an older core may lack it — then deduplicate
+      #   on type:id:sequence from the body.
+      attr_reader :event_id
       # @return [Boolean, nil] Present only on a rehearsal (/v1/test-webhook/*,
       #   /v1/payment/testing-webhook) and always true — inside the signature. A live event never
       #   carries this field: your handler must ignore a body with test: true even if the signature is
-      #   valid.
+      #   valid. This field, not the unsigned X-Webhook-Test header, is what marks a rehearsal.
       attr_reader :test
       # @return [Hash{String => Object}] fields this release does not know yet, as sent
       attr_reader :extra
@@ -14652,6 +14692,7 @@ module Oblodai
         txid:,
         type:,
         uuid:,
+        event_id: nil,
         test: nil,
         extra: {}
       )
@@ -14669,6 +14710,7 @@ module Oblodai
         @txid = txid
         @type = type
         @uuid = uuid
+        @event_id = event_id
         @test = test
         @extra = extra
         freeze
@@ -14693,6 +14735,7 @@ module Oblodai
           txid: Generated::Codec.read(data.fetch("txid"), :string),
           type: Generated::Codec.read(data.fetch("type"), :string),
           uuid: Generated::Codec.read(data.fetch("uuid"), :string),
+          event_id: Generated::Codec.read(data["event_id"], :string),
           test: Generated::Codec.read(data["test"], :boolean),
           extra: Generated::Codec.extra(data, FIELDS)
         )
@@ -14715,6 +14758,7 @@ module Oblodai
         out["txid"] = Generated::Codec.dump(@txid)
         out["type"] = Generated::Codec.dump(@type)
         out["uuid"] = Generated::Codec.dump(@uuid)
+        out["event_id"] = Generated::Codec.dump(@event_id) unless @event_id.nil?
         out["test"] = Generated::Codec.dump(@test) unless @test.nil?
         out
       end

@@ -65,6 +65,11 @@ module Oblodai
       WEBHOOK_CANONICAL_ORDER = %w[ts payload].freeze
       WEBHOOK_CANONICAL_SEPARATOR = "."
 
+      # The signed body field carrying the id of the object state (x-oblodai-signing.webhook.event_id_field):
+      # deduplicate on it. Headers are not signed. A delivery from an older core may lack the field; then
+      # deduplicate on type:id:sequence from the body.
+      WEBHOOK_EVENT_ID_FIELD = "event_id"
+
       # --- limits ---
 
       # Accepted clock skew, seconds: the core's window for a signed request and the default window
