@@ -5,7 +5,7 @@
 RSpec.describe "secrets never print" do
   let(:client) do
     Oblodai::Client.new(public_id: "pk_test_1", secret: "super-secret-key",
-                        admin_token: "adm-token", base_url: "https://api.test", http: FakeHTTP.new)
+                        base_url: "https://api.test", http: FakeHTTP.new)
   end
 
   it "keeps the client, its config, its transport and its credentials unreadable" do

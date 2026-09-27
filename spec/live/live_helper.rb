@@ -5,7 +5,7 @@ require "net/http"
 # Shared setup for the live suites: they run against a REAL core at OBLODAI_LIVE_URL
 # (`rake spec:live`, or `OBLODAI_LIVE_URL=http://127.0.0.1:8095 rspec spec/live`). Onboarding is
 # open on a dev stand: `POST /v1/merchants` (outside the merchant API, so called directly) then
-# `sandbox.onboard_store` mints a sandbox key pair, and the money path runs with it — signature,
+# `POST /v1/merchants/{id}/sandbox` mints a sandbox key pair, and the money path runs with it — signature,
 # envelope, idempotency and webhooks all exercised for real.
 module LiveHelper
   BASE = ENV.fetch("OBLODAI_LIVE_URL", "http://127.0.0.1:8095")
@@ -27,12 +27,14 @@ module LiveHelper
     answer = Net::HTTP.post(uri, JSON.generate(email: email, name: "SDK #{label}"),
                             "Content-Type" => "application/json")
     merchant_id = JSON.parse(answer.body).dig("result", "merchant_id")
-    onboarding = Oblodai::Client.new(base_url: BASE, allow_insecure_base_url: true, env: {},
-                                     admin_token: ENV.fetch("OBLODAI_ADMIN_TOKEN", nil))
-    store = onboarding.sandbox.onboard_store(merchant_id)
-    client = Oblodai::Client.new(public_id: store.api_key.public_id, secret: store.api_key.secret,
+    # Onboarding is the operator channel, which the SDK does not implement: a raw call on a dev stand.
+    sandbox = Net::HTTP.post(URI.join(BASE, "/v1/merchants/#{merchant_id}/sandbox"), "{}",
+                             "Content-Type" => "application/json")
+    store = JSON.parse(sandbox.body).fetch("result")
+    client = Oblodai::Client.new(public_id: store.dig("api_key", "public_id"),
+                                 secret: store.dig("api_key", "secret"),
                                  base_url: BASE, allow_insecure_base_url: true, env: {})
-    [client, store.merchant_id]
+    [client, store.fetch("merchant_id")]
   end
 
   # @return [String] a value no earlier run used

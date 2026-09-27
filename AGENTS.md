@@ -19,8 +19,9 @@ the route table are generated from the gateway's OpenAPI contract into `lib/oblo
   `max_retries:`, `extra_headers:`, `request_id:` (sent as `X-Request-ID`). A misspelled keyword is
   Ruby's own `ArgumentError`.
 - One API key. `public_id:`/`secret:` (or `OBLODAI_PUBLIC_ID`/`OBLODAI_SECRET`) sign every signed
-  route. `admin_token:` (or `OBLODAI_ADMIN_TOKEN`) is the gateway operator's token and reaches only
-  the unsigned onboarding route (`sandbox.onboard_store`).
+  route. `sandbox.onboard_store` (auth `:onboard`) is the gateway's operator channel, which the SDK
+  does not implement: it raises `ConfigError` (`sdk.operator_channel_unsupported`) before any request;
+  `admin_token:` is deprecated and ignored (never sent).
 - List methods return a lazy `Oblodai::Page`: `each` walks every item, `each_page`/`by_page` every
   page, `first_page` one page (`items`, `total`, `has_pages?`), `all(max)` collects.
 - Batches (`batches.create_payment/create_payout/create_refund`, `payouts.create_transfer_batch`) and

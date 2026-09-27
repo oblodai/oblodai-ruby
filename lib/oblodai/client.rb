@@ -16,7 +16,8 @@ module Oblodai
   #     invoice.url  # the hosted pay page
   #
   # Credentials fall back to `OBLODAI_PUBLIC_ID` / `OBLODAI_SECRET`, the base URL to
-  # `OBLODAI_BASE_URL`, the admin token to `OBLODAI_ADMIN_TOKEN`.
+  # `OBLODAI_BASE_URL`. `admin_token:` is deprecated and ignored: the SDK never sends one, and operator
+  # (onboarding) routes raise {Oblodai::ConfigError}.
   class Client
     # Resource namespaces: reader name => generated class name.
     RESOURCES = {
@@ -75,7 +76,7 @@ module Oblodai
                base_url: @config.base_url, credentials: @config.credentials, http: @config.http,
                timeout: @config.timeout, deadline: @config.deadline,
                retry_policy: @config.retry_policy, logger: @config.logger,
-               headers: @config.headers, admin_token: @config.admin_token,
+               headers: @config.headers,
                hooks: @config.hooks, user_agent: self.class.user_agent
              ))
     end

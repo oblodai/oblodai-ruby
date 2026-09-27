@@ -170,13 +170,30 @@ RSpec.describe Oblodai::Transport do
       .to raise_error(Oblodai::ConfigError) { |e| expect(e.code).to eq("sdk.missing_credentials") }
   end
 
-  it "sends the admin token on onboarding routes only" do
-    http = FakeHTTP.new([FakeHTTP.ok_for("onboardSandboxStore"), balance])
-    client = client_with(http, admin_token: "adm")
-    client.sandbox.onboard_store("m1")
+  it "never sends the admin token and refuses operator routes before the network" do
+    # The core accepts only its operator HMAC channel on onboarding, which the SDK does not
+    # implement; a raw gateway-wide token must never leave the host with an SDK request.
+    http = FakeHTTP.new([balance, balance])
+    logged = []
+    logger = Object.new
+    logger.define_singleton_method(:warn) { |message, _fields = nil| logged << message }
+    %i[debug info error].each { |level| logger.define_singleton_method(level) { |*| nil } }
+    client = nil
+    Oblodai::Config.admin_token_warned = false
+    expect { client = client_with(http, admin_token: "adm", logger: logger) }
+      .to output(/admin_token is deprecated and ignored/).to_stderr
+    expect { client_with(http, admin_token: "adm") }.not_to output.to_stderr # once per process
+    expect(logged.join).to include("admin_token is deprecated and ignored")
+    expect { client.sandbox.onboard_store("m1") }
+      .to raise_error(Oblodai::ConfigError) { |e|
+            expect(e.code).to eq("sdk.operator_channel_unsupported")
+            expect(e.message).to include("use the dashboard")
+          }
+    expect(http.calls).to be_empty
     client.account.get_balance
-    expect(http.calls[0].headers["x-admin-token"]).to eq("adm")
-    expect(http.calls[0].headers).not_to have_key(SIGNING::HEADER_SIGNATURE.downcase)
+    expect(http.calls[0].headers).not_to have_key("x-admin-token")
+    expect(http.calls[0].headers.values).not_to include("adm")
+    client_with(http, headers: { "X-Admin-Token" => "adm" }).account.get_balance
     expect(http.calls[1].headers).not_to have_key("x-admin-token")
   end
 end

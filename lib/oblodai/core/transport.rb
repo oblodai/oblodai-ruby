@@ -84,11 +84,10 @@ module Oblodai
     # @param clock [Oblodai::Clock]
     # @param logger [#debug]
     # @param headers [Hash] extra headers on every request
-    # @param admin_token [String, nil] sent as X-Admin-Token on `onboard` routes only
     # @param hooks [Oblodai::Hooks, nil] called once per attempt
     def initialize(base_url:, user_agent:, credentials: nil, http: nil, timeout: 30, deadline: 90,
                    retry_policy: RetryPolicy.new, clock: Clock.new, logger: NullLogger.new, headers: {},
-                   admin_token: nil, hooks: nil)
+                   hooks: nil)
       @base_url = base_url
       @user_agent = user_agent
       @credentials = credentials
@@ -101,7 +100,6 @@ module Oblodai
       # before it saw them, so a pino-style sink cannot be the thing that prints a signing secret.
       @logger = Logging.redacting(logger)
       @headers = (headers || {}).dup.freeze
-      @admin_token = admin_token
       @hooks = hooks
     end
 
@@ -118,7 +116,7 @@ module Oblodai
         timeout: timeout || @timeout, deadline: @deadline,
         retry_policy: max_retries.nil? ? @retry : @retry.with(max_retries: max_retries),
         clock: @clock, logger: @logger, headers: @headers.merge(extra_headers || {}),
-        admin_token: @admin_token, hooks: @hooks
+        hooks: @hooks
       )
     end
 
@@ -130,8 +128,7 @@ module Oblodai
     # What this transport is pointed at — never how it proves who it is.
     def inspect
       "#<Oblodai::Transport base_url=#{@base_url.inspect} " \
-        "credentials=#{describe_credentials(@credentials)} " \
-        "admin_token=#{@admin_token ? "[redacted]" : "none"}>"
+        "credentials=#{describe_credentials(@credentials)}>"
     end
     alias to_s inspect
 
@@ -251,10 +248,7 @@ module Oblodai
         base_url: @base_url, route: route, body: call[:payload], ts: timestamp,
         user_agent: @user_agent, path_params: options.path_params, query: options.query,
         credentials: @credentials, idempotency_key: call[:key],
-        extra_headers: call[:headers], request_id: call[:request_id],
-        # Never on a signed merchant route: the admin token provisions merchants, and a gateway
-        # operator's token must not travel on every call a merchant integration makes.
-        admin_token: route.auth == :onboard ? @admin_token : nil
+        extra_headers: call[:headers], request_id: call[:request_id]
       )
     end
 

@@ -52,9 +52,11 @@ Coming from 1.x? Read [MIGRATION-2.0.md](MIGRATION-2.0.md): every old method nam
 A merchant has **one API key**, issued in the [dashboard](https://my.oblodai.com) → **API keys**: a
 public id `oblodai_<hex>` and a secret `oblodai_live_<hex>`. It signs every signed route there is —
 invoices, payouts, refunds, links, splits, wallets, settings, documents, the sandbox. The sandbox
-pair (`test_oblodai_<hex>` / `oblodai_test_<hex>`) drives a chainless copy of the gateway. The
-**onboarding admin token** is a different thing — it belongs to the gateway operator and reaches only
-the unsigned provisioning route (`sandbox.onboard_store`).
+pair (`test_oblodai_<hex>` / `oblodai_test_<hex>`) drives a chainless copy of the gateway. Store
+provisioning (`sandbox.onboard_store`) is the gateway operator's channel, which the SDK does not
+implement: it raises `Oblodai::ConfigError` (`sdk.operator_channel_unsupported`, "operator channel is
+not supported by the SDK; use the dashboard") before any request. `admin_token:` is deprecated and
+ignored (a one-time warning), and `OBLODAI_ADMIN_TOKEN` is not read.
 
 ```ruby
 require "oblodai"
@@ -425,7 +427,7 @@ configured.base_url
 | `public_id:` / `secret:`        | the merchant's API key; it signs every signed route                            |
 | `base_url:`                     | the API origin; a path prefix is kept                                          |
 | `allow_insecure_base_url:`      | permit plain `http://` for a non-loopback host                                 |
-| `admin_token:`                  | onboarding admin token of a self-hosted gateway (provisioning only)            |
+| `admin_token:`                  | deprecated and ignored: the SDK never sends an admin token                     |
 | `http:`                         | your own HTTP adapter: anything answering `call(request, timeout:)`            |
 | `timeout:` / `deadline:`        | seconds per attempt (30) / for the whole call (90)                             |
 | `retry_policy:`                 | retry policy overrides; `{ max_retries: 0 }` disables retries                  |
@@ -437,7 +439,6 @@ configured.base_url
 | -------------------------- | ------------------------------------------------------------------ |
 | `OBLODAI_PUBLIC_ID`        | API key public id                                                  |
 | `OBLODAI_SECRET`           | API key secret                                                     |
-| `OBLODAI_ADMIN_TOKEN`      | onboarding admin token of a self-hosted gateway                    |
 | `OBLODAI_BASE_URL`         | API origin (default `https://api.oblodai.com`)                     |
 | `OBLODAI_LOG`              | `debug` \| `info` \| `warn` \| `error` — enables a stderr logger    |
 | `OBLODAI_ALLOW_INSECURE`   | `1` permits a plain `http://` base URL                             |

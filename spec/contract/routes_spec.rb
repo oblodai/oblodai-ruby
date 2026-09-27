@@ -60,8 +60,14 @@ RSpec.describe "route coverage" do
                  FakeHTTP.ok_for(operation_id)
                end
       http = FakeHTTP.new([answer])
-      client = Oblodai::Client.new(public_id: "pk", secret: "s", admin_token: "adm",
-                                   base_url: "https://api.test", http: http, env: {})
+      client = Oblodai::Client.new(public_id: "pk", secret: "s", base_url: "https://api.test", http: http, env: {})
+      if route.auth == :onboard
+        # The operator channel: refused before anything is sent.
+        expect { Coverage.call(client, operation_id) }
+          .to raise_error(Oblodai::ConfigError) { |e| expect(e.code).to eq("sdk.operator_channel_unsupported") }
+        expect(http.calls).to be_empty
+        next
+      end
       result = Coverage.call(client, operation_id)
       result.first_page if result.is_a?(Oblodai::Page)
 
@@ -71,21 +77,16 @@ RSpec.describe "route coverage" do
       expect(call.path).to match(/\A#{route.path.gsub(/\{[a-z_]+\}/, "[^/]+")}\z/)
       expect(call.body).to be_nil if route.method == "GET"
 
-      # One API key signs every signed route; the admin token appears on the onboarding routes and
-      # nowhere else; a public route carries no credential at all.
-      case route.auth
-      when :public
+      # One API key signs every signed route; the admin token appears nowhere; a public route
+      # carries no credential at all.
+      expect(call.headers).not_to have_key("x-admin-token")
+      if route.auth == :public
         expect(call.headers).not_to have_key(SIGNING::HEADER_SIGNATURE.downcase)
         expect(call.headers).not_to have_key(SIGNING::HEADER_PUBLIC_ID.downcase)
-        expect(call.headers).not_to have_key("x-admin-token")
-      when :onboard
-        expect(call.headers).not_to have_key(SIGNING::HEADER_SIGNATURE.downcase)
-        expect(call.headers["x-admin-token"]).to eq("adm")
       else
         expect(route.auth).to eq(:key)
         expect(call.headers[SIGNING::HEADER_PUBLIC_ID.downcase]).to eq("pk")
         expect(call.headers[SIGNING::HEADER_SIGNATURE.downcase]).to match(/\A[0-9a-f]{64}\z/)
-        expect(call.headers).not_to have_key("x-admin-token")
       end
 
       if route.idempotent

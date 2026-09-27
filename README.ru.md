@@ -54,8 +54,10 @@ Ruby ≥ 3.2. Проверка вебхуков живёт в `oblodai/webhooks`
 публичный id `oblodai_<hex>` и секрет `oblodai_live_<hex>`. Он подписывает все подписываемые
 маршруты — счета, выплаты, возвраты, ссылки, сплиты, кошельки, настройки, документы, песочницу.
 Песочная пара (`test_oblodai_<hex>` / `oblodai_test_<hex>`) управляет копией шлюза без блокчейна.
-**Админ-токен онбординга** — совсем другое: он принадлежит оператору шлюза и открывает только
-неподписываемый маршрут выдачи песочного магазина (`sandbox.onboard_store`).
+Выдача магазина (`sandbox.onboard_store`) идёт по операторскому каналу шлюза, которого в SDK нет:
+метод поднимает `Oblodai::ConfigError` (`sdk.operator_channel_unsupported`, «operator channel is not
+supported by the SDK; use the dashboard») до любого запроса. `admin_token:` устарел и игнорируется
+(с однократным предупреждением), `OBLODAI_ADMIN_TOKEN` не читается.
 
 ```ruby
 require "oblodai"
@@ -425,7 +427,7 @@ configured.base_url
 | `public_id:` / `secret:`        | API-ключ мерчанта; подписывает все подписываемые маршруты                      |
 | `base_url:`                     | адрес API; префикс пути сохраняется                                            |
 | `allow_insecure_base_url:`      | разрешить обычный `http://` для не-loopback хоста                              |
-| `admin_token:`                  | админ-токен онбординга своего шлюза (только выдача магазина)                   |
+| `admin_token:`                  | устарел и игнорируется: SDK никогда не отправляет токен администратора |
 | `http:`                         | свой HTTP-адаптер: всё, что отвечает на `call(request, timeout:)`              |
 | `timeout:` / `deadline:`        | секунды на попытку (30) / на весь вызов (90)                                   |
 | `retry_policy:`                 | переопределения политики повторов; `{ max_retries: 0 }` выключает повторы      |
@@ -437,7 +439,6 @@ configured.base_url
 | -------------------------- | ------------------------------------------------------------------ |
 | `OBLODAI_PUBLIC_ID`        | публичный id API-ключа                                             |
 | `OBLODAI_SECRET`           | секрет API-ключа                                                   |
-| `OBLODAI_ADMIN_TOKEN`      | админ-токен онбординга своего шлюза                                |
 | `OBLODAI_BASE_URL`         | адрес API (по умолчанию `https://api.oblodai.com`)                 |
 | `OBLODAI_LOG`              | `debug` \| `info` \| `warn` \| `error` — включает лог в stderr      |
 | `OBLODAI_ALLOW_INSECURE`   | `1` разрешает обычный `http://`                                    |

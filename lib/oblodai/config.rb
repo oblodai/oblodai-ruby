@@ -31,8 +31,6 @@ module Oblodai
     attr_reader :logger
     # @return [Hash]
     attr_reader :headers
-    # @return [String, nil]
-    attr_reader :admin_token
     # @return [Oblodai::Hooks, nil]
     attr_reader :hooks
 
@@ -48,8 +46,10 @@ module Oblodai
     # @param logger [Object, nil] anything with debug/info/warn/error(message, fields);
     #   `OBLODAI_LOG=debug` enables a stderr logger when omitted
     # @param headers [Hash] extra headers on every request
-    # @param admin_token [String, nil] admin token of a self-hosted gateway; sent as `X-Admin-Token`
-    #   on the two merchant-provisioning routes and nowhere else. env OBLODAI_ADMIN_TOKEN
+    # @param admin_token [String, nil] DEPRECATED and ignored, with a one-time warning: the SDK never
+    #   sends an admin token. The gateway accepts provisioning only over its operator channel, which
+    #   the SDK does not implement (`sandbox.onboard_store` raises {Oblodai::ConfigError}); use the
+    #   dashboard. OBLODAI_ADMIN_TOKEN is not read.
     # @param allow_insecure_base_url [Boolean] permit plain http:// base URLs; env OBLODAI_ALLOW_INSECURE=1
     # @param env [Hash] the environment to read fallbacks from
     # @param hooks [Oblodai::Hooks, nil] called once per attempt: before it is sent and when it ends
@@ -72,7 +72,7 @@ module Oblodai
       @retry_policy = retry_policy.is_a?(RetryPolicy) ? retry_policy : RetryPolicy.new.with(**(retry_policy || {}))
       @logger = logger || logger_from(env)
       @headers = headers || {}
-      @admin_token = admin_token || env["OBLODAI_ADMIN_TOKEN"]
+      warn_admin_token_ignored unless admin_token.nil?
       raise ConfigError.new("sdk.bad_config", "hooks must be an Oblodai::Hooks", "hooks") unless
         hooks.nil? || hooks.is_a?(Hooks)
 
@@ -83,12 +83,30 @@ module Oblodai
     def inspect
       "#<Oblodai::Config base_url=#{@base_url.inspect} " \
         "credentials=#{@credentials ? "#{@credentials.public_id} (secret [redacted])" : "none"} " \
-        "admin_token=#{@admin_token ? "[redacted]" : "none"} " \
         "timeout=#{@timeout} deadline=#{@deadline}>"
     end
     alias to_s inspect
 
+    # Why `admin_token:` does nothing any more.
+    ADMIN_TOKEN_IGNORED = "admin_token is deprecated and ignored: the SDK never sends an admin token, and " \
+                          "operator (onboarding) routes are not supported by the SDK - use the dashboard"
+
+    @admin_token_warned = false
+    class << self
+      # @return [Boolean] whether the one-time `admin_token:` warning was printed in this process
+      attr_accessor :admin_token_warned
+    end
+
     private
+
+    # Once per process on stderr, and once per client to its logger.
+    def warn_admin_token_ignored
+      @logger.warn(ADMIN_TOKEN_IGNORED)
+      return if Config.admin_token_warned
+
+      Config.admin_token_warned = true
+      Kernel.warn("oblodai: #{ADMIN_TOKEN_IGNORED}", uplevel: 3)
+    end
 
     # Half a key pair is always a configuration mistake: the SDK would sign with a secret the
     # gateway cannot match, or send an id it cannot verify. An empty string is not a credential

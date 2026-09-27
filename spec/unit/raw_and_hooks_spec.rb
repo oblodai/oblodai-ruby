@@ -55,7 +55,7 @@ RSpec.describe Oblodai::Hooks do
     hooks = described_class.new(on_request: ->(info) { seen << [:request, info] },
                                 on_response: ->(info) { seen << [:response, info] })
     http = FakeHTTP.new([FakeHTTP.html(503), FakeHTTP.ok_for("getBalance")])
-    client_with(http, hooks: hooks, admin_token: "adm").account.get_balance(request_id: "rq")
+    client_with(http, hooks: hooks).account.get_balance(request_id: "rq")
     expect(seen.map(&:first)).to eq(%i[request response request response])
     first = seen[0][1]
     expect(first.attempt).to eq(1)

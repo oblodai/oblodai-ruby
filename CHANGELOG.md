@@ -22,6 +22,13 @@ versions follow [SemVer](https://semver.org/).
   outcome discards it. Before, one 401 answer could shift every later signature up to a day into
   the future, and the shift stuck after any non-signature answer.
 
+- The SDK never sends a raw admin token (`X-Admin-Token`) any more. The core accepts only its
+  operator HMAC channel on the onboarding routes, which the SDK does not implement:
+  `sandbox.onboard_store` now raises `Oblodai::ConfigError` (`sdk.operator_channel_unsupported`,
+  "operator channel is not supported by the SDK; use the dashboard") before any request. The
+  `admin_token:` option is deprecated and ignored (a one-time warning on stderr, and a warning to
+  the configured logger); `OBLODAI_ADMIN_TOKEN` is no longer read, and `Config#admin_token` is gone.
+
 ### Added
 
 - `client.cli_login` — `start`, `poll`, `logout`: the browser login of the `oblodai` CLI (OAuth

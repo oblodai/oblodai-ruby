@@ -47,7 +47,8 @@ module Oblodai
       end
     end
 
-    # Sent on `onboard` routes only; the transport decides when to supply it.
+    # The gateway operator's header. The SDK never sends it (it stays reserved, so a caller header of
+    # that name is dropped too).
     HEADER_ADMIN_TOKEN = "X-Admin-Token"
     # The call's own id, the same on every attempt: `request_id:`, else a caller header, else a UUID.
     HEADER_REQUEST_ID = "X-Request-ID"
@@ -77,8 +78,16 @@ module Oblodai
     # @param request_id [String, nil] sent as `X-Request-ID`
     # @return [Oblodai::RequestBuilder::Built]
     def build(base_url:, route:, body:, ts:, user_agent:, path_params: nil, query: nil,
-              credentials: nil, idempotency_key: nil, extra_headers: nil, admin_token: nil,
-              request_id: nil)
+              credentials: nil, idempotency_key: nil, extra_headers: nil, request_id: nil)
+      if route.auth == :onboard
+        # The core gates onboarding with its operator HMAC channel only; the SDK does not implement
+        # it and never sends a raw gateway-wide admin token.
+        raise ConfigError.new(
+          "sdk.operator_channel_unsupported",
+          "#{route.method} #{route.path}: operator channel is not supported by the SDK; use the dashboard"
+        )
+      end
+
       path = join_path(base_url, fill_path(route.path, path_params))
       request_uri = path + query_string(query)
 
@@ -97,10 +106,6 @@ module Oblodai
       if request_id
         assert_header_value!(HEADER_REQUEST_ID, request_id)
         headers[HEADER_REQUEST_ID] = request_id
-      end
-      if admin_token
-        assert_header_value!(HEADER_ADMIN_TOKEN, admin_token)
-        headers[HEADER_ADMIN_TOKEN] = admin_token.to_s
       end
 
       unless route.unsigned?
